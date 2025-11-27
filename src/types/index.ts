@@ -17,19 +17,20 @@ export interface SDKConfig {
 
 export interface DeploySafeResponse {
   success: boolean;
-  safeAddress: string;
+  safeAddress: Address;
   txHash: string;
   status: "deployed" | "failed";
 }
 
 export interface SessionKeyResponse {
   success: boolean;
-  sessionKeyAddress: string;
-  signature: string;
+  sessionKeyAddress: Address;
+  signature: Hex;
+  sessionNonces?: bigint[];
 }
 
 export interface SmartWalletResponse {
-  address: string;
+  address: Address;
   isDeployed: boolean;
 }
 

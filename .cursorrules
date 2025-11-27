@@ -1,0 +1,248 @@
+# ZyFAI SDK - Cursor Rules
+
+## Project Overview
+
+TypeScript SDK for ZyFAI Yield Optimization Engine with Safe smart wallet deployment and DeFi yield management.
+
+## Code Style and Structure
+
+### TypeScript Best Practices
+
+- Write concise, technical TypeScript code with accurate examples
+- Use functional and declarative programming patterns; avoid classes except for the main SDK class
+- Favor iteration and modularization over code duplication
+- Use descriptive variable names with auxiliary verbs (e.g., `isLoading`, `hasError`)
+- Use double quotes for strings, not single quotes
+- Structure files: exported functions, helpers, types
+
+### Naming Conventions
+
+- Files: lowercase with dashes (e.g., `safe-account.ts`, `http-client.ts`)
+- Functions: camelCase (e.g., `deploySafe`, `getSmartWalletAddress`)
+- Types/Interfaces: PascalCase (e.g., `DeploySafeResponse`, `SDKConfig`)
+- Constants: SCREAMING_SNAKE_CASE (e.g., `SAFE_7579_ADDRESS`, `DEFAULT_RPC_URLS`)
+
+### Error Handling
+
+- Prioritize error handling and edge cases
+- Use early returns for error conditions
+- Implement guard clauses to handle preconditions and invalid states early
+- Provide clear, actionable error messages
+- Never swallow errors silently
+
+### Architecture Principles
+
+#### SDK Design Pattern
+
+The SDK follows a **parameter-based, explicit design**:
+
+```typescript
+// ✅ CORRECT: Explicit parameters
+await sdk.deploySafe(userAddress, chainId);
+await sdk.getSmartWalletAddress(userAddress, chainId);
+await sdk.createSessionKey(userAddress, chainId);
+
+// ❌ WRONG: Implicit connected wallet
+await sdk.deploySafe(chainId); // Don't assume userAddress from connected wallet
+```
+
+**Key Principles:**
+
+1. **Separation of Concerns**: SDK initialization, wallet setup, and function calls are separate
+2. **Explicit Parameters**: All methods take explicit `userAddress` and `chainId` parameters
+3. **Wallet as Signer**: The connected wallet/private key is ONLY used for signing, not for determining which user's data to fetch
+4. **Stateless Methods**: Methods should not rely on internal state (except for signer/wallet)
+
+#### Correct Usage Pattern
+
+```typescript
+// Step 1: Initialize SDK
+const sdk = new ZyfaiSDK("API_KEY");
+
+// Step 2: Connect account (for signing transactions)
+// Option A: With private key (chainId required)
+await sdk.connectAccount("0x...", 42161);
+// Option B: With wallet provider (chainId optional - auto-detects)
+await sdk.connectAccount(walletProvider);
+
+// Step 3: Call methods with EXPLICIT parameters
+await sdk.deploySafe("0xUserAddress", chainId);
+const wallet = await sdk.getSmartWalletAddress("0xUserAddress", chainId);
+const positions = await sdk.getPositions("0xUserAddress");
+```
+
+### Supported Chains
+
+Only support these chains:
+
+- **Arbitrum** (42161)
+- **Base** (8453)
+- **Plasma** (9745)
+
+Default chain: **Arbitrum (42161)**
+
+### Dependencies
+
+- `viem` (v2.37.8+): For Ethereum interactions
+- `permissionless` (v0.2.38+): For ERC-4337 account abstraction
+- `@rhinestone/module-sdk` (v0.2.10+): For Safe smart account modules
+- `axios`: For HTTP client
+
+### Function Signatures
+
+All SDK methods must follow these signatures:
+
+```typescript
+// Safe Wallet Management
+deploySafe(userAddress: string, chainId: number): Promise<DeploySafeResponse>
+getSmartWalletAddress(userAddress: string, chainId: number): Promise<SmartWalletResponse>
+createSessionKey(userAddress: string, chainId?: number, sessions?: Session[]): Promise<SessionKeyResponse>
+
+// Fund Management
+depositFunds(userAddress: string, chainId: number, tokenAddress: string, amount: string): Promise<DepositResponse>
+withdrawFunds(userAddress: string, chainId: number, amount?: string, receiver?: string): Promise<WithdrawResponse>
+
+// Data Retrieval
+getAvailableProtocols(chainId: number): Promise<ProtocolsResponse>
+getPositions(userAddress: string, chainId?: number): Promise<PositionsResponse>
+getEarnings(userAddress: string, chainId?: number): Promise<EarningsResponse>
+```
+
+### Type Definitions
+
+```typescript
+// Always use viem's Address and Hex types
+import type { Address, Hex } from "viem";
+
+// Response types must include success field
+interface BaseResponse {
+  success: boolean;
+}
+
+// Chain IDs are explicit union type
+type SupportedChainId = 8453 | 42161 | 9745;
+```
+
+### Documentation
+
+- Use JSDoc comments for all public methods
+- Include parameter descriptions
+- Provide usage examples in comments
+- Document error cases and edge cases
+
+### Testing
+
+- Write unit tests for all public methods
+- Test error cases and edge cases
+- Mock external dependencies (API calls, blockchain interactions)
+- Use descriptive test names
+
+### Security
+
+- Never log or expose private keys
+- Validate all user inputs
+- Use type guards for external data
+- Sanitize error messages (don't expose internal details)
+
+## File Organization
+
+```
+src/
+├── core/           # Main SDK class
+├── utils/          # Utility functions (safe-account, http-client)
+├── config/         # Configuration (chains, endpoints)
+├── types/          # TypeScript type definitions
+└── index.ts        # Public API exports
+```
+
+## Common Patterns
+
+### Error Handling Pattern
+
+```typescript
+try {
+  // Validate inputs first
+  if (!userAddress || !chainId) {
+    throw new Error("Missing required parameters");
+  }
+
+  // Execute logic
+  const result = await someOperation();
+
+  return {
+    success: true,
+    ...result,
+  };
+} catch (error) {
+  throw new Error(`Operation failed: ${(error as Error).message}`);
+}
+```
+
+### Guard Clauses Pattern
+
+```typescript
+async function deploySafe(userAddress: string, chainId: number) {
+  // Guard clauses at the top
+  if (!userAddress) {
+    throw new Error("User address is required");
+  }
+
+  if (!isSupportedChain(chainId)) {
+    throw new Error(`Unsupported chain ID: ${chainId}`);
+  }
+
+  // Main logic follows
+  // ...
+}
+```
+
+### Type Safety Pattern
+
+```typescript
+// Always validate and type external data
+function validateAddress(address: unknown): Address {
+  if (typeof address !== "string" || !address.startsWith("0x")) {
+    throw new Error("Invalid address format");
+  }
+  return address as Address;
+}
+```
+
+## Git Commit Messages
+
+- Use conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`
+- Keep first line under 72 characters
+- Provide context in commit body when needed
+
+## Environment Variables
+
+Required for testing/examples:
+
+- `ZYFAI_API_KEY`: ZyFAI API key
+- `PRIVATE_KEY`: Private key for testing (never commit!)
+
+## Documentation Policy
+
+**IMPORTANT:** Only update these two files for documentation:
+
+1. **README.md** - Main user-facing documentation
+2. **SDK_DOCUMENTATION_SUMMARY.md** - Reference documentation for Cursor
+
+**DO NOT create additional documentation files** such as:
+
+- ❌ ARCHITECTURE.md, INTEGRATION_GUIDE.md, IMPLEMENTATION_SUMMARY.md
+- ❌ CHANGELOG.md, MIGRATION_GUIDE.md, or any other .md files
+- ❌ Separate guide files for features
+
+Keep documentation minimal and consolidated. Changes should be reflected in the README and SDK_DOCUMENTATION_SUMMARY only.
+
+## Code Review Checklist
+
+- [ ] All methods take explicit `userAddress` and `chainId` parameters
+- [ ] No implicit use of connected wallet for determining user
+- [ ] Proper error handling with guard clauses
+- [ ] TypeScript types are specific (no `any` unless absolutely necessary)
+- [ ] JSDoc comments for public methods
+- [ ] Tests cover happy path and error cases
+- [ ] No sensitive data in logs or error messages
+- [ ] Documentation updated ONLY in README.md and SDK_DOCUMENTATION_SUMMARY.md

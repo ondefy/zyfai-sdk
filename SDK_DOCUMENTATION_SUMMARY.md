@@ -16,18 +16,27 @@
 
 ```typescript
 // 1. Initialize SDK with API key (once)
-const sdk = new ZyfaiSDK('YOUR_API_KEY');
+const sdk = new ZyfaiSDK("YOUR_API_KEY");
 
-// 2. Set up wallet/signer (separate step)
-sdk.setPrivateKey('0x...');
-// OR
-await sdk.connectBrowserWallet(); // Could be any common browser wallets, such as Metamask or Rabby, etc
+// 2. Connect account (separate step)
+// Option A: With private key (chainId required)
+await sdk.connectAccount("0x...", 42161);
 
-// 3. Call functions with explicit parameters | The web3 provider or the private key if set in the previous step would be able to execute the necessary signing required
-await sdk.deploySafe('0xUserAddress', chainId);
-await sdk.createSessionKey('0xUserAddress', chainId);
-const earnings = await sdk.getEarnings('0xUserAddress');
+// Option B: With wallet provider (chainId optional - auto-detects from provider)
+await sdk.connectAccount(walletProvider); // SDK detects chain from provider
+
+// 3. Call functions with explicit parameters
+// The connected account is used only for signing, not for determining which user's data to fetch
+await sdk.deploySafe("0xUserAddress", chainId);
+await sdk.createSessionKey("0xUserAddress", chainId);
+const earnings = await sdk.getEarnings("0xUserAddress");
 ```
+
+**Important:**
+
+- The SDK does not connect to wallets directly. The client handles wallet connection on their frontend and passes the provider.
+- For wallet providers, `chainId` is optional - the SDK automatically detects the chain from the provider.
+- For private keys, `chainId` must be specified (defaults to Arbitrum 42161).
 
 ---
 
@@ -60,7 +69,7 @@ interface DeploySafeResponse {
   success: boolean;
   safeAddress: string;
   txHash: string;
-  status: 'deployed' | 'failed';
+  status: "deployed" | "failed";
 }
 ```
 
@@ -172,6 +181,8 @@ interface SmartWalletResponse {
 }
 ```
 
+**Note:** Supported chains are Arbitrum (42161), Base (8453), and Plasma (9745).
+
 #### Example Response
 
 ```json
@@ -215,8 +226,7 @@ interface DepositResponse {
   txHash: string;
   smartWallet: string;
   amount: string;
-  status: 'pending' | 'confirmed';
-  failed;
+  status: "pending" | "confirmed" | "failed";
 }
 ```
 
@@ -375,10 +385,10 @@ withdrawFunds(
 interface WithdrawResponse {
   success: boolean;
   txHash: string;
-  type: 'full' | 'partial';
+  type: "full" | "partial";
   amount: string;
   receiver: string;
-  status: 'pending' | 'confirmed' | 'failed';
+  status: "pending" | "confirmed" | "failed";
 }
 ```
 
@@ -386,17 +396,32 @@ interface WithdrawResponse {
 
 ## 🎯 Integration Examples
 
+### Example 1: Simple Usage with Private Key
+
 ```typescript
 const sdk = new ZyfaiSDK(API_KEY);
-sdk.setPrivateKey(PRIVATE_KEY);
+await sdk.connectAccount(PRIVATE_KEY);
 
-const userAddress = '0xUser...';
+const userAddress = "0xUser...";
 await sdk.deploySafe(userAddress, 8453);
 const wallet = await sdk.getSmartWalletAddress(userAddress, 8453);
-console.log('Deposit to:', wallet.address);
+console.log("Deposit to:", wallet.address);
 ```
 
-OR
+### Example 2: With Wallet Provider (Client Integration)
+
+```typescript
+// Client handles wallet connection on their frontend
+const provider = await connector.getProvider(); // from wagmi, web3-react, etc.
+
+const sdk = new ZyfaiSDK(API_KEY);
+await sdk.connectAccount(provider, 42161);
+
+const userAddress = "0xUser...";
+await sdk.deploySafe(userAddress, 42161);
+```
+
+### Example 3: Service Pattern
 
 ```typescript
 class YieldService {
@@ -406,8 +431,8 @@ class YieldService {
     this.sdk = new ZyfaiSDK(apiKey);
   }
 
-  async setupWallet(privateKey: string) {
-    this.sdk.setPrivateKey(privateKey);
+  async connectAccount(account: string | any, chainId: number = 42161) {
+    await this.sdk.connectAccount(account, chainId);
   }
 
   async onboardUser(userAddress: string, chainId: number) {
@@ -417,7 +442,10 @@ class YieldService {
   }
 
   async getUserStats(userAddress: string) {
-    const [positions, earnings] = await Promise.all([this.sdk.getPositions(userAddress), this.sdk.getEarnings(userAddress)]);
+    const [positions, earnings] = await Promise.all([
+      this.sdk.getPositions(userAddress),
+      this.sdk.getEarnings(userAddress),
+    ]);
     return { positions, earnings };
   }
 }
