@@ -22,40 +22,40 @@ async function main() {
 
   if (!apiKey) {
     throw new Error(
-      "❌ ZYFAI_API_KEY environment variable is required. Please add it to your .env file."
+      "ZYFAI_API_KEY environment variable is required. Please add it to your .env file."
     );
   }
 
   if (!bundlerApiKey) {
     throw new Error(
-      "❌ BUNDLER_API_KEY environment variable is required. Please add it to your .env file."
+      "BUNDLER_API_KEY environment variable is required. Please add it to your .env file."
     );
   }
 
   if (!privateKey) {
     throw new Error(
-      "❌ PRIVATE_KEY environment variable is required. Please add it to your .env file."
+      "PRIVATE_KEY environment variable is required. Please add it to your .env file."
     );
   }
 
-  console.log("🚀 Starting ZyFAI SDK example...\n");
+  console.log("Starting ZyFAI SDK example...\n");
 
   // Step 1: Initialize SDK
-  console.log("1️⃣  Initializing SDK...");
+  console.log("Step 1: Initializing SDK...");
   const sdk = new ZyfaiSDK({
     apiKey,
     environment: "staging",
     bundlerApiKey,
   });
-  console.log("✅ SDK initialized\n");
+  console.log("SDK initialized\n");
 
   // Step 2: Connect account
-  console.log("2️⃣  Connecting account...");
+  console.log("Step 2: Connecting account...");
   const connectedAddress = await sdk.connectAccount(
     privateKey,
     8453 as SupportedChainId
   );
-  console.log(`✅ Connected: ${connectedAddress}\n`);
+  console.log(`Connected: ${connectedAddress}\n`);
 
   // Use the connected address as the user address
   const userAddress = connectedAddress;
@@ -63,27 +63,27 @@ async function main() {
 
   try {
     // Step 3: Get smart wallet address
-    console.log("3️⃣  Getting smart wallet address...");
+    console.log("Step 3: Getting smart wallet address...");
     const walletInfo = await sdk.getSmartWalletAddress(userAddress, chainId);
-    console.log(`📍 Smart Wallet: ${walletInfo.address}`);
-    console.log(`📊 Deployed: ${walletInfo.isDeployed}\n`);
+    console.log(`Smart Wallet: ${walletInfo.address}`);
+    console.log(`Deployed: ${walletInfo.isDeployed}\n`);
 
     // Step 4: Deploy Safe if not deployed
     if (!walletInfo.isDeployed) {
-      console.log("4️⃣  Deploying Safe Smart Wallet...");
+      console.log("Step 4: Deploying Safe Smart Wallet...");
       const result = await sdk.deploySafe(userAddress, chainId);
 
-      console.log("✅ Safe deployed successfully!");
-      console.log(`📍 Safe Address: ${result.safeAddress}`);
-      console.log(`🔗 Transaction Hash: ${result.txHash}`);
-      console.log(`📊 Status: ${result.status}\n`);
+      console.log("Safe deployed successfully!");
+      console.log(`Safe Address: ${result.safeAddress}`);
+      console.log(`Transaction Hash: ${result.txHash}`);
+      console.log(`Status: ${result.status}\n`);
     } else {
-      console.log("4️⃣  Safe is already deployed! ✅\n");
+      console.log("Step 4: Safe is already deployed!\n");
     }
 
-    console.log("🎉 Example completed successfully!");
+    console.log("Example completed successfully!");
   } catch (error) {
-    console.error("\n❌ Error:", (error as Error).message);
+    console.error("\nError:", (error as Error).message);
     process.exit(1);
   }
 }
@@ -93,6 +93,6 @@ main()
     process.exit(0);
   })
   .catch((error) => {
-    console.error("\n💥 Unexpected error:", error);
+    console.error("\nUnexpected error:", error);
     process.exit(1);
   });

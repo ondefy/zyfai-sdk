@@ -10,6 +10,8 @@ import type {
   Address,
   SmartWalletResponse,
   Hex,
+  Session,
+  SessionKeyResponse,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -30,6 +32,7 @@ import {
   getDeterministicSafeAddress,
   getAccountType,
   isSafeDeployed,
+  signSessionKey,
 } from "../utils/safe-account";
 
 export class ZyfaiSDK {
@@ -284,6 +287,110 @@ export class ZyfaiSDK {
     } catch (error) {
       console.error("Safe deployment failed:", error);
       throw new Error(`Safe deployment failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Create session key for delegated transactions
+   * This allows a session key to execute transactions on behalf of the Safe
+   *
+   * @param userAddress - User's EOA or Safe address
+   * @param chainId - Target chain ID
+   * @param sessions - Session configurations (permissions, targets, policies)
+   * @returns Session key response with signature and nonces
+   *
+   * @example
+   * ```typescript
+   * import { type Session } from "@zyfai/sdk";
+   *
+   * // Define session permissions
+   * const sessions: Session[] = [{
+   *   sessionValidator: "0x...", // Session key validator address
+   *   sessionValidatorInitData: "0x...",
+   *   salt: "0x...",
+   *   userOpPolicies: [],
+   *   erc7739Policies: {
+   *     allowedERC7739Content: [],
+   *     erc1271Policies: []
+   *   },
+   *   actions: [{
+   *     actionTarget: "0xTokenAddress",
+   *     actionTargetSelector: "0xa9059cbb", // transfer(address,uint256)
+   *     actionPolicies: []
+   *   }],
+   *   permitERC4337Paymaster: true,
+   *   chainId: BigInt(8453)
+   * }];
+   *
+   * const result = await sdk.createSessionKey(userAddress, 8453, sessions);
+   * ```
+   */
+  async createSessionKey(
+    userAddress: string,
+    chainId: SupportedChainId,
+    sessions: Session[]
+  ): Promise<SessionKeyResponse> {
+    try {
+      // Validate inputs
+      if (!userAddress) {
+        throw new Error("User address is required");
+      }
+
+      if (!isSupportedChain(chainId)) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+      }
+
+      if (!sessions || sessions.length === 0) {
+        throw new Error("At least one session configuration is required");
+      }
+
+      const walletClient = this.getWalletClient();
+      const chainConfig = getChainConfig(chainId, undefined);
+
+      // Check if the user address is a Safe
+      const accountType = await getAccountType(
+        userAddress as Address,
+        chainConfig.publicClient
+      );
+
+      if (accountType !== "Safe" && accountType !== "EOA") {
+        throw new Error(
+          `Invalid account type for ${userAddress}. Must be a Safe or EOA.`
+        );
+      }
+
+      // Sign the session key
+      const { signature, sessionNonces } = await signSessionKey(
+        {
+          owner: walletClient,
+          safeOwnerAddress: userAddress as Address,
+          chain: chainConfig.chain,
+          publicClient: chainConfig.publicClient,
+        },
+        sessions
+      );
+
+      // Get the Safe address
+      const safeAddress =
+        accountType === "Safe"
+          ? (userAddress as Address)
+          : await getDeterministicSafeAddress({
+              owner: walletClient,
+              safeOwnerAddress: userAddress as Address,
+              chain: chainConfig.chain,
+              publicClient: chainConfig.publicClient,
+            });
+
+      return {
+        success: true,
+        sessionKeyAddress: safeAddress,
+        signature,
+        sessionNonces,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to create session key: ${(error as Error).message}`
+      );
     }
   }
 }

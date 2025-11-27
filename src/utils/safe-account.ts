@@ -6,6 +6,11 @@
 import {
   RHINESTONE_ATTESTER_ADDRESS,
   getOwnableValidator,
+  getAccount,
+  getEnableSessionDetails,
+  getPermissionId,
+  getSessionNonce,
+  type Session,
 } from "@rhinestone/module-sdk";
 import { createSmartAccountClient } from "permissionless";
 import { getAccountNonce } from "permissionless/actions";
@@ -361,4 +366,63 @@ export const executeTransactions = async (
     console.error("Transaction failed:", error);
     throw new Error("Failed to execute transaction");
   }
+};
+
+/**
+ * Sign session key for delegated transactions
+ * Creates a signature that allows the session key to execute transactions on behalf of the Safe
+ */
+export const signSessionKey = async (
+  config: SafeAccountConfig,
+  sessions: Session[]
+): Promise<{ signature: Hex; sessionNonces: bigint[] }> => {
+  const { owner, publicClient, chain } = config;
+
+  if (!owner || !owner.account) {
+    throw new Error("Wallet not connected. Please connect your wallet first.");
+  }
+
+  // Get the Safe account
+  const safeAccount = await getSafeAccount(config);
+
+  // Create account object for Rhinestone
+  const account = getAccount({
+    address: safeAccount.address,
+    type: "safe",
+  });
+
+  // Get session nonces for each session
+  const sessionNonces = await Promise.all(
+    sessions.map((session) =>
+      getSessionNonce({
+        client: publicClient,
+        account,
+        permissionId: getPermissionId({
+          session,
+        }),
+      })
+    )
+  );
+
+  // Get session details to sign
+  const sessionDetails = await getEnableSessionDetails({
+    sessions,
+    account,
+    clients: [publicClient],
+    permitGenericPolicy: true,
+    sessionNonces,
+  });
+
+  // Sign the permission enable hash with the owner
+  const signature = await owner.signMessage({
+    account: owner.account,
+    message: {
+      raw: sessionDetails.permissionEnableHash,
+    },
+  });
+
+  return {
+    signature,
+    sessionNonces,
+  };
 };

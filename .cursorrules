@@ -14,6 +14,7 @@ TypeScript SDK for ZyFAI Yield Optimization Engine with Safe smart wallet deploy
 - Use descriptive variable names with auxiliary verbs (e.g., `isLoading`, `hasError`)
 - Use double quotes for strings, not single quotes
 - Structure files: exported functions, helpers, types
+- **NEVER use emojis in code, logs, comments, error messages, or any output**
 
 ### Naming Conventions
 
