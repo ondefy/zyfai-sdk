@@ -202,8 +202,10 @@ export class ZyfaiSDK {
     }
 
     // For EOA, get the deterministic Safe address
+    // Note: Safe will be owned by userAddress, not the connected wallet
     const safeAddress = await getDeterministicSafeAddress({
       owner: walletClient,
+      safeOwnerAddress: userAddress as Address,
       chain: chainConfig.chain,
       publicClient: chainConfig.publicClient,
     });
@@ -261,22 +263,13 @@ export class ZyfaiSDK {
         );
       }
 
-      // Verify that the connected wallet matches the userAddress
-      if (
-        walletClient.account?.address.toLowerCase() !==
-        userAddress.toLowerCase()
-      ) {
-        throw new Error(
-          `Connected wallet address does not match the provided userAddress. Connected: ${walletClient.account?.address}, Provided: ${userAddress}`
-        );
-      }
-
       // Get bundler URL
       const bundlerUrl = getBundlerUrl(chainId, this.bundlerApiKey);
 
       // Deploy the Safe account
       const deploymentResult = await deploySafeAccount({
         owner: walletClient,
+        safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
         bundlerUrl,

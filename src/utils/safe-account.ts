@@ -32,7 +32,8 @@ import {
 } from "viem/account-abstraction";
 
 export interface SafeAccountConfig {
-  owner: WalletClient;
+  owner: WalletClient; // The wallet that signs for transactions
+  safeOwnerAddress?: Address; // Optional: The address that will own the Safe (if different from owner)
   chain: Chain;
   publicClient: PublicClient;
   bundlerUrl?: string;
@@ -51,25 +52,56 @@ const ERC7579_LAUNCHPAD_ADDRESS = "0x7579011aB74c46090561ea277Ba79D510c6C00ff";
 const DEFAULT_ACCOUNT_SALT = "zyfai-staging";
 
 /**
+ * Convert string salt to hex bytes32
+ */
+const saltToHex = (salt: string): Hex => {
+  // If already hex, return as-is
+  if (salt.startsWith("0x")) {
+    return salt as Hex;
+  }
+
+  // Convert string to hex bytes32
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(salt);
+  const hex = Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  // Pad to 32 bytes (64 hex chars)
+  return `0x${hex.padEnd(64, "0")}` as Hex;
+};
+
+/**
  * Gets the Safe smart account configuration
  */
 export const getSafeAccount = async (
   config: SafeAccountConfig
 ): Promise<SmartAccount> => {
-  const { owner, publicClient, accountSalt = DEFAULT_ACCOUNT_SALT } = config;
+  const {
+    owner,
+    safeOwnerAddress,
+    publicClient,
+    accountSalt = DEFAULT_ACCOUNT_SALT,
+  } = config;
 
   if (!owner || !owner.account) {
     throw new Error("Wallet not connected. Please connect your wallet first.");
   }
 
+  // Use safeOwnerAddress if provided, otherwise use the connected wallet
+  const actualOwnerAddress = safeOwnerAddress || owner.account.address;
+
   const ownableValidator = getOwnableValidator({
-    owners: [owner.account.address],
+    owners: [actualOwnerAddress],
     threshold: 1,
   });
 
+  // Convert string salt to hex if needed
+  const saltHex = saltToHex(accountSalt);
+
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
-    owners: [owner],
+    owners: [owner.account], // Use connected wallet for signing
     version: "1.4.1",
     entryPoint: {
       address: entryPoint07Address,
@@ -85,7 +117,7 @@ export const getSafeAccount = async (
         context: ownableValidator.initData,
       },
     ],
-    saltNonce: fromHex(toHex(accountSalt), "bigint"),
+    saltNonce: fromHex(saltHex, "bigint"),
   });
 
   return safeAccount;
