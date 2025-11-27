@@ -2,7 +2,7 @@
  * Basic Usage Example
  */
 
-import { ZyfaiSDK } from "../src";
+import { SupportedChainId, ZyfaiSDK } from "../src";
 
 async function main() {
   // Initialize SDK
@@ -15,7 +15,7 @@ async function main() {
   sdk.connectAccount("0xYourPrivateKey");
 
   const userAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb";
-  const chainId = 8453 as SupportedChainId; // Base
+  const chainId = 8453 as SupportedChainId; // Base mainnet
 
   try {
     // Deploy Safe Smart Wallet

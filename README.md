@@ -248,7 +248,6 @@ function SafeDeployment() {
       new ZyfaiSDK({
         apiKey: process.env.ZYFAI_API_KEY!,
         bundlerApiKey: process.env.BUNDLER_API_KEY!,
-        apiKey: process.env.REACT_APP_ZYFAI_API_KEY!,
       })
   );
 
