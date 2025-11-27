@@ -23,6 +23,8 @@ pnpm add @zyfai/sdk viem
 ## Prerequisites
 
 1. **ZyFAI API Key**: Get your API key from [ZyFAI Dashboard](https://app.zyf.ai)
+2. **Bundler API Key**: Required for Safe deployment. Get it from:
+   - [Pimlico](https://www.pimlico.io/) (Recommended)
 
 ## Quick Start
 
@@ -33,9 +35,12 @@ import { ZyfaiSDK } from "@zyfai/sdk";
 
 const sdk = new ZyfaiSDK({
   apiKey: "your-zyfai-api-key",
+  bundlerApiKey: "your-bundler-api-key", // Required for Safe deployment
   environment: "production", // or 'staging'
 });
 ```
+
+**Note**: The SDK uses Pimlico as the default bundler provider. To use a custom bundler, you can extend the SDK configuration.
 
 ### Connect Account
 
@@ -202,6 +207,7 @@ import { ZyfaiSDK } from "@zyfai/sdk";
 async function main() {
   const sdk = new ZyfaiSDK({
     apiKey: process.env.ZYFAI_API_KEY!,
+    bundlerApiKey: process.env.BUNDLER_API_KEY!,
   });
 
   // Connect account (for signing)
@@ -240,6 +246,8 @@ function SafeDeployment() {
   const [sdk] = useState(
     () =>
       new ZyfaiSDK({
+        apiKey: process.env.ZYFAI_API_KEY!,
+        bundlerApiKey: process.env.BUNDLER_API_KEY!,
         apiKey: process.env.REACT_APP_ZYFAI_API_KEY!,
       })
   );

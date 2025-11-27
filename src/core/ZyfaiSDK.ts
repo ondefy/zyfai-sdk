@@ -2,165 +2,295 @@
  * ZyFAI SDK Main Class
  */
 
-import { HttpClient } from '../utils/http-client';
-import { ENDPOINTS } from '../config/endpoints';
+import { HttpClient } from "../utils/http-client";
+import { ENDPOINTS } from "../config/endpoints";
 import type {
   SDKConfig,
   DeploySafeResponse,
   Address,
-} from '../types';
-import { Account, PrivateKeyAccount, privateKeyToAccount } from 'viem/accounts';
-import { createWalletClient, custom, http } from 'viem';
-import { mainnet } from 'viem/chains';
+  SmartWalletResponse,
+  Hex,
+} from "../types";
+import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
+import {
+  createWalletClient,
+  custom,
+  http,
+  type WalletClient,
+  type PublicClient,
+} from "viem";
+import {
+  getChainConfig,
+  getBundlerUrl,
+  isSupportedChain,
+  type SupportedChainId,
+} from "../config/chains";
+import {
+  deploySafeAccount,
+  getDeterministicSafeAddress,
+  getAccountType,
+  isSafeDeployed,
+} from "../utils/safe-account";
 
 export class ZyfaiSDK {
   private httpClient: HttpClient;
   private signer: PrivateKeyAccount | null = null;
-  private browserWallet: any = null;
+  private walletClient: WalletClient | null = null;
+  private bundlerApiKey?: string;
 
   constructor(config: SDKConfig | string) {
     // Support both object and string initialization
-    const sdkConfig: SDKConfig = typeof config === 'string'
-      ? { apiKey: config }
-      : config;
+    const sdkConfig: SDKConfig =
+      typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, environment = 'production', baseURL } = sdkConfig;
+    const {
+      apiKey,
+      environment = "production",
+      baseURL,
+      bundlerApiKey,
+    } = sdkConfig;
 
     if (!apiKey) {
-      throw new Error('API key is required');
+      throw new Error("API key is required");
     }
 
     this.httpClient = new HttpClient(apiKey, environment, baseURL);
+    this.bundlerApiKey = bundlerApiKey;
   }
 
   /**
-   * Set up wallet with private key
+   * Connect account for signing transactions
+   * Accepts either a private key string or a modern wallet provider
+   *
+   * @param account - Private key string or wallet provider object
+   * @param chainId - Target chain ID (default: 42161 - Arbitrum)
+   * @returns The connected EOA address
+   *
+   * @example
+   * // With private key
+   * await sdk.connectAccount('0x...');
+   *
+   * @example
+   * // With wallet provider (e.g., from wagmi, web3-react, etc.)
+   * const provider = await connector.getProvider();
+   * await sdk.connectAccount(provider);
    */
-  setPrivateKey(privateKey: string): void {
-    if (!privateKey.startsWith('0x')) {
-      privateKey = `0x${privateKey}`;
-    }
-    this.signer = privateKeyToAccount(privateKey as Address);
-  }
-
-  /**
-   * Connect to browser wallet (MetaMask, Rabby, etc.)
-   */
-  async connectBrowserWallet(): Promise<void> {
-    if (typeof window === 'undefined') {
-      throw new Error('Browser wallet can only be used in browser environment');
+  async connectAccount(
+    account: string | any,
+    chainId: SupportedChainId = 42161 as SupportedChainId
+  ): Promise<Address> {
+    if (!isSupportedChain(chainId)) {
+      throw new Error(`Unsupported chain ID: ${chainId}`);
     }
 
-    if (!(window as any).ethereum) {
-      throw new Error('No browser wallet detected');
-    }
+    const chainConfig = getChainConfig(chainId, undefined);
 
-    const accounts = await (window as any).ethereum.request({
-      method: 'eth_requestAccounts',
-    });
+    // Check if account is a private key (string)
+    if (typeof account === "string") {
+      let privateKey = account;
+      if (!privateKey.startsWith("0x")) {
+        privateKey = `0x${privateKey}`;
+      }
 
-    if (!accounts || accounts.length === 0) {
-      throw new Error('No accounts found');
-    }
+      this.signer = privateKeyToAccount(privateKey as Hex);
 
-    this.browserWallet = createWalletClient({
-      account: accounts[0],
-      chain: mainnet,
-      transport: custom((window as any).ethereum),
-    });
-  }
+      // Create wallet client for the signer
+      this.walletClient = createWalletClient({
+        account: this.signer,
+        chain: chainConfig.chain,
+        transport: http(chainConfig.rpcUrl),
+      });
 
-  /**
-   * Get connected address
-   */
-  getConnectedAddress(): string {
-    if (this.signer) {
       return this.signer.address;
     }
-    if (this.browserWallet) {
-      return this.browserWallet.account.address;
+
+    // Otherwise, treat as a wallet provider
+    const provider = account;
+
+    if (!provider) {
+      throw new Error(
+        "Invalid account parameter. Expected private key string or wallet provider."
+      );
     }
-    throw new Error('No wallet connected. Call setPrivateKey() or connectBrowserWallet() first');
+
+    // Handle modern wallet providers (EIP-1193 providers)
+    if (provider.request) {
+      const accounts = await provider.request({
+        method: "eth_requestAccounts",
+      });
+
+      if (!accounts || accounts.length === 0) {
+        throw new Error("No accounts found in wallet provider");
+      }
+
+      this.walletClient = createWalletClient({
+        account: accounts[0],
+        chain: chainConfig.chain,
+        transport: custom(provider),
+      });
+
+      return accounts[0];
+    }
+
+    // Handle viem WalletClient or similar objects
+    if (provider.account && provider.transport) {
+      this.walletClient = createWalletClient({
+        account: provider.account,
+        chain: chainConfig.chain,
+        transport: provider.transport,
+      });
+
+      return provider.account.address;
+    }
+
+    throw new Error(
+      "Invalid wallet provider. Expected EIP-1193 provider or viem WalletClient."
+    );
   }
 
   /**
-   * Deploy Safe Smart Wallet
-   * 
+   * Get wallet client (throws if not connected)
+   * @private
+   */
+  private getWalletClient(): WalletClient {
+    if (!this.walletClient) {
+      throw new Error("No account connected. Call connectAccount() first");
+    }
+    return this.walletClient;
+  }
+
+  /**
+   * Get smart wallet address for a user
+   * Returns the deterministic Safe address for an EOA, or the address itself if already a Safe
+   *
    * @param userAddress - User's EOA address
+   * @param chainId - Target chain ID
+   * @returns Smart wallet information including address and deployment status
+   */
+  async getSmartWalletAddress(
+    userAddress: string,
+    chainId: SupportedChainId
+  ): Promise<SmartWalletResponse> {
+    // Validate inputs
+    if (!userAddress) {
+      throw new Error("User address is required");
+    }
+
+    if (!isSupportedChain(chainId)) {
+      throw new Error(`Unsupported chain ID: ${chainId}`);
+    }
+
+    const walletClient = this.getWalletClient();
+    const chainConfig = getChainConfig(chainId, undefined);
+
+    // Check account type
+    const accountType = await getAccountType(
+      userAddress as Address,
+      chainConfig.publicClient
+    );
+
+    if (accountType === "Safe") {
+      // If already a Safe, return the user address
+      const isDeployed = await isSafeDeployed(
+        userAddress as Address,
+        chainConfig.publicClient
+      );
+      return {
+        address: userAddress as Address,
+        isDeployed,
+      };
+    }
+
+    // For EOA, get the deterministic Safe address
+    const safeAddress = await getDeterministicSafeAddress({
+      owner: walletClient,
+      chain: chainConfig.chain,
+      publicClient: chainConfig.publicClient,
+    });
+
+    const isDeployed = await isSafeDeployed(
+      safeAddress,
+      chainConfig.publicClient
+    );
+
+    return {
+      address: safeAddress,
+      isDeployed,
+    };
+  }
+
+  /**
+   * Deploy Safe Smart Wallet for a user
+   *
+   * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
    * @returns Deployment response with Safe address and transaction hash
    */
   async deploySafe(
     userAddress: string,
-    chainId: number
+    chainId: SupportedChainId
   ): Promise<DeploySafeResponse> {
     try {
-      // First, authenticate the user if needed
-      await this.ensureAuthenticated(userAddress);
+      // Validate inputs
+      if (!userAddress) {
+        throw new Error("User address is required");
+      }
 
-      // Get user ID from authentication
-      const userId = await this.getUserId(userAddress);
+      if (!isSupportedChain(chainId)) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+      }
 
-      // Update user with smart wallet configuration
-      // Note: In the actual implementation, this would:
-      // 1. Generate deterministic Safe address
-      // 2. Deploy the Safe (counterfactual or actual deployment)
-      // 3. Return the deployment details
+      if (!this.bundlerApiKey) {
+        throw new Error(
+          "Bundler API key is required for Safe deployment. Please provide bundlerApiKey in SDK configuration."
+        );
+      }
 
-      const response = await this.httpClient.patch<any>(
-        ENDPOINTS.USERS_BY_ID(userId),
-        {
-          smartWallet: userAddress, // This should be the calculated Safe address
-          chains: [chainId],
-          strategy: 'safe_strategy',
-        }
+      const walletClient = this.getWalletClient();
+      const chainConfig = getChainConfig(chainId, undefined);
+
+      // Verify that userAddress is an EOA
+      const accountType = await getAccountType(
+        userAddress as Address,
+        chainConfig.publicClient
       );
 
-      // For now, returning mock response structure
-      // In full implementation, this would include actual Safe deployment
+      if (accountType !== "EOA") {
+        throw new Error(
+          `Address ${userAddress} is not an EOA. Only EOA addresses can deploy Safe smart wallets.`
+        );
+      }
+
+      // Verify that the connected wallet matches the userAddress
+      if (
+        walletClient.account?.address.toLowerCase() !==
+        userAddress.toLowerCase()
+      ) {
+        throw new Error(
+          `Connected wallet address does not match the provided userAddress. Connected: ${walletClient.account?.address}, Provided: ${userAddress}`
+        );
+      }
+
+      // Get bundler URL
+      const bundlerUrl = getBundlerUrl(chainId, this.bundlerApiKey);
+
+      // Deploy the Safe account
+      const deploymentResult = await deploySafeAccount({
+        owner: walletClient,
+        chain: chainConfig.chain,
+        publicClient: chainConfig.publicClient,
+        bundlerUrl,
+      });
+
       return {
         success: true,
-        safeAddress: response.smartWallet || userAddress,
-        txHash: '0x' + '0'.repeat(64), // Mock tx hash
-        status: 'deployed',
+        safeAddress: deploymentResult.safeAddress,
+        txHash: deploymentResult.txHash || "0x0",
+        status: "deployed",
       };
     } catch (error) {
-      throw new Error(`Failed to deploy Safe: ${(error as Error).message}`);
+      console.error("Safe deployment failed:", error);
+      throw new Error(`Safe deployment failed: ${(error as Error).message}`);
     }
   }
-
-  /**
-   * Ensure user is authenticated with the API
-   * @private
-   */
-  private async ensureAuthenticated(userAddress: string): Promise<void> {
-    try {
-      await this.httpClient.post('/auth/signin', {
-        address: userAddress,
-      });
-    } catch (error) {
-      throw new Error(`Authentication failed: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * Get user ID from address
-   * @private
-   */
-  private async getUserId(userAddress: string): Promise<string> {
-    // This would be stored from the signin response
-    // For now, returning a placeholder
-    // In full implementation, store this after signin
-    return 'user-id-placeholder';
-  }
-
-  // Additional methods will be implemented here
-  // - createSessionKey()
-  // - getSmartWalletAddress()
-  // - depositFunds()
-  // - getAvailableProtocols()
-  // - getPositions()
-  // - getEarnings()
-  // - withdrawFunds()
 }
-

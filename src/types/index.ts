@@ -11,6 +11,7 @@ export interface SDKConfig {
   apiKey: string;
   environment?: Environment;
   baseURL?: string;
+  bundlerApiKey?: string;
 }
 
 // Response Types

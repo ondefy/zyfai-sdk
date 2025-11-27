@@ -35,7 +35,7 @@ export interface SafeAccountConfig {
   owner: WalletClient;
   chain: Chain;
   publicClient: PublicClient;
-  pimlicoUrl?: string;
+  bundlerUrl?: string;
   accountSalt?: string;
 }
 
@@ -172,13 +172,13 @@ export const getAccountType = async (
  * Creates a smart account client with bundler and paymaster
  */
 export const getSmartAccountClient = async (
-  config: SafeAccountConfig & { pimlicoUrl: string }
+  config: SafeAccountConfig & { bundlerUrl: string }
 ) => {
-  const { publicClient, chain, pimlicoUrl } = config;
+  const { publicClient, chain, bundlerUrl } = config;
   const safeAccount = await getSafeAccount(config);
 
-  const pimlicoClient = createPimlicoClient({
-    transport: http(pimlicoUrl),
+  const bundlerClient = createPimlicoClient({
+    transport: http(bundlerUrl),
     entryPoint: {
       address: entryPoint07Address,
       version: "0.7",
@@ -188,11 +188,11 @@ export const getSmartAccountClient = async (
   const smartAccountClient = createSmartAccountClient({
     account: safeAccount,
     chain: chain,
-    bundlerTransport: http(pimlicoUrl),
-    paymaster: pimlicoClient,
+    bundlerTransport: http(bundlerUrl),
+    paymaster: bundlerClient,
     userOperation: {
       estimateFeesPerGas: async () => {
-        return (await pimlicoClient.getUserOperationGasPrice()).fast;
+        return (await bundlerClient.getUserOperationGasPrice()).fast;
       },
     },
   }).extend(erc7579Actions());
@@ -204,7 +204,7 @@ export const getSmartAccountClient = async (
  * Deploys a Safe smart account with required modules
  */
 export const deploySafeAccount = async (
-  config: SafeAccountConfig & { pimlicoUrl: string }
+  config: SafeAccountConfig & { bundlerUrl: string }
 ): Promise<SafeDeploymentResult> => {
   try {
     const { owner, publicClient } = config;
@@ -263,7 +263,7 @@ export const deploySafeAccount = async (
  * Execute transactions via the Safe smart account
  */
 export const executeTransactions = async (
-  config: SafeAccountConfig & { pimlicoUrl: string },
+  config: SafeAccountConfig & { bundlerUrl: string },
   calls: Array<{ to: Address; value: string | bigint; data: Hex }>
 ): Promise<Hash> => {
   const { owner } = config;
