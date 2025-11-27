@@ -21,7 +21,9 @@
   "author": "ZyFAI",
   "license": "MIT",
   "dependencies": {
+    "@rhinestone/module-sdk": "^0.2.10",
     "axios": "^1.6.0",
+    "permissionless": "^0.2.38",
     "viem": "^2.37.8"
   },
   "engines": {

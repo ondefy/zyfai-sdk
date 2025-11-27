@@ -46,3 +46,4 @@ export const ENDPOINTS = {
   // Data
   DATA_TVL: (chainId: number) => `/data/tvl/${chainId}`,
 } as const;
+
