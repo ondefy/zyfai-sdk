@@ -197,6 +197,129 @@ Deploy a Safe smart wallet for a user.
 }
 ```
 
+### 3. Session Keys
+
+Session keys enable delegated transaction execution without exposing the main private key.
+
+#### Simple Usage (Recommended)
+
+The SDK automatically fetches optimal session configuration from ZyFAI API:
+
+```typescript
+// No manual configuration needed!
+const result = await sdk.createSessionKey(userAddress, 42161);
+
+console.log("Session created:", result.signature);
+console.log("Safe address:", result.sessionKeyAddress);
+```
+
+#### Advanced Usage (Custom Configuration)
+
+For custom permissions, use `createSessionKeyWithConfig`:
+
+```typescript
+import { type Session } from "@zyfai/sdk";
+
+const sessions: Session[] = [
+  {
+    sessionValidator: "0x...",
+    sessionValidatorInitData: "0x",
+    salt: "0x00...01",
+    userOpPolicies: [],
+    erc7739Policies: { allowedERC7739Content: [], erc1271Policies: [] },
+    actions: [
+      {
+        actionTarget: "0xUSDC",
+        actionTargetSelector: "0xa9059cbb",
+        actionPolicies: [],
+      },
+    ],
+    permitERC4337Paymaster: true,
+    chainId: BigInt(42161),
+  },
+];
+
+const result = await sdk.createSessionKeyWithConfig(
+  userAddress,
+  42161,
+  sessions
+);
+```
+
+### 4. Deposit Funds
+
+Transfer tokens to your Safe smart wallet:
+
+```typescript
+// Deposit 100 USDC (6 decimals) to Safe on Arbitrum
+const result = await sdk.depositFunds(
+  userAddress,
+  42161, // Chain ID
+  "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // USDC on Arbitrum
+  "100000000" // Amount: 100 USDC = 100 * 10^6
+);
+
+if (result.success) {
+  console.log("Deposit successful!");
+  console.log("Transaction Hash:", result.txHash);
+}
+```
+
+**Note:** Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
+
+### 5. Withdraw Funds
+
+Withdraw funds from your Safe:
+
+```typescript
+// Full withdrawal
+const result = await sdk.withdrawFunds(userAddress, 42161);
+
+// Partial withdrawal of 50 USDC (6 decimals)
+const result = await sdk.withdrawFunds(
+  userAddress,
+  42161,
+  "50000000", // Amount: 50 USDC = 50 * 10^6
+  "0xReceiverAddress" // Optional: receiver address
+);
+
+if (result.success) {
+  console.log("Withdrawal successful!");
+  console.log("Transaction Hash:", result.txHash);
+}
+```
+
+**Note:** Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
+
+### 6. Get Available Protocols
+
+```typescript
+const protocols = await sdk.getAvailableProtocols(42161);
+
+protocols.forEach((protocol) => {
+  console.log(`${protocol.name}: ${protocol.apy}% APY`);
+});
+```
+
+### 7. Monitor Positions
+
+```typescript
+const positions = await sdk.getPositions(userAddress);
+
+positions.forEach((position) => {
+  console.log(`${position.protocol}: $${position.value}`);
+});
+```
+
+### 8. Track Earnings
+
+```typescript
+const earnings = await sdk.getEarnings(userAddress);
+
+console.log(`Total Earnings: $${earnings.total}`);
+console.log(`24h Earnings: $${earnings.daily}`);
+```
+
 ## Complete Examples
 
 ### Example 1: Deploy Safe on Arbitrum

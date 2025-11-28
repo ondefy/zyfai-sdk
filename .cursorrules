@@ -16,6 +16,86 @@ TypeScript SDK for ZyFAI Yield Optimization Engine with Safe smart wallet deploy
 - Structure files: exported functions, helpers, types
 - **NEVER use emojis in code, logs, comments, error messages, or any output**
 
+### Import Management
+
+**CRITICAL RULES:**
+
+- **ALL imports MUST be at the top of the file** - No exceptions
+- **NEVER use dynamic imports** (e.g., `await import("module")`) inside functions
+- **NEVER define inline imports** between functions or inside function bodies
+- Import order:
+  1. External dependencies (npm packages)
+  2. Internal utilities and helpers
+  3. Configuration and constants
+  4. Types (using `import type`)
+
+**Examples:**
+
+```typescript
+// ✅ CORRECT: All imports at the top
+import { HttpClient } from "../utils/http-client";
+import { ERC20_ABI } from "../config/abis";
+import { parseUnits } from "viem";
+import type { Address, Hex } from "../types";
+
+export class ZyfaiSDK {
+  // ... class implementation
+}
+
+// ❌ WRONG: Dynamic import inside function
+async function depositFunds() {
+  const { parseUnits } = await import("viem"); // NEVER DO THIS
+}
+
+// ❌ WRONG: Inline import between functions
+function functionA() {}
+import { something } from "somewhere"; // NEVER DO THIS
+function functionB() {}
+```
+
+### Modularity and Code Organization
+
+**Keep the SDK modular and maintainable:**
+
+1. **Separate Concerns**:
+   - Extract ABIs to `src/config/abis.ts`
+   - Extract constants to `src/config/constants.ts`
+   - Extract utilities to `src/utils/`
+   - Keep types in `src/types/`
+
+2. **Single Responsibility**:
+   - Each file should have one clear purpose
+   - Functions should do one thing well
+   - Extract reusable logic to utility functions
+
+3. **DRY (Don't Repeat Yourself)**:
+   - If code is used in multiple places, extract it
+   - Create utility functions for common operations
+   - Share ABIs, constants, and configurations
+
+4. **Examples of Good Modularity**:
+
+```typescript
+// ✅ CORRECT: ABI in separate file
+// src/config/abis.ts
+export const ERC20_ABI = [...];
+
+// src/core/ZyfaiSDK.ts
+import { ERC20_ABI } from "../config/abis";
+
+// ❌ WRONG: ABI defined inline in the main class
+export class ZyfaiSDK {
+  async deposit() {
+    const ERC20_ABI = [...]; // Don't define ABIs inline
+  }
+}
+```
+
+5. **File Size Guidelines**:
+   - Main SDK class: < 800 lines
+   - Utility files: < 500 lines
+   - If a file grows too large, split it into logical modules
+
 ### Naming Conventions
 
 - Files: lowercase with dashes (e.g., `safe-account.ts`, `http-client.ts`)
@@ -151,10 +231,22 @@ type SupportedChainId = 8453 | 42161 | 9745;
 src/
 ├── core/           # Main SDK class
 ├── utils/          # Utility functions (safe-account, http-client)
-├── config/         # Configuration (chains, endpoints)
+├── config/         # Configuration (chains, endpoints, abis, constants)
+│   ├── chains.ts   # Chain configurations
+│   ├── endpoints.ts # API endpoints
+│   ├── abis.ts     # Smart contract ABIs
+│   └── constants.ts # Global constants
 ├── types/          # TypeScript type definitions
 └── index.ts        # Public API exports
 ```
+
+### File Purpose Guidelines
+
+- **`src/core/`**: Main SDK class only. Keep business logic here.
+- **`src/utils/`**: Reusable helper functions (Safe account logic, HTTP client, etc.)
+- **`src/config/`**: Static configuration (chains, ABIs, endpoints, constants)
+- **`src/types/`**: TypeScript interfaces and type definitions only
+- **`examples/`**: Usage examples for different features
 
 ## Common Patterns
 
@@ -239,6 +331,10 @@ Keep documentation minimal and consolidated. Changes should be reflected in the 
 
 ## Code Review Checklist
 
+- [ ] All imports are at the top of the file (no dynamic imports)
+- [ ] No inline imports or imports between functions
+- [ ] ABIs and constants are in separate config files
+- [ ] Code is modular and follows single responsibility principle
 - [ ] All methods take explicit `userAddress` and `chainId` parameters
 - [ ] No implicit use of connected wallet for determining user
 - [ ] Proper error handling with guard clauses
@@ -246,4 +342,5 @@ Keep documentation minimal and consolidated. Changes should be reflected in the 
 - [ ] JSDoc comments for public methods
 - [ ] Tests cover happy path and error cases
 - [ ] No sensitive data in logs or error messages
+- [ ] No emojis anywhere in the codebase
 - [ ] Documentation updated ONLY in README.md and SDK_DOCUMENTATION_SUMMARY.md

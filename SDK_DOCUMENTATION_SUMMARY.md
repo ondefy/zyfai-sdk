@@ -90,13 +90,26 @@ interface DeploySafeResponse {
 
 Create a session key with limited permissions for delegated transactions.
 
-#### Function Signature
+#### Simple Usage (Recommended)
+
+Automatically fetches optimal session configuration from ZyFAI API:
 
 ```typescript
 createSessionKey(
   userAddress: string,
-  chainId?: number
-  sessions?: Session[]
+  chainId: number
+): Promise<SessionKeyResponse>
+```
+
+#### Advanced Usage (Custom Configuration)
+
+For custom permissions and manual session configuration:
+
+```typescript
+createSessionKeyWithConfig(
+  userAddress: string,
+  chainId: number,
+  sessions: Session[]
 ): Promise<SessionKeyResponse>
 ```
 
@@ -147,7 +160,47 @@ interface SessionKeyResponse {
   success: boolean;
   sessionKeyAddress: string;
   signature: string;
+  sessionNonces?: bigint[];
 }
+```
+
+#### Usage Examples
+
+**Simple (Recommended):**
+
+```typescript
+// No manual configuration needed
+const result = await sdk.createSessionKey(userAddress, 42161);
+console.log("Signature:", result.signature);
+```
+
+**Advanced (Custom Config):**
+
+```typescript
+const sessions: Session[] = [
+  {
+    sessionValidator: "0x...",
+    sessionValidatorInitData: "0x",
+    salt: "0x00...01",
+    userOpPolicies: [],
+    erc7739Policies: { allowedERC7739Content: [], erc1271Policies: [] },
+    actions: [
+      {
+        actionTarget: "0xUSDC",
+        actionTargetSelector: "0xa9059cbb",
+        actionPolicies: [],
+      },
+    ],
+    permitERC4337Paymaster: true,
+    chainId: BigInt(42161),
+  },
+];
+
+const result = await sdk.createSessionKeyWithConfig(
+  userAddress,
+  42161,
+  sessions
+);
 ```
 
 ---
@@ -211,12 +264,12 @@ depositFunds(
 
 #### Request Parameters
 
-| Parameter      | Type   | Required | Description                                    |
-| -------------- | ------ | -------- | ---------------------------------------------- |
-| `userAddress`  | string | ✅       | User's EOA address                             |
-| `chainId`      | number | ✅       | Chain to deposit on                            |
-| `tokenAddress` | string | ✅       | Token contract address                         |
-| `amount`       | string | ✅       | Amount in raw units (e.g., "1000000" = 1 USDC) |
+| Parameter      | Type   | Required | Description                                                                    |
+| -------------- | ------ | -------- | ------------------------------------------------------------------------------ |
+| `userAddress`  | string | ✅       | User's EOA address                                                             |
+| `chainId`      | number | ✅       | Chain to deposit on                                                            |
+| `tokenAddress` | string | ✅       | Token contract address                                                         |
+| `amount`       | string | ✅       | Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals) |
 
 #### Response Type
 
@@ -372,12 +425,12 @@ withdrawFunds(
 
 #### Request Parameters
 
-| Parameter     | Type   | Required | Description                                   |
-| ------------- | ------ | -------- | --------------------------------------------- |
-| `userAddress` | string | ✅       | User's EOA address                            |
-| `chainId`     | number | ✅       | Chain to withdraw from                        |
-| `amount`      | string | ❌       | Amount to withdraw (omit for full withdrawal) |
-| `receiver`    | string | ❌       | Receiver address (defaults to user's EOA)     |
+| Parameter     | Type   | Required | Description                                                          |
+| ------------- | ------ | -------- | -------------------------------------------------------------------- |
+| `userAddress` | string | ✅       | User's EOA address                                                   |
+| `chainId`     | number | ✅       | Chain to withdraw from                                               |
+| `amount`      | string | ❌       | Amount in least decimal units to withdraw (omit for full withdrawal) |
+| `receiver`    | string | ❌       | Receiver address (defaults to user's EOA)                            |
 
 #### Response Type
 
@@ -421,14 +474,66 @@ const userAddress = "0xUser...";
 await sdk.deploySafe(userAddress, 42161);
 ```
 
-### Example 3: Service Pattern
+### Example 3: Complete Deposit & Yield Flow
+
+```typescript
+const sdk = new ZyfaiSDK({
+  apiKey: API_KEY,
+  bundlerApiKey: BUNDLER_API_KEY,
+  environment: "production",
+});
+
+// Connect wallet
+await sdk.connectAccount(provider); // or private key
+
+const userAddress = "0xUser...";
+const chainId = 42161; // Arbitrum
+const USDC = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
+
+// 1. Deploy Safe
+const wallet = await sdk.getSmartWalletAddress(userAddress, chainId);
+if (!wallet.isDeployed) {
+  await sdk.deploySafe(userAddress, chainId);
+}
+
+// 2. Create session key for delegated transactions
+await sdk.createSessionKey(userAddress, chainId);
+
+// 3. Deposit funds (100 USDC with 6 decimals)
+const depositResult = await sdk.depositFunds(
+  userAddress,
+  chainId,
+  USDC,
+  "100000000" // 100 USDC = 100 * 10^6
+);
+
+// 4. Monitor positions
+const positions = await sdk.getPositions(userAddress, chainId);
+console.log("Active positions:", positions.positions);
+
+// 5. Track earnings
+const earnings = await sdk.getEarnings(userAddress, chainId);
+console.log("Total earnings:", earnings.totalEarningsUsd);
+
+// 6. Withdraw (when needed) - 50 USDC with 6 decimals
+const withdrawResult = await sdk.withdrawFunds(
+  userAddress,
+  chainId,
+  "50000000" // Partial withdrawal: 50 USDC = 50 * 10^6
+);
+```
+
+### Example 4: Service Pattern
 
 ```typescript
 class YieldService {
   private sdk: ZyfaiSDK;
 
-  constructor(apiKey: string) {
-    this.sdk = new ZyfaiSDK(apiKey);
+  constructor(apiKey: string, bundlerApiKey: string) {
+    this.sdk = new ZyfaiSDK({
+      apiKey,
+      bundlerApiKey,
+    });
   }
 
   async connectAccount(account: string | any, chainId: number = 42161) {
@@ -439,6 +544,16 @@ class YieldService {
     await this.sdk.deploySafe(userAddress, chainId);
     await this.sdk.createSessionKey(userAddress, chainId);
     return await this.sdk.getSmartWalletAddress(userAddress, chainId);
+  }
+
+  async depositAndMonitor(
+    userAddress: string,
+    chainId: number,
+    tokenAddress: string,
+    amount: string
+  ) {
+    await this.sdk.depositFunds(userAddress, chainId, tokenAddress, amount);
+    return await this.sdk.getPositions(userAddress, chainId);
   }
 
   async getUserStats(userAddress: string) {

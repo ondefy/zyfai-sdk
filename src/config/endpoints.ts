@@ -24,6 +24,9 @@ export const ENDPOINTS = {
   USERS_PARTIAL_WITHDRAW: (userId: string, chainId: number) =>
     `/users/${userId}/partial-withdraw/${chainId}`,
   USERS_NOTIFICATIONS: (userId: string) => `/users/${userId}/notifications`,
+  LOG_DEPOSIT: "/users/log_deposit",
+  MANUAL_WITHDRAW: "/users/manual-withdraw",
+  PARTIAL_WITHDRAW: "/users/partial-withdraw",
 
   // Session Keys
   SESSION_KEYS_CONFIG: "/session-keys/config",

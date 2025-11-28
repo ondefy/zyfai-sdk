@@ -4,6 +4,7 @@
 
 import { HttpClient } from "../utils/http-client";
 import { ENDPOINTS } from "../config/endpoints";
+import { ERC20_ABI } from "../config/abis";
 import type {
   SDKConfig,
   DeploySafeResponse,
@@ -12,6 +13,8 @@ import type {
   Hex,
   Session,
   SessionKeyResponse,
+  DepositResponse,
+  WithdrawResponse,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -462,6 +465,206 @@ export class ZyfaiSDK {
       throw new Error(
         `Failed to sign session key: ${(error as Error).message}`
       );
+    }
+  }
+
+  /**
+   * Deposit funds from EOA to Safe smart wallet
+   * Transfers tokens from the connected wallet to the user's Safe and logs the deposit
+   *
+   * @param userAddress - User's address (owner of the Safe)
+   * @param chainId - Target chain ID
+   * @param tokenAddress - Token contract address to deposit
+   * @param amount - Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals)
+   * @returns Deposit response with transaction hash
+   *
+   * @example
+   * ```typescript
+   * // Deposit 100 USDC (6 decimals) to Safe on Arbitrum
+   * const result = await sdk.depositFunds(
+   *   "0xUser...",
+   *   42161,
+   *   "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // USDC
+   *   "100000000" // 100 USDC = 100 * 10^6
+   * );
+   * ```
+   */
+  async depositFunds(
+    userAddress: string,
+    chainId: SupportedChainId,
+    tokenAddress: string,
+    amount: string
+  ): Promise<DepositResponse> {
+    try {
+      if (!userAddress) {
+        throw new Error("User address is required");
+      }
+
+      if (!isSupportedChain(chainId)) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+      }
+
+      if (!tokenAddress) {
+        throw new Error("Token address is required");
+      }
+
+      if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+        throw new Error("Valid amount is required");
+      }
+
+      const walletClient = this.getWalletClient();
+      const chainConfig = getChainConfig(chainId, undefined);
+
+      // Get Safe address
+      const safeAddress = await getDeterministicSafeAddress({
+        owner: walletClient,
+        safeOwnerAddress: userAddress as Address,
+        chain: chainConfig.chain,
+        publicClient: chainConfig.publicClient,
+      });
+
+      // Check if Safe is deployed
+      const isDeployed = await isSafeDeployed(
+        safeAddress,
+        chainConfig.publicClient
+      );
+
+      if (!isDeployed) {
+        throw new Error(
+          `Safe not deployed for ${userAddress}. Please deploy the Safe first using deploySafe().`
+        );
+      }
+
+      // Convert amount string to BigInt (amount is already in least decimal units)
+      const amountBigInt = BigInt(amount);
+
+      // Transfer tokens from connected wallet to Safe
+      const txHash = await walletClient.writeContract({
+        address: tokenAddress as Address,
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [safeAddress, amountBigInt],
+        chain: chainConfig.chain,
+        account: walletClient.account!,
+      });
+
+      // Wait for transaction confirmation
+      const receipt = await chainConfig.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      });
+
+      if (receipt.status !== "success") {
+        throw new Error("Deposit transaction failed");
+      }
+
+      // Log deposit to ZyFAI API
+      await this.httpClient.post(ENDPOINTS.LOG_DEPOSIT, {
+        amount: amountBigInt.toString(),
+        chainId,
+        transaction: txHash,
+        token: tokenAddress,
+      });
+
+      return {
+        success: true,
+        txHash,
+        smartWallet: safeAddress,
+        amount: amountBigInt.toString(),
+        status: "confirmed",
+      };
+    } catch (error) {
+      throw new Error(`Deposit failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Withdraw funds from Safe smart wallet
+   * Triggers a withdrawal request to the ZyFAI API
+   *
+   * @param userAddress - User's address (owner of the Safe)
+   * @param chainId - Target chain ID
+   * @param amount - Optional: Amount in least decimal units to withdraw (partial withdrawal). If not specified, withdraws all funds
+   * @param receiver - Optional: Receiver address. If not specified, sends to Safe owner
+   * @returns Withdraw response with transaction hash
+   *
+   * @example
+   * ```typescript
+   * // Full withdrawal
+   * const result = await sdk.withdrawFunds("0xUser...", 42161);
+   *
+   * // Partial withdrawal of 50 USDC (6 decimals)
+   * const result = await sdk.withdrawFunds(
+   *   "0xUser...",
+   *   42161,
+   *   "50000000", // 50 USDC = 50 * 10^6
+   *   "0xReceiver..."
+   * );
+   * ```
+   */
+  async withdrawFunds(
+    userAddress: string,
+    chainId: SupportedChainId,
+    amount?: string,
+    receiver?: string
+  ): Promise<WithdrawResponse> {
+    try {
+      if (!userAddress) {
+        throw new Error("User address is required");
+      }
+
+      if (!isSupportedChain(chainId)) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+      }
+
+      const walletClient = this.getWalletClient();
+      const chainConfig = getChainConfig(chainId, undefined);
+
+      // Get Safe address
+      const safeAddress = await getDeterministicSafeAddress({
+        owner: walletClient,
+        safeOwnerAddress: userAddress as Address,
+        chain: chainConfig.chain,
+        publicClient: chainConfig.publicClient,
+      });
+
+      // Check if Safe is deployed
+      const isDeployed = await isSafeDeployed(
+        safeAddress,
+        chainConfig.publicClient
+      );
+
+      if (!isDeployed) {
+        throw new Error(
+          `Safe not deployed for ${userAddress}. Please deploy the Safe first using deploySafe().`
+        );
+      }
+
+      let response: any;
+
+      if (amount) {
+        // Partial withdrawal
+        response = await this.httpClient.post(ENDPOINTS.PARTIAL_WITHDRAW, {
+          chainId,
+          amount,
+          receiver: receiver || userAddress,
+        });
+      } else {
+        // Full withdrawal
+        response = await this.httpClient.get(ENDPOINTS.MANUAL_WITHDRAW);
+      }
+
+      return {
+        success: true,
+        txHash: (response?.txHash ||
+          response?.transactionHash ||
+          "pending") as string,
+        type: amount ? "partial" : "full",
+        amount: amount || "all",
+        receiver: receiver || userAddress,
+        status: "pending",
+      };
+    } catch (error) {
+      throw new Error(`Withdrawal failed: ${(error as Error).message}`);
     }
   }
 }
