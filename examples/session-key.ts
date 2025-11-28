@@ -1,9 +1,9 @@
 /**
- * Session Key Creation Example
+ * Advanced Session Key Example
  *
- * This example demonstrates how to create session keys for delegated transactions.
- * Session keys allow specific operations to be performed without needing to sign
- * every transaction with the main owner key.
+ * This example demonstrates how to create session keys with CUSTOM configuration.
+ * For most use cases, use the simpler createSessionKey() method that auto-fetches config.
+ * This is for advanced users who need specific custom permissions.
  */
 
 import { config } from "dotenv";
@@ -104,15 +104,18 @@ async function main() {
   console.log(`   Token: ${USDC_ADDRESS}`);
   console.log(`   Chain: Base (${chainId})\n`);
 
-  // Step 5: Create and sign session key
+  // Step 5: Create and sign session key with custom config
   try {
-    console.log("Step 5: Creating session key...");
-    const result = await sdk.createSessionKey(userAddress, chainId, sessions);
+    console.log("Step 5: Creating session key with custom configuration...");
+    const result = await sdk.createSessionKeyWithConfig(
+      userAddress,
+      chainId,
+      sessions
+    );
 
     console.log("\nSession key created successfully!");
     console.log(`Safe Address: ${result.sessionKeyAddress}`);
     console.log(`Signature: ${result.signature.substring(0, 20)}...`);
-    console.log(`Session Nonces: ${result.sessionNonces.join(", ")}`);
     console.log(`Success: ${result.success}`);
 
     console.log("\nNext Steps:");

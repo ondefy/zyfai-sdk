@@ -291,21 +291,65 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Create session key for delegated transactions
-   * This allows a session key to execute transactions on behalf of the Safe
+   * Create session key with auto-fetched configuration from ZyFAI API
+   * This is the simplified method that automatically fetches session configuration
    *
    * @param userAddress - User's EOA or Safe address
    * @param chainId - Target chain ID
-   * @param sessions - Session configurations (permissions, targets, policies)
+   * @returns Session key response with signature and nonces
+   *
+   * @example
+   * ```typescript
+   * // Simple usage - no need to configure sessions manually
+   * const result = await sdk.createSessionKey(userAddress, 8453);
+   * console.log("Session created:", result.signature);
+   * ```
+   */
+  async createSessionKey(
+    userAddress: string,
+    chainId: SupportedChainId
+  ): Promise<SessionKeyResponse> {
+    try {
+      // Fetch session configuration from API
+      const sessionConfig = await this.httpClient.get<any[]>(
+        ENDPOINTS.SESSION_KEYS_CONFIG
+      );
+
+      if (!sessionConfig || sessionConfig.length === 0) {
+        throw new Error("No session configuration available from API");
+      }
+
+      // Parse the session config (convert chainId to BigInt)
+      const sessions: Session[] = sessionConfig.map((session: any) => ({
+        ...session,
+        chainId: BigInt(session.chainId),
+      }));
+
+      // Sign the session key
+      return await this.signSessionKey(userAddress, chainId, sessions);
+    } catch (error) {
+      throw new Error(
+        `Failed to create session key: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Create session key with manual session configuration
+   * Use this method if you need custom session permissions
+   *
+   * @param userAddress - User's EOA or Safe address
+   * @param chainId - Target chain ID
+   * @param sessions - Custom session configurations (permissions, targets, policies)
    * @returns Session key response with signature and nonces
    *
    * @example
    * ```typescript
    * import { type Session } from "@zyfai/sdk";
    *
-   * // Define session permissions
+   * // Define custom session permissions
    * const sessions: Session[] = [{
-   *   sessionValidator: "0x...", // Session key validator address
+   *   sessionValidator: "0x...",
    *   sessionValidatorInitData: "0x...",
    *   salt: "0x...",
    *   userOpPolicies: [],
@@ -315,17 +359,44 @@ export class ZyfaiSDK {
    *   },
    *   actions: [{
    *     actionTarget: "0xTokenAddress",
-   *     actionTargetSelector: "0xa9059cbb", // transfer(address,uint256)
+   *     actionTargetSelector: "0xa9059cbb",
    *     actionPolicies: []
    *   }],
    *   permitERC4337Paymaster: true,
    *   chainId: BigInt(8453)
    * }];
    *
-   * const result = await sdk.createSessionKey(userAddress, 8453, sessions);
+   * const result = await sdk.createSessionKeyWithConfig(userAddress, 8453, sessions);
    * ```
    */
-  async createSessionKey(
+  async createSessionKeyWithConfig(
+    userAddress: string,
+    chainId: SupportedChainId,
+    sessions: Session[]
+  ): Promise<SessionKeyResponse> {
+    try {
+      // Validate inputs
+      if (!userAddress) {
+        throw new Error("User address is required");
+      }
+
+      if (!isSupportedChain(chainId)) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+      }
+
+      return await this.signSessionKey(userAddress, chainId, sessions);
+    } catch (error) {
+      throw new Error(
+        `Failed to create session key with config: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Internal method to sign session key
+   * @private
+   */
+  private async signSessionKey(
     userAddress: string,
     chainId: SupportedChainId,
     sessions: Session[]
@@ -389,7 +460,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to create session key: ${(error as Error).message}`
+        `Failed to sign session key: ${(error as Error).message}`
       );
     }
   }
