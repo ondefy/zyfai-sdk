@@ -11,7 +11,8 @@ export const API_VERSION = "/api/v1";
 
 export const ENDPOINTS = {
   // Auth
-  AUTH_SIGNIN: "/auth/signin",
+  AUTH_LOGIN: "/auth/login",
+  AUTH_CHALLENGE: "/auth/challenge",
   AUTH_REFRESH: "/auth/refresh",
 
   // Users
@@ -49,4 +50,3 @@ export const ENDPOINTS = {
   // Data
   DATA_TVL: (chainId: number) => `/data/tvl/${chainId}`,
 } as const;
-

@@ -10,7 +10,6 @@ export type Environment = "staging" | "production";
 export interface SDKConfig {
   apiKey: string;
   environment?: Environment;
-  baseURL?: string;
   bundlerApiKey?: string;
 }
 

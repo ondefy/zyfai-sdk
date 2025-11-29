@@ -58,17 +58,20 @@ function functionB() {}
 **Keep the SDK modular and maintainable:**
 
 1. **Separate Concerns**:
+
    - Extract ABIs to `src/config/abis.ts`
    - Extract constants to `src/config/constants.ts`
    - Extract utilities to `src/utils/`
    - Keep types in `src/types/`
 
 2. **Single Responsibility**:
+
    - Each file should have one clear purpose
    - Functions should do one thing well
    - Extract reusable logic to utility functions
 
 3. **DRY (Don't Repeat Yourself)**:
+
    - If code is used in multiple places, extract it
    - Create utility functions for common operations
    - Share ABIs, constants, and configurations
@@ -316,18 +319,44 @@ Required for testing/examples:
 
 ## Documentation Policy
 
-**IMPORTANT:** Only update these two files for documentation:
+**CRITICAL:** Documentation must be updated with EVERY code change.
+
+### Required Documentation Files
+
+After ANY change to the SDK code, you MUST update BOTH files:
 
 1. **README.md** - Main user-facing documentation
-2. **SDK_DOCUMENTATION_SUMMARY.md** - Reference documentation for Cursor
 
-**DO NOT create additional documentation files** such as:
+   - Update examples if function signatures change
+   - Update API reference sections
+   - Update feature descriptions
+   - Keep all code examples accurate
+
+2. **SDK_DOCUMENTATION_SUMMARY.md** - Reference documentation for Cursor
+   - Update function signatures
+   - Update request/response types
+   - Update integration examples
+   - Keep all parameters and types current
+
+### Update Workflow
+
+For every code change, follow this sequence:
+
+1. Make code changes
+2. Update README.md immediately
+3. Update SDK_DOCUMENTATION_SUMMARY.md immediately
+4. Build and test
+5. Verify documentation accuracy
+
+### DO NOT Create Additional Documentation
+
+**Forbidden documentation files:**
 
 - ❌ ARCHITECTURE.md, INTEGRATION_GUIDE.md, IMPLEMENTATION_SUMMARY.md
 - ❌ CHANGELOG.md, MIGRATION_GUIDE.md, or any other .md files
 - ❌ Separate guide files for features
 
-Keep documentation minimal and consolidated. Changes should be reflected in the README and SDK_DOCUMENTATION_SUMMARY only.
+Keep documentation minimal and consolidated in the two required files only.
 
 ## Code Review Checklist
 
@@ -343,4 +372,7 @@ Keep documentation minimal and consolidated. Changes should be reflected in the 
 - [ ] Tests cover happy path and error cases
 - [ ] No sensitive data in logs or error messages
 - [ ] No emojis anywhere in the codebase
-- [ ] Documentation updated ONLY in README.md and SDK_DOCUMENTATION_SUMMARY.md
+- [ ] **README.md updated to reflect all code changes**
+- [ ] **SDK_DOCUMENTATION_SUMMARY.md updated to reflect all code changes**
+- [ ] All examples use correct function signatures and parameters
+- [ ] Documentation examples match actual implementation

@@ -59,17 +59,14 @@ export const CHAINS: Record<SupportedChainId, Chain> = {
 /**
  * Get chain configuration for a given chain ID
  */
-export const getChainConfig = (
-  chainId: SupportedChainId,
-  customRpcUrl?: string
-): ChainConfig => {
+export const getChainConfig = (chainId: SupportedChainId): ChainConfig => {
   const chain = CHAINS[chainId];
 
   if (!chain) {
     throw new Error(`Unsupported chain ID: ${chainId}`);
   }
 
-  const rpcUrl = customRpcUrl || DEFAULT_RPC_URLS[chainId];
+  const rpcUrl = DEFAULT_RPC_URLS[chainId];
 
   const publicClient = createPublicClient({
     chain,

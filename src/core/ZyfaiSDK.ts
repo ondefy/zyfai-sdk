@@ -15,6 +15,9 @@ import type {
   SessionKeyResponse,
   DepositResponse,
   WithdrawResponse,
+  ProtocolsResponse,
+  PositionsResponse,
+  EarningsResponse,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -43,25 +46,77 @@ export class ZyfaiSDK {
   private signer: PrivateKeyAccount | null = null;
   private walletClient: WalletClient | null = null;
   private bundlerApiKey?: string;
+  private isAuthenticated: boolean = false;
 
   constructor(config: SDKConfig | string) {
     // Support both object and string initialization
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const {
-      apiKey,
-      environment = "production",
-      baseURL,
-      bundlerApiKey,
-    } = sdkConfig;
+    const { apiKey, environment = "production", bundlerApiKey } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
     }
 
-    this.httpClient = new HttpClient(apiKey, environment, baseURL);
+    this.httpClient = new HttpClient(apiKey, environment);
     this.bundlerApiKey = bundlerApiKey;
+  }
+
+  /**
+   * Authenticate user with SIWE (Sign-In with Ethereum)
+   * This is required for accessing user-specific endpoints like session-keys/config
+   * Uses the connected wallet address for authentication
+   *
+   * @returns Promise that resolves when authentication is complete
+   */
+  private async authenticateUser(): Promise<void> {
+    try {
+      // Skip if already authenticated
+      if (this.isAuthenticated) {
+        return;
+      }
+
+      const walletClient = this.getWalletClient();
+      const userAddress = walletClient.account!.address;
+
+      // Step 1: Get challenge/nonce
+      const challengeResponse = await this.httpClient.post<{
+        nonce: string;
+        domain: string;
+        statement?: string;
+      }>(ENDPOINTS.AUTH_CHALLENGE, {});
+
+      // Step 2: Create SIWE message
+      const message = `${
+        challengeResponse.domain
+      } wants you to sign in with your Ethereum account:\n${userAddress}\n\n${
+        challengeResponse.statement || "Sign in to ZyFAI"
+      }\n\nNonce: ${challengeResponse.nonce}`;
+
+      // Step 3: Sign the message
+      const signature = await walletClient.signMessage({
+        account: walletClient.account!,
+        message,
+      });
+
+      // Step 4: Login with signed message
+      const loginResponse = await this.httpClient.post<{
+        token: string;
+        refreshToken?: string;
+      }>(ENDPOINTS.AUTH_LOGIN, {
+        message,
+        signature,
+      });
+
+      // Step 5: Store auth token
+      this.httpClient.setAuthToken(loginResponse.token);
+      this.isAuthenticated = true;
+    } catch (error) {
+      throw new Error(
+        `Failed to authenticate user: ${(error as Error).message}`
+      );
+    }
   }
 
   /**
@@ -89,7 +144,11 @@ export class ZyfaiSDK {
       throw new Error(`Unsupported chain ID: ${chainId}`);
     }
 
-    const chainConfig = getChainConfig(chainId, undefined);
+    // Reset authentication when connecting a new account
+    this.isAuthenticated = false;
+    this.httpClient.clearAuthToken();
+
+    const chainConfig = getChainConfig(chainId);
 
     // Check if account is a private key (string)
     if (typeof account === "string") {
@@ -129,6 +188,7 @@ export class ZyfaiSDK {
         throw new Error("No accounts found in wallet provider");
       }
 
+      // TODO:Shouldn't the chain be the same as the connected wallet?
       this.walletClient = createWalletClient({
         account: accounts[0],
         chain: chainConfig.chain,
@@ -158,11 +218,20 @@ export class ZyfaiSDK {
    * Get wallet client (throws if not connected)
    * @private
    */
-  private getWalletClient(): WalletClient {
-    if (!this.walletClient) {
-      throw new Error("No account connected. Call connectAccount() first");
+  private getWalletClient(chainId?: SupportedChainId): WalletClient {
+    // TODO: This should give the wallet client for the private key if it exists, otherwise the connected wallet
+    if (this.signer) {
+      return createWalletClient({
+        account: this.signer,
+        chain: getChainConfig(chainId || 8453).chain,
+        transport: http(getChainConfig(chainId || 8453).rpcUrl),
+      });
+    } else {
+      if (!this.walletClient) {
+        throw new Error("No account connected. Call connectAccount() first");
+      }
+      return this.walletClient;
     }
-    return this.walletClient;
   }
 
   /**
@@ -187,7 +256,7 @@ export class ZyfaiSDK {
     }
 
     const walletClient = this.getWalletClient();
-    const chainConfig = getChainConfig(chainId, undefined);
+    const chainConfig = getChainConfig(chainId);
 
     // Check account type
     const accountType = await getAccountType(
@@ -254,8 +323,8 @@ export class ZyfaiSDK {
         );
       }
 
-      const walletClient = this.getWalletClient();
-      const chainConfig = getChainConfig(chainId, undefined);
+      const walletClient = this.getWalletClient(chainId);
+      const chainConfig = getChainConfig(chainId);
 
       // Verify that userAddress is an EOA
       const accountType = await getAccountType(
@@ -313,6 +382,9 @@ export class ZyfaiSDK {
     chainId: SupportedChainId
   ): Promise<SessionKeyResponse> {
     try {
+      // Authenticate user first to get access to session config
+      await this.authenticateUser();
+
       // Fetch session configuration from API
       const sessionConfig = await this.httpClient.get<any[]>(
         ENDPOINTS.SESSION_KEYS_CONFIG
@@ -419,7 +491,7 @@ export class ZyfaiSDK {
       }
 
       const walletClient = this.getWalletClient();
-      const chainConfig = getChainConfig(chainId, undefined);
+      const chainConfig = getChainConfig(chainId);
 
       // Check if the user address is a Safe
       const accountType = await getAccountType(
@@ -513,7 +585,7 @@ export class ZyfaiSDK {
       }
 
       const walletClient = this.getWalletClient();
-      const chainConfig = getChainConfig(chainId, undefined);
+      const chainConfig = getChainConfig(chainId);
 
       // Get Safe address
       const safeAddress = await getDeterministicSafeAddress({
@@ -617,7 +689,7 @@ export class ZyfaiSDK {
       }
 
       const walletClient = this.getWalletClient();
-      const chainConfig = getChainConfig(chainId, undefined);
+      const chainConfig = getChainConfig(chainId);
 
       // Get Safe address
       const safeAddress = await getDeterministicSafeAddress({
@@ -665,6 +737,153 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(`Withdrawal failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get available DeFi protocols and pools for a specific chain
+   *
+   * @param chainId - Target chain ID
+   * @returns List of available protocols with their pools and APY data
+   *
+   * @example
+   * ```typescript
+   * const protocols = await sdk.getAvailableProtocols(42161);
+   * protocols.forEach(protocol => {
+   *   console.log(`${protocol.name}: ${protocol.minApy}% - ${protocol.maxApy}% APY`);
+   * });
+   * ```
+   */
+  async getAvailableProtocols(
+    chainId: SupportedChainId
+  ): Promise<ProtocolsResponse> {
+    try {
+      if (!isSupportedChain(chainId)) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+      }
+
+      const response = await this.httpClient.get<{
+        success: boolean;
+        chainId: number;
+        protocols: any[];
+      }>(ENDPOINTS.PROTOCOL);
+
+      return {
+        success: response.success,
+        chainId: response.chainId,
+        protocols: response.protocols,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get available protocols: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get all active DeFi positions for a user
+   *
+   * @param userAddress - User's EOA address
+   * @param chainId - Optional: Filter by specific chain ID
+   * @returns User's positions across all protocols
+   *
+   * @example
+   * ```typescript
+   * // Get all positions across all chains
+   * const positions = await sdk.getPositions(userAddress);
+   *
+   * // Get positions on a specific chain
+   * const arbPositions = await sdk.getPositions(userAddress, 42161);
+   * ```
+   */
+  async getPositions(
+    userAddress: string,
+    chainId?: SupportedChainId
+  ): Promise<PositionsResponse> {
+    try {
+      if (!userAddress) {
+        throw new Error("User address is required");
+      }
+
+      if (chainId && !isSupportedChain(chainId)) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+      }
+
+      // Construct the endpoint with query parameters
+      const endpoint = chainId
+        ? `/users/${userAddress}/position?chainId=${chainId}`
+        : `/users/${userAddress}/position`;
+
+      // Fetch positions from API
+      const response = await this.httpClient.get<{
+        success: boolean;
+        userAddress: string;
+        totalValueUsd: number;
+        positions: any[];
+      }>(endpoint);
+
+      return {
+        success: response.success || true,
+        userAddress: response.userAddress || userAddress,
+        totalValueUsd: response.totalValueUsd || 0,
+        positions: response.positions || [],
+      };
+    } catch (error) {
+      throw new Error(`Failed to get positions: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get earnings summary for a user
+   *
+   * @param userAddress - User's EOA or Safe address
+   * @param chainId - Optional: Filter by specific chain ID
+   * @returns Total earnings, unrealized and realized earnings
+   *
+   * @example
+   * ```typescript
+   * // Get earnings across all chains
+   * const earnings = await sdk.getEarnings(userAddress);
+   * console.log(`Total: $${earnings.totalEarningsUsd}`);
+   *
+   * // Get earnings on a specific chain
+   * const arbEarnings = await sdk.getEarnings(userAddress, 42161);
+   * ```
+   */
+  async getEarnings(
+    userAddress: string,
+    chainId?: SupportedChainId
+  ): Promise<EarningsResponse> {
+    try {
+      if (!userAddress) {
+        throw new Error("User address is required");
+      }
+
+      if (chainId && !isSupportedChain(chainId)) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+      }
+
+      const endpoint = chainId
+        ? `${ENDPOINTS.EARNINGS(userAddress)}?chainId=${chainId}`
+        : ENDPOINTS.EARNINGS(userAddress);
+
+      const response = await this.httpClient.get<{
+        success: boolean;
+        userAddress: string;
+        totalEarningsUsd: number;
+        unrealizedEarningsUsd: number;
+        realizedEarningsUsd: number;
+      }>(endpoint);
+
+      return {
+        success: true,
+        userAddress: response.userAddress,
+        totalEarningsUsd: response.totalEarningsUsd || 0,
+        unrealizedEarningsUsd: response.unrealizedEarningsUsd || 0,
+        realizedEarningsUsd: response.realizedEarningsUsd || 0,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get earnings: ${(error as Error).message}`);
     }
   }
 }

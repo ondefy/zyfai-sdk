@@ -15,15 +15,19 @@
 ### Flexible, Parameter-Based Design
 
 ```typescript
-// 1. Initialize SDK with API key (once)
-const sdk = new ZyfaiSDK("YOUR_API_KEY");
+// 1. Initialize SDK with configuration
+const sdk = new ZyfaiSDK({
+  apiKey: "YOUR_API_KEY",
+  bundlerApiKey: "YOUR_BUNDLER_API_KEY", // Required for Safe deployment
+  environment: "production", // or 'staging'
+});
 
 // 2. Connect account (separate step)
 // Option A: With private key (chainId required)
 await sdk.connectAccount("0x...", 42161);
 
-// Option B: With wallet provider (chainId optional - auto-detects from provider)
-await sdk.connectAccount(walletProvider); // SDK detects chain from provider
+// Option B: With wallet provider (chainId defaults to 42161)
+await sdk.connectAccount(walletProvider, 42161);
 
 // 3. Call functions with explicit parameters
 // The connected account is used only for signing, not for determining which user's data to fetch
@@ -34,9 +38,12 @@ const earnings = await sdk.getEarnings("0xUserAddress");
 
 **Important:**
 
+- **Environment-Based Endpoints**: API URLs are hardcoded based on environment:
+  - `production` → `https://api.zyf.ai`
+  - `staging` → `https://staging-api.zyf.ai`
+- **SIWE Authentication**: Session key creation requires SIWE (Sign-In with Ethereum) authentication
+- **Least Decimal Units**: Deposit and withdrawal amounts use raw token units (e.g., 1 USDC = 1000000)
 - The SDK does not connect to wallets directly. The client handles wallet connection on their frontend and passes the provider.
-- For wallet providers, `chainId` is optional - the SDK automatically detects the chain from the provider.
-- For private keys, `chainId` must be specified (defaults to Arbitrum 42161).
 
 ---
 
@@ -90,6 +97,8 @@ interface DeploySafeResponse {
 
 Create a session key with limited permissions for delegated transactions.
 
+**Important**: This function requires SIWE (Sign-In with Ethereum) authentication. The SDK automatically handles the authentication flow on first call.
+
 #### Simple Usage (Recommended)
 
 Automatically fetches optimal session configuration from ZyFAI API:
@@ -100,6 +109,13 @@ createSessionKey(
   chainId: number
 ): Promise<SessionKeyResponse>
 ```
+
+**Authentication Flow:**
+
+1. First call: SDK prompts wallet to sign SIWE message
+2. SDK exchanges signature for JWT token
+3. SDK uses token to fetch session config from API
+4. Subsequent calls: Reuses token (no additional signatures)
 
 #### Advanced Usage (Custom Configuration)
 
@@ -484,7 +500,7 @@ const sdk = new ZyfaiSDK({
 });
 
 // Connect wallet
-await sdk.connectAccount(provider); // or private key
+await sdk.connectAccount(privateKey, 42161);
 
 const userAddress = "0xUser...";
 const chainId = 42161; // Arbitrum
@@ -496,15 +512,15 @@ if (!wallet.isDeployed) {
   await sdk.deploySafe(userAddress, chainId);
 }
 
-// 2. Create session key for delegated transactions
+// 2. Create session key (automatic SIWE authentication)
 await sdk.createSessionKey(userAddress, chainId);
 
-// 3. Deposit funds (100 USDC with 6 decimals)
+// 3. Deposit funds - 100 USDC (least decimal units: 100 * 10^6)
 const depositResult = await sdk.depositFunds(
   userAddress,
   chainId,
   USDC,
-  "100000000" // 100 USDC = 100 * 10^6
+  "100000000" // 100 USDC with 6 decimals
 );
 
 // 4. Monitor positions
@@ -515,13 +531,19 @@ console.log("Active positions:", positions.positions);
 const earnings = await sdk.getEarnings(userAddress, chainId);
 console.log("Total earnings:", earnings.totalEarningsUsd);
 
-// 6. Withdraw (when needed) - 50 USDC with 6 decimals
+// 6. Withdraw - 50 USDC (least decimal units: 50 * 10^6)
 const withdrawResult = await sdk.withdrawFunds(
   userAddress,
   chainId,
-  "50000000" // Partial withdrawal: 50 USDC = 50 * 10^6
+  "50000000" // 50 USDC with 6 decimals
 );
 ```
+
+**Notes:**
+
+- All amounts must be in least decimal units (e.g., USDC: 1 token = 1000000)
+- Session key creation requires SIWE signature on first call
+- SDK reuses authentication token for subsequent calls
 
 ### Example 4: Service Pattern
 

@@ -36,11 +36,17 @@ import { ZyfaiSDK } from "@zyfai/sdk";
 const sdk = new ZyfaiSDK({
   apiKey: "your-zyfai-api-key",
   bundlerApiKey: "your-bundler-api-key", // Required for Safe deployment
-  environment: "production", // or 'staging'
+  environment: "production", // or 'staging' (default: 'production')
 });
 ```
 
-**Note**: The SDK uses Pimlico as the default bundler provider. To use a custom bundler, you can extend the SDK configuration.
+**Configuration Options:**
+
+- `apiKey`: Your ZyFAI API key (required)
+- `environment`: API environment - uses hardcoded endpoints:
+  - `"production"` → `https://api.zyf.ai`
+  - `"staging"` → `https://staging-api.zyf.ai`
+- `bundlerApiKey`: Pimlico API key or custom bundler URL for Safe deployment
 
 ### Connect Account
 
@@ -129,8 +135,8 @@ new ZyfaiSDK(config: SDKConfig | string)
 
 - `config`: Configuration object or API key string
   - `apiKey` (string): Your ZyFAI API key
-  - `environment` ('production' | 'staging', optional): API environment
-  - `baseURL` (string, optional): Custom API base URL
+  - `environment` ('production' | 'staging', optional): API environment (default: 'production')
+  - `bundlerApiKey` (string, optional): Bundler API key for Safe deployment (required for deploySafe)
 
 #### Methods
 
@@ -203,15 +209,22 @@ Session keys enable delegated transaction execution without exposing the main pr
 
 #### Simple Usage (Recommended)
 
-The SDK automatically fetches optimal session configuration from ZyFAI API:
+The SDK automatically fetches optimal session configuration from ZyFAI API and handles SIWE authentication:
 
 ```typescript
 // No manual configuration needed!
+// SDK automatically:
+// 1. Authenticates via SIWE (Sign-In with Ethereum)
+// 2. Fetches session config from API
+// 3. Signs the session key
+
 const result = await sdk.createSessionKey(userAddress, 42161);
 
 console.log("Session created:", result.signature);
 console.log("Safe address:", result.sessionKeyAddress);
 ```
+
+**Note**: The first call to `createSessionKey` will prompt the wallet to sign a SIWE message for authentication. Subsequent calls for the same address will reuse the authentication token.
 
 #### Advanced Usage (Custom Configuration)
 
@@ -293,31 +306,78 @@ if (result.success) {
 
 ### 6. Get Available Protocols
 
+Retrieve all available DeFi protocols and pools for a specific chain:
+
 ```typescript
 const protocols = await sdk.getAvailableProtocols(42161);
 
-protocols.forEach((protocol) => {
-  console.log(`${protocol.name}: ${protocol.apy}% APY`);
+console.log(`Found ${protocols.protocols.length} protocols`);
+protocols.protocols.forEach((protocol) => {
+  console.log(
+    `${protocol.name}: ${protocol.minApy}% - ${protocol.maxApy}% APY`
+  );
+  console.log(`TVL: $${protocol.tvl}`);
+  console.log(`Pools: ${protocol.pools.length}`);
 });
 ```
 
 ### 7. Monitor Positions
 
-```typescript
-const positions = await sdk.getPositions(userAddress);
+Track all active DeFi positions for a user:
 
-positions.forEach((position) => {
-  console.log(`${position.protocol}: $${position.value}`);
+```typescript
+// Get all positions across all chains
+const positions = await sdk.getPositions(userAddress);
+console.log(`Total Value: $${positions.totalValueUsd}`);
+console.log(`Active Positions: ${positions.positions.length}`);
+
+// Get positions on a specific chain
+const arbPositions = await sdk.getPositions(userAddress, 42161);
+
+positions.positions.forEach((position) => {
+  console.log(`${position.protocol} - ${position.pool}`);
+  console.log(`Value: $${position.valueUsd}, APY: ${position.apy}%`);
 });
 ```
 
 ### 8. Track Earnings
 
-```typescript
-const earnings = await sdk.getEarnings(userAddress);
+Get earnings summary for a user:
 
-console.log(`Total Earnings: $${earnings.total}`);
-console.log(`24h Earnings: $${earnings.daily}`);
+```typescript
+// Get earnings across all chains
+const earnings = await sdk.getEarnings(userAddress);
+console.log(`Total Earnings: $${earnings.totalEarningsUsd}`);
+console.log(`Unrealized: $${earnings.unrealizedEarningsUsd}`);
+console.log(`Realized: $${earnings.realizedEarningsUsd}`);
+
+// Get earnings on a specific chain
+const arbEarnings = await sdk.getEarnings(userAddress, 42161);
+```
+
+## Examples
+
+All examples are available in the `examples/` directory:
+
+1. **`end-to-end.ts`** - Complete workflow demonstrating all SDK features
+2. **`basic-usage.ts`** - Simple Safe deployment workflow
+3. **`deposit-withdraw.ts`** - Fund management examples
+4. **`session-key-simple.ts`** - Simplified session key creation
+5. **`data-retrieval.ts`** - Protocols, positions, and earnings
+
+### Quick Start: Run the End-to-End Example
+
+```bash
+# 1. Set up environment variables
+cp .env.example .env
+# Edit .env with your API keys
+
+# 2. Build the SDK
+pnpm install
+pnpm build
+
+# 3. Run the complete workflow
+pnpm tsx examples/end-to-end.ts
 ```
 
 ## Complete Examples
