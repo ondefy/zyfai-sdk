@@ -368,6 +368,7 @@ All examples are available in the `examples/` directory:
 5. **`data-retrieval.ts`** - Protocols, positions, and earnings
 6. **`create-session-key.ts`** - Focused session key creation + registration
 7. **`deposit.ts`** - Standalone deposit helper (uses env `CHAIN_ID`, `TOKEN_ADDRESS`, `DEPOSIT_AMOUNT`)
+8. **`withdraw.ts`** - Standalone withdrawal helper (uses env `CHAIN_ID`, `WITHDRAW_AMOUNT`, `WITHDRAW_RECEIVER`)
 
 ### Quick Start: Run the End-to-End Example
 
