@@ -34,6 +34,10 @@ export type {
   WithdrawResponse,
   UpdateUserProfileRequest,
   UpdateUserProfileResponse,
+  LoginResponse,
+  UserIdResponse,
+  AddSessionKeyRequest,
+  AddSessionKeyResponse,
 
   // Protocol Types
   Protocol,
@@ -47,5 +51,3 @@ export type {
   ERC7739Context,
   ActionData,
 } from "./types";
-
-

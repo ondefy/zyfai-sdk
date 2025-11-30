@@ -214,21 +214,25 @@ The SDK automatically fetches optimal session configuration from ZyFAI API:
 ```typescript
 // SDK automatically:
 // 1. Authenticates via SIWE (creates user record if needed)
-// 2. Calculates the Safe address
-// 3. Fetches session config from API (/data/config)
-// 4. Signs the session key
+// 2. Calculates the deterministic Safe address
+// 3. Resolves the userId via /users/by-smart-wallet
+// 4. Retrieves personalized config via /session-keys/config
+// 5. Signs the session key
+// 6. Calls /session-keys/add so the session becomes active immediately
 
 const result = await sdk.createSessionKey(userAddress, 42161);
 
 console.log("Session created:", result.signature);
 console.log("Safe address:", result.sessionKeyAddress);
+console.log("User ID:", result.userId);
+console.log("Activation ID:", result.sessionActivation?.id);
 ```
 
 **Important**:
 
 - `createSessionKey` requires SIWE authentication (prompts wallet signature on first call)
-- The user record must have `smartWallet` and `chainId` set (automatically done by `deploySafe`)
-- If calling `createSessionKey` without `deploySafe`, you must call `updateUserProfile` first
+- The user record must have `smartWallet` and `chainId` set (automatically handled after calling `deploySafe` or `updateUserProfile`)
+- The SDK now auto-calls `/users/by-smart-wallet`, `/session-keys/config`, and `/session-keys/add`, so the returned payload already includes the `userId` and the activation record (`sessionActivation`)—no additional API calls are required on your side.
 
 #### Advanced Usage (Custom Configuration)
 

@@ -97,7 +97,11 @@ interface DeploySafeResponse {
 
 Create a session key with limited permissions for delegated transactions.
 
-**Endpoint**: `GET /api/v1/data/config?walletAddress={safeAddress}&chainId={chainId}`
+**Endpoints auto-invoked by SDK:**
+
+- `GET /api/v1/users/by-smart-wallet?smartWallet={safeAddress}`
+- `GET /api/v1/session-keys/config`
+- `POST /api/v1/session-keys/add`
 
 #### Simple Usage (Recommended)
 
@@ -114,17 +118,19 @@ createSessionKey(
 
 1. **Authenticates via SIWE** - Creates user record if it doesn't exist
 2. SDK calculates the Safe address for the user
-3. SDK calls `/data/config` with `walletAddress` (Safe address) and `chainId`
-4. SDK receives session configuration from API
+3. SDK resolves the `userId` by calling `/users/by-smart-wallet?smartWallet={safeAddress}`
+4. SDK calls `/session-keys/config` (SIWE protected) to fetch personalized configuration
 5. SDK signs the session key with the connected wallet
+6. SDK calls `/session-keys/add` to activate the session immediately
 
 **Requirements:**
+
 - **SIWE Authentication**: User must sign a message to authenticate (handled automatically)
 - **User Profile**: User record must have `smartWallet` and `chainId` fields populated
   - Automatically set by `deploySafe` method
   - Or manually set via `updateUserProfile` method
 
-**Important**: The `/data/config` endpoint queries the database for a user with matching `smartWallet` + `chainId`. If the user record doesn't exist or is missing these fields, you'll get a "User not found" error.
+**Important**: The above endpoints require SIWE authentication. Ensure the user record contains the Safe address (set automatically after `deploySafe` or via `updateUserProfile`). If the user record doesn't exist or is missing these fields, you'll get a "User not found" error. The SDK now registers the session via `/session-keys/add`, so no extra API calls are needed client-side.
 
 #### Advanced Usage (Custom Configuration)
 
@@ -186,6 +192,17 @@ interface SessionKeyResponse {
   sessionKeyAddress: string;
   signature: string;
   sessionNonces?: bigint[];
+  userId?: string;
+  sessionActivation?: {
+    id: string;
+    hash: string;
+    signer: string;
+    nonces: number[];
+    expiresAt: string;
+    txHash?: string;
+    isActive: boolean;
+    isEnabled: boolean;
+  };
 }
 ```
 

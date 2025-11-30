@@ -19,6 +19,7 @@ export const ENDPOINTS = {
   // User
   USER_ME: "/users/me",
   USER_UPDATE: "/users/me",
+  USER_BY_SMART_WALLET: "/users/by-smart-wallet",
 
   // Users
   USERS_ME: "/users/me",
@@ -35,7 +36,8 @@ export const ENDPOINTS = {
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
 
   // Session Keys
-  SESSION_KEYS_CONFIG: "/data/config", // Public endpoint, uses API key
+  SESSION_KEYS_CONFIG: "/session-keys/config",
+  SESSION_KEYS_ADD: "/session-keys/add",
   SESSION_KEYS_HASH: "/session-keys/hash",
   SESSION_KEYS: "/session-keys",
   SESSION_KEYS_ACTIVATE: (chainId: number) =>
@@ -53,4 +55,3 @@ export const ENDPOINTS = {
   DATA_POSITION: "/data/position",
   DATA_TVL: (chainId: number) => `/data/tvl/${chainId}`,
 } as const;
-

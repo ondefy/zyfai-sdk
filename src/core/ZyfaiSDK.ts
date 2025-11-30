@@ -21,6 +21,9 @@ import type {
   UpdateUserProfileRequest,
   UpdateUserProfileResponse,
   LoginResponse,
+  UserIdResponse,
+  AddSessionKeyRequest,
+  AddSessionKeyResponse,
   Environment,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
@@ -122,11 +125,15 @@ export class ZyfaiSDK {
       const loginResponse = await this.httpClient.post<LoginResponse>(
         ENDPOINTS.AUTH_LOGIN,
         {
-          message: messageObj, // Send as object, not string!
+          message: messageObj,
           signature,
+        },
+        {
+          headers: {
+            Origin: uri,
+          },
         }
       );
-      console.log("loginResponse", loginResponse);
       const authToken = loginResponse.accessToken || loginResponse.token;
 
       if (!authToken) {
@@ -327,18 +334,6 @@ export class ZyfaiSDK {
       chainConfig.publicClient
     );
 
-    if (accountType === "Safe") {
-      // If already a Safe, return the user address
-      const isDeployed = await isSafeDeployed(
-        userAddress as Address,
-        chainConfig.publicClient
-      );
-      return {
-        address: userAddress as Address,
-        isDeployed,
-      };
-    }
-
     // For EOA, get the deterministic Safe address
     // Note: Safe will be owned by userAddress, not the connected wallet
     const safeAddress = await getDeterministicSafeAddress({
@@ -460,6 +455,9 @@ export class ZyfaiSDK {
     chainId: SupportedChainId
   ): Promise<SessionKeyResponse> {
     try {
+      // Authenticate to ensure user exists and JWT token is available
+      await this.authenticateUser();
+
       // Get Safe address first
       const walletClient = this.getWalletClient();
       const chainConfig = getChainConfig(chainId);
@@ -470,10 +468,18 @@ export class ZyfaiSDK {
         publicClient: chainConfig.publicClient,
       });
 
-      // Fetch session configuration from public API endpoint
-      // Uses /data/config which is public and requires walletAddress + chainId
+      // Fetch user ID by smart wallet (required for session key management)
+      const userInfo = await this.httpClient.get<UserIdResponse>(
+        `${ENDPOINTS.USER_BY_SMART_WALLET}?smartWallet=${safeAddress}`
+      );
+
+      if (!userInfo?.userId) {
+        throw new Error("Unable to resolve user ID for provided smart wallet");
+      }
+
+      // Fetch personalized session configuration (requires SIWE auth)
       const sessionConfig = await this.httpClient.get<any[]>(
-        `${ENDPOINTS.SESSION_KEYS_CONFIG}?walletAddress=${safeAddress}&chainId=${chainId}`
+        ENDPOINTS.SESSION_KEYS_CONFIG
       );
 
       if (!sessionConfig || sessionConfig.length === 0) {
@@ -487,7 +493,23 @@ export class ZyfaiSDK {
       }));
 
       // Sign the session key
-      return await this.signSessionKey(userAddress, chainId, sessions);
+      const signatureResult = await this.signSessionKey(
+        userAddress,
+        chainId,
+        sessions
+      );
+
+      // Register the session key on the backend so it becomes active immediately
+      const activation = await this.activateSessionKey(
+        signatureResult.signature,
+        signatureResult.sessionNonces
+      );
+
+      return {
+        ...signatureResult,
+        userId: userInfo.userId,
+        sessionActivation: activation,
+      };
     } catch (error) {
       throw new Error(
         `Failed to create session key: ${(error as Error).message}`
@@ -545,7 +567,36 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      return await this.signSessionKey(userAddress, chainId, sessions);
+      // Ensure SIWE auth token is available
+      await this.authenticateUser();
+
+      // Sign the session payload
+      const signatureResult = await this.signSessionKey(
+        userAddress,
+        chainId,
+        sessions
+      );
+
+      // Resolve user information via smart wallet address
+      const userInfo = await this.httpClient.get<UserIdResponse>(
+        `${ENDPOINTS.USER_BY_SMART_WALLET}?smartWallet=${signatureResult.sessionKeyAddress}`
+      );
+
+      if (!userInfo?.userId) {
+        throw new Error("Unable to resolve user ID for provided smart wallet");
+      }
+
+      // Register the session key
+      const activation = await this.activateSessionKey(
+        signatureResult.signature,
+        signatureResult.sessionNonces
+      );
+
+      return {
+        ...signatureResult,
+        userId: userInfo.userId,
+        sessionActivation: activation,
+      };
     } catch (error) {
       throw new Error(
         `Failed to create session key with config: ${(error as Error).message}`
@@ -603,15 +654,12 @@ export class ZyfaiSDK {
       );
 
       // Get the Safe address
-      const safeAddress =
-        accountType === "Safe"
-          ? (userAddress as Address)
-          : await getDeterministicSafeAddress({
-              owner: walletClient,
-              safeOwnerAddress: userAddress as Address,
-              chain: chainConfig.chain,
-              publicClient: chainConfig.publicClient,
-            });
+      const safeAddress = await getDeterministicSafeAddress({
+        owner: walletClient,
+        safeOwnerAddress: userAddress as Address,
+        chain: chainConfig.chain,
+        publicClient: chainConfig.publicClient,
+      });
 
       return {
         success: true,
@@ -624,6 +672,47 @@ export class ZyfaiSDK {
         `Failed to sign session key: ${(error as Error).message}`
       );
     }
+  }
+
+  /**
+   * Activate session key via ZyFAI API
+   */
+  private async activateSessionKey(
+    signature: Hex,
+    sessionNonces?: bigint[]
+  ): Promise<AddSessionKeyResponse> {
+    const nonces = this.normalizeSessionNonces(sessionNonces);
+
+    const payload: AddSessionKeyRequest = {
+      hash: signature,
+      nonces,
+    };
+
+    return await this.httpClient.post<AddSessionKeyResponse>(
+      ENDPOINTS.SESSION_KEYS_ADD,
+      payload
+    );
+  }
+
+  /**
+   * Convert session nonces from bigint[] to number[]
+   */
+  private normalizeSessionNonces(sessionNonces?: bigint[]): number[] {
+    if (!sessionNonces || sessionNonces.length === 0) {
+      throw new Error(
+        "Session nonces missing from signature result. Cannot register session key."
+      );
+    }
+
+    return sessionNonces.map((nonce) => {
+      const value = Number(nonce);
+
+      if (!Number.isFinite(value) || value < 0) {
+        throw new Error(`Invalid session nonce value: ${nonce.toString()}`);
+      }
+
+      return value;
+    });
   }
 
   /**

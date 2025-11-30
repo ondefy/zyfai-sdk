@@ -38,12 +38,36 @@ export interface UpdateUserProfileResponse {
 
 export interface LoginResponse {
   userId: string;
-  accessToken: string;
-  refreshToken: string;
-  tokenExpires: number;
-  hasActiveSessionKey: boolean;
-  smartWallet: string | null;
+  accessToken?: string;
   token?: string;
+  refreshToken?: string;
+  tokenExpires?: number;
+  hasActiveSessionKey?: boolean;
+  smartWallet?: string | null;
+}
+
+export interface UserIdResponse {
+  userId: string;
+  smartWallet: Address;
+}
+
+export interface AddSessionKeyRequest {
+  hash: Hex;
+  nonces: number[];
+}
+
+export interface AddSessionKeyResponse {
+  id: string;
+  hash: string;
+  signer: string;
+  nonces: number[];
+  expiresAt: string;
+  txHash?: string;
+  isActive: boolean;
+  isEnabled: boolean;
+  permissionId?: string;
+  permissionEnableHash?: string;
+  customHash?: string;
 }
 
 export interface SessionKeyResponse {
@@ -51,6 +75,8 @@ export interface SessionKeyResponse {
   sessionKeyAddress: Address;
   signature: Hex;
   sessionNonces?: bigint[];
+  userId?: string;
+  sessionActivation?: AddSessionKeyResponse;
 }
 
 export interface SmartWalletResponse {
@@ -164,4 +190,3 @@ export interface Session {
   permitERC4337Paymaster: boolean;
   chainId: bigint;
 }
-
