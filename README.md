@@ -364,6 +364,7 @@ All examples are available in the `examples/` directory:
 3. **`deposit-withdraw.ts`** - Fund management examples
 4. **`session-key-simple.ts`** - Simplified session key creation
 5. **`data-retrieval.ts`** - Protocols, positions, and earnings
+6. **`create-session-key.ts`** - Focused session key creation + registration
 
 ### Quick Start: Run the End-to-End Example
 

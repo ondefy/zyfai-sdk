@@ -57,26 +57,6 @@ const ERC7579_LAUNCHPAD_ADDRESS = "0x7579011aB74c46090561ea277Ba79D510c6C00ff";
 const DEFAULT_ACCOUNT_SALT = "zyfai-staging";
 
 /**
- * Convert string salt to hex bytes32
- */
-const saltToHex = (salt: string): Hex => {
-  // If already hex, return as-is
-  if (salt.startsWith("0x")) {
-    return salt as Hex;
-  }
-
-  // Convert string to hex bytes32
-  const encoder = new TextEncoder();
-  const bytes = encoder.encode(salt);
-  const hex = Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  // Pad to 32 bytes (64 hex chars)
-  return `0x${hex.padEnd(64, "0")}` as Hex;
-};
-
-/**
  * Gets the Safe smart account configuration
  */
 export const getSafeAccount = async (
@@ -102,7 +82,7 @@ export const getSafeAccount = async (
   });
 
   // Convert string salt to hex if needed
-  const saltHex = saltToHex(accountSalt);
+  const saltHex = fromHex(toHex(accountSalt), "bigint");
 
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
@@ -122,7 +102,7 @@ export const getSafeAccount = async (
         context: ownableValidator.initData,
       },
     ],
-    saltNonce: fromHex(saltHex, "bigint"),
+    saltNonce: saltHex,
   });
 
   return safeAccount;

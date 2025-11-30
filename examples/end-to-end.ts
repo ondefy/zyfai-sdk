@@ -56,7 +56,7 @@ async function main() {
     bundlerApiKey,
   });
 
-  console.log("✓ SDK initialized successfully");
+  console.log("SDK initialized successfully");
   console.log(`  Environment: staging`);
   console.log();
 
@@ -69,7 +69,7 @@ async function main() {
   const chainId = 8453 as SupportedChainId; // Base
   const connectedAddress = await sdk.connectAccount(privateKey, chainId);
 
-  console.log("✓ Account connected successfully");
+  console.log("Account connected successfully");
   console.log(`  Address: ${connectedAddress}`);
   console.log(`  Chain: Base (${chainId})`);
   console.log();
@@ -92,7 +92,7 @@ async function main() {
     console.log("\n  Deploying Safe...");
     try {
       const deployResult = await sdk.deploySafe(userAddress, chainId);
-      console.log("✓ Safe deployed successfully");
+      console.log("Safe deployed successfully");
       console.log(`  Safe Address: ${deployResult.safeAddress}`);
       console.log(`  Transaction: ${deployResult.txHash}`);
       console.log(`  Status: ${deployResult.status}`);
@@ -101,7 +101,7 @@ async function main() {
       console.log("  Note: Make sure you have gas fees on Base network");
     }
   } else {
-    console.log("✓ Safe already deployed");
+    console.log("Safe already deployed");
   }
   console.log();
 
@@ -115,7 +115,7 @@ async function main() {
 
   try {
     const sessionResult = await sdk.createSessionKey(userAddress, chainId);
-    console.log("\n✓ Session key created successfully");
+    console.log("\nSession key created successfully");
     console.log(`  Safe Address: ${sessionResult.sessionKeyAddress}`);
     console.log(`  Signature: ${sessionResult.signature.substring(0, 20)}...`);
     console.log("  Configuration: Auto-fetched from ZyFAI API");
@@ -125,211 +125,211 @@ async function main() {
   }
   console.log();
 
-  // // =================================================================
-  // // STEP 5: Check Available Protocols
-  // // =================================================================
-  // console.log("STEP 5: Checking Available Protocols");
-  // console.log("-".repeat(60));
+  // =================================================================
+  // STEP 5: Check Available Protocols
+  // =================================================================
+  console.log("STEP 5: Checking Available Protocols");
+  console.log("-".repeat(60));
 
-  // try {
-  //   const protocols = await sdk.getAvailableProtocols(chainId);
-  //   console.log(`✓ Found ${protocols.protocols.length} protocols on Base\n`);
+  try {
+    const protocols = await sdk.getAvailableProtocols(chainId);
+    console.log(`Found ${protocols.protocols.length} protocols on Base\n`);
 
-  //   if (protocols.protocols.length > 0) {
-  //     console.log("  Top Protocols:");
-  //     protocols.protocols.slice(0, 3).forEach((protocol, index) => {
-  //       console.log(`\n  ${index + 1}. ${protocol.name}`);
-  //       console.log(`     TVL: $${protocol.tvl}`);
-  //       console.log(`     APY: ${protocol.minApy}% - ${protocol.maxApy}%`);
-  //       console.log(`     Pools: ${protocol.pools.length}`);
-  //     });
-  //   }
-  // } catch (error) {
-  //   console.log("✗ Failed to fetch protocols:", (error as Error).message);
-  // }
-  // console.log();
+    if (protocols.protocols.length > 0) {
+      console.log("  Top Protocols:");
+      protocols.protocols.slice(0, 3).forEach((protocol, index) => {
+        console.log(`\n  ${index + 1}. ${protocol.name}`);
+        console.log(`     TVL: $${protocol.tvl}`);
+        console.log(`     APY: ${protocol.minApy}% - ${protocol.maxApy}%`);
+        console.log(`     Pools: ${protocol.pools.length}`);
+      });
+    }
+  } catch (error) {
+    console.log("✗ Failed to fetch protocols:", (error as Error).message);
+  }
+  console.log();
 
-  // // =================================================================
-  // // STEP 6: Deposit Funds (Optional - Commented Out)
-  // // =================================================================
-  // console.log("STEP 6: Deposit Funds (Optional)");
-  // console.log("-".repeat(60));
-  // console.log("  To deposit funds, uncomment the code below and ensure:");
-  // console.log("  1. You have USDC in your connected wallet");
-  // console.log("  2. You have gas fees for the transaction");
-  // console.log(
-  //   "  3. Amount is in least decimal units (e.g., 10 USDC = 10000000)"
-  // );
-  // console.log();
+  // =================================================================
+  // STEP 6: Deposit Funds (Optional - Commented Out)
+  // =================================================================
+  console.log("STEP 6: Deposit Funds (Optional)");
+  console.log("-".repeat(60));
+  console.log("  To deposit funds, uncomment the code below and ensure:");
+  console.log("  1. You have USDC in your connected wallet");
+  console.log("  2. You have gas fees for the transaction");
+  console.log(
+    "  3. Amount is in least decimal units (e.g., 10 USDC = 10000000)"
+  );
+  console.log();
 
-  // /* UNCOMMENT TO ENABLE DEPOSITS
-  // try {
-  //   console.log("  Depositing 10 USDC to Safe...");
-  //   const depositResult = await sdk.depositFunds(
-  //     userAddress,
-  //     chainId,
-  //     usdcAddress,
-  //     "10000000" // 10 USDC = 10 * 10^6 (6 decimals)
-  //   );
+  /* UNCOMMENT TO ENABLE DEPOSITS
+  try {
+    console.log("  Depositing 10 USDC to Safe...");
+    const depositResult = await sdk.depositFunds(
+      userAddress,
+      chainId,
+      usdcAddress,
+      "10000000" // 10 USDC = 10 * 10^6 (6 decimals)
+    );
 
-  //   console.log("\n✓ Deposit successful");
-  //   console.log(`  Transaction: ${depositResult.txHash}`);
-  //   console.log(`  Amount: ${depositResult.amount}`);
-  //   console.log(`  Smart Wallet: ${depositResult.smartWallet}`);
-  //   console.log(`  Status: ${depositResult.status}`);
-  // } catch (error) {
-  //   console.log("\n✗ Deposit failed:", (error as Error).message);
-  // }
-  // console.log();
-  // */
+    console.log("\nDeposit successful");
+    console.log(`  Transaction: ${depositResult.txHash}`);
+    console.log(`  Amount: ${depositResult.amount}`);
+    console.log(`  Smart Wallet: ${depositResult.smartWallet}`);
+    console.log(`  Status: ${depositResult.status}`);
+  } catch (error) {
+    console.log("\n✗ Deposit failed:", (error as Error).message);
+  }
+  console.log();
+  */
 
-  // console.log("  Skipping deposit (see code comments to enable)");
-  // console.log();
+  console.log("  Skipping deposit (see code comments to enable)");
+  console.log();
 
-  // // =================================================================
-  // // STEP 7: Monitor Positions
-  // // =================================================================
-  // console.log("STEP 7: Monitoring Positions");
-  // console.log("-".repeat(60));
+  // =================================================================
+  // STEP 7: Monitor Positions
+  // =================================================================
+  console.log("STEP 7: Monitoring Positions");
+  console.log("-".repeat(60));
 
-  // try {
-  //   // Get all positions
-  //   const positions = await sdk.getPositions(userAddress);
-  //   console.log(`✓ Portfolio retrieved successfully`);
-  //   console.log(`  Total Value: $${positions.totalValueUsd.toFixed(2)}`);
-  //   console.log(`  Active Positions: ${positions.positions.length}`);
+  try {
+    // Get all positions
+    const positions = await sdk.getPositions(userAddress);
+    console.log(`Portfolio retrieved successfully`);
+    console.log(`  Total Value: $${positions.totalValueUsd.toFixed(2)}`);
+    console.log(`  Active Positions: ${positions.positions.length}`);
 
-  //   if (positions.positions.length > 0) {
-  //     console.log("\n  Position Details:");
-  //     positions.positions.forEach((position, index) => {
-  //       console.log(
-  //         `\n  ${index + 1}. ${position.protocol} - ${position.pool}`
-  //       );
-  //       console.log(`     Asset: ${position.asset.symbol}`);
-  //       console.log(`     Amount: ${position.amount}`);
-  //       console.log(`     Value: $${position.valueUsd.toFixed(2)}`);
-  //       console.log(`     APY: ${position.apy}%`);
-  //       console.log(
-  //         `     Unrealized Earnings: $${position.unrealizedEarnings.toFixed(2)}`
-  //       );
-  //     });
-  //   } else {
-  //     console.log("\n  No active positions found.");
-  //     console.log("  Deposit funds to start earning yield!");
-  //   }
+    if (positions.positions.length > 0) {
+      console.log("\n  Position Details:");
+      positions.positions.forEach((position, index) => {
+        console.log(
+          `\n  ${index + 1}. ${position.protocol} - ${position.pool}`
+        );
+        console.log(`     Asset: ${position.asset.symbol}`);
+        console.log(`     Amount: ${position.amount}`);
+        console.log(`     Value: $${position.valueUsd.toFixed(2)}`);
+        console.log(`     APY: ${position.apy}%`);
+        console.log(
+          `     Unrealized Earnings: $${position.unrealizedEarnings.toFixed(2)}`
+        );
+      });
+    } else {
+      console.log("\n  No active positions found.");
+      console.log("  Deposit funds to start earning yield!");
+    }
 
-  //   // Get positions on specific chain
-  //   console.log(`\n  Positions on Base only:`);
-  //   const basePositions = await sdk.getPositions(userAddress, chainId);
-  //   console.log(`  Positions: ${basePositions.positions.length}`);
-  //   console.log(`  Total Value: $${basePositions.totalValueUsd.toFixed(2)}`);
-  // } catch (error) {
-  //   console.log("✗ Failed to fetch positions:", (error as Error).message);
-  // }
-  // console.log();
+    // Get positions on specific chain
+    console.log(`\n  Positions on Base only:`);
+    const basePositions = await sdk.getPositions(userAddress, chainId);
+    console.log(`  Positions: ${basePositions.positions.length}`);
+    console.log(`  Total Value: $${basePositions.totalValueUsd.toFixed(2)}`);
+  } catch (error) {
+    console.log("✗ Failed to fetch positions:", (error as Error).message);
+  }
+  console.log();
 
-  // // =================================================================
-  // // STEP 8: Track Earnings
-  // // =================================================================
-  // console.log("STEP 8: Tracking Earnings");
-  // console.log("-".repeat(60));
+  // =================================================================
+  // STEP 8: Track Earnings
+  // =================================================================
+  console.log("STEP 8: Tracking Earnings");
+  console.log("-".repeat(60));
 
-  // try {
-  //   // Get all earnings
-  //   const earnings = await sdk.getEarnings(userAddress);
-  //   console.log("✓ Earnings retrieved successfully\n");
-  //   console.log("  Earnings Summary (All Chains):");
-  //   console.log(
-  //     `  Total Earnings:      $${earnings.totalEarningsUsd.toFixed(2)}`
-  //   );
-  //   console.log(
-  //     `  Unrealized Earnings: $${earnings.unrealizedEarningsUsd.toFixed(2)}`
-  //   );
-  //   console.log(
-  //     `  Realized Earnings:   $${earnings.realizedEarningsUsd.toFixed(2)}`
-  //   );
+  try {
+    // Get all earnings
+    const earnings = await sdk.getEarnings(userAddress);
+    console.log("Earnings retrieved successfully\n");
+    console.log("  Earnings Summary (All Chains):");
+    console.log(
+      `  Total Earnings:      $${earnings.totalEarningsUsd.toFixed(2)}`
+    );
+    console.log(
+      `  Unrealized Earnings: $${earnings.unrealizedEarningsUsd.toFixed(2)}`
+    );
+    console.log(
+      `  Realized Earnings:   $${earnings.realizedEarningsUsd.toFixed(2)}`
+    );
 
-  //   // Get earnings on specific chain
-  //   const baseEarnings = await sdk.getEarnings(userAddress, chainId);
-  //   console.log("\n  Earnings on Base:");
-  //   console.log(`  Total:      $${baseEarnings.totalEarningsUsd.toFixed(2)}`);
-  //   console.log(
-  //     `  Unrealized: $${baseEarnings.unrealizedEarningsUsd.toFixed(2)}`
-  //   );
-  //   console.log(
-  //     `  Realized:   $${baseEarnings.realizedEarningsUsd.toFixed(2)}`
-  //   );
-  // } catch (error) {
-  //   console.log("✗ Failed to fetch earnings:", (error as Error).message);
-  // }
-  // console.log();
+    // Get earnings on specific chain
+    const baseEarnings = await sdk.getEarnings(userAddress, chainId);
+    console.log("\n  Earnings on Base:");
+    console.log(`  Total:      $${baseEarnings.totalEarningsUsd.toFixed(2)}`);
+    console.log(
+      `  Unrealized: $${baseEarnings.unrealizedEarningsUsd.toFixed(2)}`
+    );
+    console.log(
+      `  Realized:   $${baseEarnings.realizedEarningsUsd.toFixed(2)}`
+    );
+  } catch (error) {
+    console.log("✗ Failed to fetch earnings:", (error as Error).message);
+  }
+  console.log();
 
-  // // =================================================================
-  // // STEP 9: Withdraw Funds (Optional - Commented Out)
-  // // =================================================================
-  // console.log("STEP 9: Withdraw Funds (Optional)");
-  // console.log("-".repeat(60));
-  // console.log("  To withdraw funds, uncomment the code below.");
-  // console.log("  You can perform full or partial withdrawals.");
-  // console.log(
-  //   "  Amount must be in least decimal units (e.g., 5 USDC = 5000000)"
-  // );
-  // console.log();
+  // =================================================================
+  // STEP 9: Withdraw Funds (Optional - Commented Out)
+  // =================================================================
+  console.log("STEP 9: Withdraw Funds (Optional)");
+  console.log("-".repeat(60));
+  console.log("  To withdraw funds, uncomment the code below.");
+  console.log("  You can perform full or partial withdrawals.");
+  console.log(
+    "  Amount must be in least decimal units (e.g., 5 USDC = 5000000)"
+  );
+  console.log();
 
-  // /* UNCOMMENT TO ENABLE WITHDRAWALS
-  // try {
-  //   console.log("  Requesting partial withdrawal of 5 USDC...");
-  //   const withdrawResult = await sdk.withdrawFunds(
-  //     userAddress,
-  //     chainId,
-  //     "5000000", // 5 USDC = 5 * 10^6 (6 decimals)
-  //     userAddress // Receive back to connected wallet
-  //   );
+  /* UNCOMMENT TO ENABLE WITHDRAWALS
+  try {
+    console.log("  Requesting partial withdrawal of 5 USDC...");
+    const withdrawResult = await sdk.withdrawFunds(
+      userAddress,
+      chainId,
+      "5000000", // 5 USDC = 5 * 10^6 (6 decimals)
+      userAddress // Receive back to connected wallet
+    );
 
-  //   console.log("\n✓ Withdrawal requested successfully");
-  //   console.log(`  Transaction: ${withdrawResult.txHash}`);
-  //   console.log(`  Type: ${withdrawResult.type}`);
-  //   console.log(`  Amount: ${withdrawResult.amount}`);
-  //   console.log(`  Receiver: ${withdrawResult.receiver}`);
-  //   console.log(`  Status: ${withdrawResult.status}`);
-  //   console.log("\n  Note: Withdrawals may take some time to process");
-  // } catch (error) {
-  //   console.log("\n✗ Withdrawal failed:", (error as Error).message);
-  // }
-  // console.log();
-  // */
+    console.log("\nWithdrawal requested successfully");
+    console.log(`  Transaction: ${withdrawResult.txHash}`);
+    console.log(`  Type: ${withdrawResult.type}`);
+    console.log(`  Amount: ${withdrawResult.amount}`);
+    console.log(`  Receiver: ${withdrawResult.receiver}`);
+    console.log(`  Status: ${withdrawResult.status}`);
+    console.log("\n  Note: Withdrawals may take some time to process");
+  } catch (error) {
+    console.log("\n✗ Withdrawal failed:", (error as Error).message);
+  }
+  console.log();
+  */
 
-  // console.log("  Skipping withdrawal (see code comments to enable)");
-  // console.log();
+  console.log("  Skipping withdrawal (see code comments to enable)");
+  console.log();
 
-  // // =================================================================
-  // // SUMMARY
-  // // =================================================================
-  // console.log("=".repeat(60));
-  // console.log("End-to-End Workflow Completed!");
-  // console.log("=".repeat(60));
-  // console.log();
-  // console.log("Summary of what we did:");
-  // console.log("  ✓ Initialized SDK with API credentials");
-  // console.log("  ✓ Connected account (EOA wallet)");
-  // console.log("  ✓ Deployed/Verified Safe smart wallet");
-  // console.log("  ✓ Created session key for delegated transactions");
-  // console.log("  ✓ Checked available DeFi protocols");
-  // console.log("  ✓ Monitored active positions");
-  // console.log("  ✓ Tracked earnings across protocols");
-  // console.log();
-  // console.log("Next Steps:");
-  // console.log("  1. Uncomment deposit code to add funds");
-  // console.log("  2. Wait for yield to accumulate");
-  // console.log("  3. Monitor positions and earnings regularly");
-  // console.log("  4. Withdraw funds when ready");
-  // console.log();
-  // console.log("For more examples, check:");
-  // console.log("  - basic-usage.ts");
-  // console.log("  - deposit-withdraw.ts");
-  // console.log("  - session-key-simple.ts");
-  // console.log("  - data-retrieval.ts");
-  // console.log();
+  // =================================================================
+  // SUMMARY
+  // =================================================================
+  console.log("=".repeat(60));
+  console.log("End-to-End Workflow Completed!");
+  console.log("=".repeat(60));
+  console.log();
+  console.log("Summary of what we did:");
+  console.log("  Initialized SDK with API credentials");
+  console.log("  Connected account (EOA wallet)");
+  console.log("  Deployed/Verified Safe smart wallet");
+  console.log("  Created session key for delegated transactions");
+  console.log("  Checked available DeFi protocols");
+  console.log("  Monitored active positions");
+  console.log("  Tracked earnings across protocols");
+  console.log();
+  console.log("Next Steps:");
+  console.log("  1. Uncomment deposit code to add funds");
+  console.log("  2. Wait for yield to accumulate");
+  console.log("  3. Monitor positions and earnings regularly");
+  console.log("  4. Withdraw funds when ready");
+  console.log();
+  console.log("For more examples, check:");
+  console.log("  - basic-usage.ts");
+  console.log("  - deposit-withdraw.ts");
+  console.log("  - session-key-simple.ts");
+  console.log("  - data-retrieval.ts");
+  console.log();
 }
 
 main()

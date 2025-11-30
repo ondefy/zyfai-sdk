@@ -38,6 +38,7 @@ export const ENDPOINTS = {
   // Session Keys
   SESSION_KEYS_CONFIG: "/session-keys/config",
   SESSION_KEYS_ADD: "/session-keys/add",
+  SESSION_KEYS_REVOKE: "/session-keys/revoke",
   SESSION_KEYS_HASH: "/session-keys/hash",
   SESSION_KEYS: "/session-keys",
   SESSION_KEYS_ACTIVATE: (chainId: number) =>
