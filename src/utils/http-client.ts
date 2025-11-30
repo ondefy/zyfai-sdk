@@ -10,17 +10,23 @@ export class HttpClient {
   private client: AxiosInstance;
   private apiKey: string;
   private authToken: string | null = null;
+  private origin: string;
+  private host: string;
 
   constructor(apiKey: string, environment: Environment = "production") {
     this.apiKey = apiKey;
 
-    const url = API_ENDPOINTS[environment];
+    const endpoint = API_ENDPOINTS[environment];
+    const parsedUrl = new URL(endpoint);
+    this.origin = parsedUrl.origin;
+    this.host = parsedUrl.host;
 
     this.client = axios.create({
-      baseURL: `${url}${API_VERSION}`,
+      baseURL: `${endpoint}${API_VERSION}`,
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": apiKey,
+        Origin: this.origin,
       },
       timeout: 30000,
     });
@@ -36,12 +42,21 @@ export class HttpClient {
     this.authToken = null;
   }
 
+  getOrigin(): string {
+    return this.origin;
+  }
+
+  getHost(): string {
+    return this.host;
+  }
+
   private setupInterceptors() {
     // Request interceptor
     this.client.interceptors.request.use(
       (config) => {
         // Ensure API key is always present
         config.headers["X-API-Key"] = this.apiKey;
+        config.headers["Origin"] = this.origin;
 
         // Add auth token if available
         if (this.authToken) {

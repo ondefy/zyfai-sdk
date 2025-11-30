@@ -32,6 +32,8 @@ export type {
   EarningsResponse,
   DepositResponse,
   WithdrawResponse,
+  UpdateUserProfileRequest,
+  UpdateUserProfileResponse,
 
   // Protocol Types
   Protocol,
@@ -45,4 +47,5 @@ export type {
   ERC7739Context,
   ActionData,
 } from "./types";
+
 

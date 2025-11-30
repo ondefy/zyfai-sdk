@@ -3,7 +3,8 @@
  */
 
 export const API_ENDPOINTS = {
-  staging: "https://staging-api.zyf.ai",
+  // staging: "https://staging-api.zyf.ai",
+  staging: "http://localhost:3000",
   production: "https://api.zyf.ai",
 } as const;
 
@@ -14,6 +15,10 @@ export const ENDPOINTS = {
   AUTH_LOGIN: "/auth/login",
   AUTH_CHALLENGE: "/auth/challenge",
   AUTH_REFRESH: "/auth/refresh",
+
+  // User
+  USER_ME: "/users/me",
+  USER_UPDATE: "/users/me",
 
   // Users
   USERS_ME: "/users/me",
@@ -30,7 +35,7 @@ export const ENDPOINTS = {
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
 
   // Session Keys
-  SESSION_KEYS_CONFIG: "/session-keys/config",
+  SESSION_KEYS_CONFIG: "/data/config", // Public endpoint, uses API key
   SESSION_KEYS_HASH: "/session-keys/hash",
   SESSION_KEYS: "/session-keys",
   SESSION_KEYS_ACTIVATE: (chainId: number) =>
@@ -38,15 +43,14 @@ export const ENDPOINTS = {
   SESSION_KEYS_ACTIVE: "/session-keys/active",
 
   // Protocols
-  PROTOCOL: "/protocol",
+  PROTOCOLS: "/protocols",
 
   // History
   HISTORY: (userId: string) => `/history/${userId}`,
   HISTORY_LATEST: (userId: string) => `/history/${userId}/latest`,
 
-  // Earnings
-  EARNINGS: (walletAddress: string) => `/earnings/${walletAddress}`,
-
   // Data
+  DATA_POSITION: "/data/position",
   DATA_TVL: (chainId: number) => `/data/tvl/${chainId}`,
 } as const;
+

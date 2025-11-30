@@ -209,14 +209,14 @@ Session keys enable delegated transaction execution without exposing the main pr
 
 #### Simple Usage (Recommended)
 
-The SDK automatically fetches optimal session configuration from ZyFAI API and handles SIWE authentication:
+The SDK automatically fetches optimal session configuration from ZyFAI API:
 
 ```typescript
-// No manual configuration needed!
 // SDK automatically:
-// 1. Authenticates via SIWE (Sign-In with Ethereum)
-// 2. Fetches session config from API
-// 3. Signs the session key
+// 1. Authenticates via SIWE (creates user record if needed)
+// 2. Calculates the Safe address
+// 3. Fetches session config from API (/data/config)
+// 4. Signs the session key
 
 const result = await sdk.createSessionKey(userAddress, 42161);
 
@@ -224,7 +224,11 @@ console.log("Session created:", result.signature);
 console.log("Safe address:", result.sessionKeyAddress);
 ```
 
-**Note**: The first call to `createSessionKey` will prompt the wallet to sign a SIWE message for authentication. Subsequent calls for the same address will reuse the authentication token.
+**Important**:
+
+- `createSessionKey` requires SIWE authentication (prompts wallet signature on first call)
+- The user record must have `smartWallet` and `chainId` set (automatically done by `deploySafe`)
+- If calling `createSessionKey` without `deploySafe`, you must call `updateUserProfile` first
 
 #### Advanced Usage (Custom Configuration)
 
@@ -321,39 +325,31 @@ protocols.protocols.forEach((protocol) => {
 });
 ```
 
+**Note**: This endpoint fetches protocols from `/api/v1/protocols?chainId={chainId}`
+
 ### 7. Monitor Positions
 
 Track all active DeFi positions for a user:
 
 ```typescript
-// Get all positions across all chains
+// Get position data for a wallet
 const positions = await sdk.getPositions(userAddress);
-console.log(`Total Value: $${positions.totalValueUsd}`);
-console.log(`Active Positions: ${positions.positions.length}`);
-
-// Get positions on a specific chain
-const arbPositions = await sdk.getPositions(userAddress, 42161);
-
-positions.positions.forEach((position) => {
-  console.log(`${position.protocol} - ${position.pool}`);
-  console.log(`Value: $${position.valueUsd}, APY: ${position.apy}%`);
-});
+console.log(`Active Position:`, positions.positions);
 ```
+
+**Note**: This endpoint uses `/api/v1/data/position?walletAddress={address}` and returns a single position object from the API.
 
 ### 8. Track Earnings
 
 Get earnings summary for a user:
 
 ```typescript
-// Get earnings across all chains
+// Get earnings (placeholder - API endpoint in development)
 const earnings = await sdk.getEarnings(userAddress);
 console.log(`Total Earnings: $${earnings.totalEarningsUsd}`);
-console.log(`Unrealized: $${earnings.unrealizedEarningsUsd}`);
-console.log(`Realized: $${earnings.realizedEarningsUsd}`);
-
-// Get earnings on a specific chain
-const arbEarnings = await sdk.getEarnings(userAddress, 42161);
 ```
+
+**Note**: The earnings endpoint is currently using placeholder data as the dedicated earnings API is under development. The SDK will be updated when the API endpoint is finalized.
 
 ## Examples
 

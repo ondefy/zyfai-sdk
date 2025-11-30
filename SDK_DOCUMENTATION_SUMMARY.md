@@ -97,7 +97,7 @@ interface DeploySafeResponse {
 
 Create a session key with limited permissions for delegated transactions.
 
-**Important**: This function requires SIWE (Sign-In with Ethereum) authentication. The SDK automatically handles the authentication flow on first call.
+**Endpoint**: `GET /api/v1/data/config?walletAddress={safeAddress}&chainId={chainId}`
 
 #### Simple Usage (Recommended)
 
@@ -110,12 +110,21 @@ createSessionKey(
 ): Promise<SessionKeyResponse>
 ```
 
-**Authentication Flow:**
+**Process:**
 
-1. First call: SDK prompts wallet to sign SIWE message
-2. SDK exchanges signature for JWT token
-3. SDK uses token to fetch session config from API
-4. Subsequent calls: Reuses token (no additional signatures)
+1. **Authenticates via SIWE** - Creates user record if it doesn't exist
+2. SDK calculates the Safe address for the user
+3. SDK calls `/data/config` with `walletAddress` (Safe address) and `chainId`
+4. SDK receives session configuration from API
+5. SDK signs the session key with the connected wallet
+
+**Requirements:**
+- **SIWE Authentication**: User must sign a message to authenticate (handled automatically)
+- **User Profile**: User record must have `smartWallet` and `chainId` fields populated
+  - Automatically set by `deploySafe` method
+  - Or manually set via `updateUserProfile` method
+
+**Important**: The `/data/config` endpoint queries the database for a user with matching `smartWallet` + `chainId`. If the user record doesn't exist or is missing these fields, you'll get a "User not found" error.
 
 #### Advanced Usage (Custom Configuration)
 

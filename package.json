@@ -23,7 +23,9 @@
   "dependencies": {
     "@rhinestone/module-sdk": "^0.2.10",
     "axios": "^1.6.0",
+    "dotenv": "^17.2.3",
     "permissionless": "^0.2.38",
+    "siwe": "^3.0.0",
     "viem": "^2.37.8"
   },
   "engines": {

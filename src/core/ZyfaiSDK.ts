@@ -18,6 +18,10 @@ import type {
   ProtocolsResponse,
   PositionsResponse,
   EarningsResponse,
+  UpdateUserProfileRequest,
+  UpdateUserProfileResponse,
+  LoginResponse,
+  Environment,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -40,6 +44,8 @@ import {
   isSafeDeployed,
   signSessionKey,
 } from "../utils/safe-account";
+import { SiweMessage } from "siwe";
+import { API_ENDPOINTS } from "../config/endpoints";
 
 export class ZyfaiSDK {
   private httpClient: HttpClient;
@@ -47,19 +53,21 @@ export class ZyfaiSDK {
   private walletClient: WalletClient | null = null;
   private bundlerApiKey?: string;
   private isAuthenticated: boolean = false;
+  private environment: Environment; // TODO: The encironment should be removed. Having the same key for staging and production is not ideal, but for now it's fine.
 
   constructor(config: SDKConfig | string) {
     // Support both object and string initialization
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, environment = "production", bundlerApiKey } = sdkConfig;
+    const { apiKey, environment, bundlerApiKey } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
     }
 
-    this.httpClient = new HttpClient(apiKey, environment);
+    this.environment = environment || "production";
+    this.httpClient = new HttpClient(apiKey, this.environment);
     this.bundlerApiKey = bundlerApiKey;
   }
 
@@ -79,42 +87,99 @@ export class ZyfaiSDK {
 
       const walletClient = this.getWalletClient();
       const userAddress = walletClient.account!.address;
+      const chainId = walletClient.chain?.id || 8453; // Default to Base
 
       // Step 1: Get challenge/nonce
       const challengeResponse = await this.httpClient.post<{
         nonce: string;
-        domain: string;
-        statement?: string;
       }>(ENDPOINTS.AUTH_CHALLENGE, {});
 
-      // Step 2: Create SIWE message
-      const message = `${
-        challengeResponse.domain
-      } wants you to sign in with your Ethereum account:\n${userAddress}\n\n${
-        challengeResponse.statement || "Sign in to ZyFAI"
-      }\n\nNonce: ${challengeResponse.nonce}`;
+      // Step 2: Create SIWE message object (not string!)
+      const domain = API_ENDPOINTS[this.environment].split("//")[1];
+      const uri = API_ENDPOINTS[this.environment];
 
-      // Step 3: Sign the message
+      const messageObj = new SiweMessage({
+        address: userAddress,
+        chainId: chainId,
+        domain: domain,
+        nonce: challengeResponse.nonce,
+        statement: "Sign in with Ethereum",
+        uri: uri,
+        version: "1",
+        issuedAt: new Date().toISOString(),
+      });
+
+      // Step 3: Create the message string for signing
+      const messageString = messageObj.prepareMessage();
+
+      // Step 4: Sign the message
       const signature = await walletClient.signMessage({
         account: walletClient.account!,
-        message,
+        message: messageString,
       });
 
-      // Step 4: Login with signed message
-      const loginResponse = await this.httpClient.post<{
-        token: string;
-        refreshToken?: string;
-      }>(ENDPOINTS.AUTH_LOGIN, {
-        message,
-        signature,
-      });
+      // Step 5: Login with message object (not string) and signature
+      const loginResponse = await this.httpClient.post<LoginResponse>(
+        ENDPOINTS.AUTH_LOGIN,
+        {
+          message: messageObj, // Send as object, not string!
+          signature,
+        }
+      );
+      console.log("loginResponse", loginResponse);
+      const authToken = loginResponse.accessToken || loginResponse.token;
 
-      // Step 5: Store auth token
-      this.httpClient.setAuthToken(loginResponse.token);
+      if (!authToken) {
+        throw new Error("Authentication response missing access token");
+      }
+
+      // Step 6: Store auth token
+      this.httpClient.setAuthToken(authToken);
       this.isAuthenticated = true;
     } catch (error) {
       throw new Error(
         `Failed to authenticate user: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Update user profile with Smart Wallet address and chain configuration
+   * This method requires SIWE authentication and is automatically called after deploySafe
+   *
+   * @param request - User profile update data
+   * @returns Updated user profile information
+   *
+   * @example
+   * ```typescript
+   * await sdk.updateUserProfile({
+   *   smartWallet: "0x1396730...",
+   *   chains: [8453, 42161],
+   * });
+   * ```
+   */
+  async updateUserProfile(
+    request: UpdateUserProfileRequest
+  ): Promise<UpdateUserProfileResponse> {
+    try {
+      // Authenticate user first to get JWT token
+      await this.authenticateUser();
+
+      // Update user profile via API
+      const response = await this.httpClient.patch<any>(
+        ENDPOINTS.USER_UPDATE,
+        request
+      );
+
+      return {
+        success: true,
+        userId: response.userId || response.id,
+        smartWallet: response.smartWallet,
+        chains: response.chains,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to update user profile: ${(error as Error).message}`
       );
     }
   }
@@ -188,7 +253,6 @@ export class ZyfaiSDK {
         throw new Error("No accounts found in wallet provider");
       }
 
-      // TODO:Shouldn't the chain be the same as the connected wallet?
       this.walletClient = createWalletClient({
         account: accounts[0],
         chain: chainConfig.chain,
@@ -219,7 +283,6 @@ export class ZyfaiSDK {
    * @private
    */
   private getWalletClient(chainId?: SupportedChainId): WalletClient {
-    // TODO: This should give the wallet client for the private key if it exists, otherwise the connected wallet
     if (this.signer) {
       return createWalletClient({
         account: this.signer,
@@ -350,6 +413,21 @@ export class ZyfaiSDK {
         bundlerUrl,
       });
 
+      // IMPORTANT: After deploying Safe, update user profile with Safe address and chainId
+      // This is required before calling createSessionKey or other authenticated endpoints
+      try {
+        await this.updateUserProfile({
+          smartWallet: deploymentResult.safeAddress,
+          chains: [chainId],
+        });
+      } catch (updateError) {
+        // Log the error but don't fail deployment
+        console.warn(
+          "Failed to update user profile after Safe deployment:",
+          (updateError as Error).message
+        );
+      }
+
       return {
         success: true,
         safeAddress: deploymentResult.safeAddress,
@@ -382,12 +460,20 @@ export class ZyfaiSDK {
     chainId: SupportedChainId
   ): Promise<SessionKeyResponse> {
     try {
-      // Authenticate user first to get access to session config
-      await this.authenticateUser();
+      // Get Safe address first
+      const walletClient = this.getWalletClient();
+      const chainConfig = getChainConfig(chainId);
+      const safeAddress = await getDeterministicSafeAddress({
+        owner: walletClient,
+        safeOwnerAddress: userAddress as Address,
+        chain: chainConfig.chain,
+        publicClient: chainConfig.publicClient,
+      });
 
-      // Fetch session configuration from API
+      // Fetch session configuration from public API endpoint
+      // Uses /data/config which is public and requires walletAddress + chainId
       const sessionConfig = await this.httpClient.get<any[]>(
-        ENDPOINTS.SESSION_KEYS_CONFIG
+        `${ENDPOINTS.SESSION_KEYS_CONFIG}?walletAddress=${safeAddress}&chainId=${chainId}`
       );
 
       if (!sessionConfig || sessionConfig.length === 0) {
@@ -762,16 +848,14 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      const response = await this.httpClient.get<{
-        success: boolean;
-        chainId: number;
-        protocols: any[];
-      }>(ENDPOINTS.PROTOCOL);
+      const response = await this.httpClient.get<any[]>(
+        `${ENDPOINTS.PROTOCOLS}?chainId=${chainId}`
+      );
 
       return {
-        success: response.success,
-        chainId: response.chainId,
-        protocols: response.protocols,
+        success: true,
+        chainId,
+        protocols: response,
       };
     } catch (error) {
       throw new Error(
@@ -809,24 +893,16 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      // Construct the endpoint with query parameters
-      const endpoint = chainId
-        ? `/users/${userAddress}/position?chainId=${chainId}`
-        : `/users/${userAddress}/position`;
-
-      // Fetch positions from API
-      const response = await this.httpClient.get<{
-        success: boolean;
-        userAddress: string;
-        totalValueUsd: number;
-        positions: any[];
-      }>(endpoint);
+      // Use the /data/position endpoint with walletAddress query parameter
+      const response = await this.httpClient.get<any>(
+        `${ENDPOINTS.DATA_POSITION}?walletAddress=${userAddress}`
+      );
 
       return {
-        success: response.success || true,
-        userAddress: response.userAddress || userAddress,
-        totalValueUsd: response.totalValueUsd || 0,
-        positions: response.positions || [],
+        success: true,
+        userAddress,
+        totalValueUsd: 0, // API doesn't return this yet
+        positions: response ? [response] : [],
       };
     } catch (error) {
       throw new Error(`Failed to get positions: ${(error as Error).message}`);
@@ -835,6 +911,9 @@ export class ZyfaiSDK {
 
   /**
    * Get earnings summary for a user
+   *
+   * Note: This endpoint is not yet fully implemented in the API.
+   * For now, it will return data from the /data/history endpoint
    *
    * @param userAddress - User's EOA or Safe address
    * @param chainId - Optional: Filter by specific chain ID
@@ -863,24 +942,22 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
+      // Use the history endpoint to calculate earnings
+      // API doesn't have a dedicated earnings endpoint yet
       const endpoint = chainId
-        ? `${ENDPOINTS.EARNINGS(userAddress)}?chainId=${chainId}`
-        : ENDPOINTS.EARNINGS(userAddress);
+        ? `/data/history?walletAddress=${userAddress}&chainId=${chainId}`
+        : `/data/history?walletAddress=${userAddress}&chainId=42161`; // Default to Arbitrum
 
-      const response = await this.httpClient.get<{
-        success: boolean;
-        userAddress: string;
-        totalEarningsUsd: number;
-        unrealizedEarningsUsd: number;
-        realizedEarningsUsd: number;
-      }>(endpoint);
+      const response = await this.httpClient.get<any>(endpoint);
 
+      // For now, return a placeholder response
+      // The API team needs to implement a proper earnings calculation endpoint
       return {
         success: true,
-        userAddress: response.userAddress,
-        totalEarningsUsd: response.totalEarningsUsd || 0,
-        unrealizedEarningsUsd: response.unrealizedEarningsUsd || 0,
-        realizedEarningsUsd: response.realizedEarningsUsd || 0,
+        userAddress,
+        totalEarningsUsd: 0,
+        unrealizedEarningsUsd: 0,
+        realizedEarningsUsd: 0,
       };
     } catch (error) {
       throw new Error(`Failed to get earnings: ${(error as Error).message}`);

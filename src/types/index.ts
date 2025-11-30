@@ -22,6 +22,30 @@ export interface DeploySafeResponse {
   status: "deployed" | "failed";
 }
 
+export interface UpdateUserProfileRequest {
+  smartWallet?: string;
+  chains?: number[];
+  protocols?: string[];
+  autoSelectProtocols?: boolean;
+}
+
+export interface UpdateUserProfileResponse {
+  success: boolean;
+  userId: string;
+  smartWallet?: Address;
+  chains?: number[];
+}
+
+export interface LoginResponse {
+  userId: string;
+  accessToken: string;
+  refreshToken: string;
+  tokenExpires: number;
+  hasActiveSessionKey: boolean;
+  smartWallet: string | null;
+  token?: string;
+}
+
 export interface SessionKeyResponse {
   success: boolean;
   sessionKeyAddress: Address;
@@ -140,3 +164,4 @@ export interface Session {
   permitERC4337Paymaster: boolean;
   chainId: bigint;
 }
+
