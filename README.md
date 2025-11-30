@@ -287,6 +287,7 @@ if (result.success) {
 ```
 
 **Note:** Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
+The SDK automatically authenticates via SIWE before logging the deposit with ZyFAI's API, so no extra steps are required on your end once the transfer confirms.
 
 ### 5. Withdraw Funds
 
@@ -311,6 +312,7 @@ if (result.success) {
 ```
 
 **Note:** Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
+The SDK authenticates via SIWE before calling the withdrawal endpoints (`/users/withdraw` or `/users/partial-withdraw`) so you don't need to manage tokens manually.
 
 ### 6. Get Available Protocols
 
@@ -365,6 +367,7 @@ All examples are available in the `examples/` directory:
 4. **`session-key-simple.ts`** - Simplified session key creation
 5. **`data-retrieval.ts`** - Protocols, positions, and earnings
 6. **`create-session-key.ts`** - Focused session key creation + registration
+7. **`deposit.ts`** - Standalone deposit helper (uses env `CHAIN_ID`, `TOKEN_ADDRESS`, `DEPOSIT_AMOUNT`)
 
 ### Quick Start: Run the End-to-End Example
 

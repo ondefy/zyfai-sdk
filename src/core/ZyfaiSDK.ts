@@ -55,7 +55,7 @@ export class ZyfaiSDK {
   private signer: PrivateKeyAccount | null = null;
   private walletClient: WalletClient | null = null;
   private bundlerApiKey?: string;
-  private isAuthenticated: boolean = false;
+  private isAuthenticated: boolean = false; // TODO: Check with Utkir for how long the authentication token is valid for.
   private environment: Environment; // TODO: The encironment should be removed. Having the same key for staging and production is not ideal, but for now it's fine.
 
   constructor(config: SDKConfig | string) {
@@ -174,7 +174,7 @@ export class ZyfaiSDK {
 
       // Update user profile via API
       const response = await this.httpClient.patch<any>(
-        ENDPOINTS.USER_UPDATE,
+        ENDPOINTS.USER_ME,
         request
       );
 
@@ -804,14 +804,6 @@ export class ZyfaiSDK {
         throw new Error("Deposit transaction failed");
       }
 
-      // Log deposit to ZyFAI API
-      await this.httpClient.post(ENDPOINTS.LOG_DEPOSIT, {
-        amount: amountBigInt.toString(),
-        chainId,
-        transaction: txHash,
-        token: tokenAddress,
-      });
-
       return {
         success: true,
         txHash,
@@ -886,7 +878,17 @@ export class ZyfaiSDK {
         );
       }
 
-      let response: any;
+      // Ensure SIWE auth token is present
+      await this.authenticateUser();
+
+      type WithdrawApiResponse = {
+        success?: boolean;
+        message?: string;
+        txHash?: string;
+        transactionHash?: string;
+      };
+
+      let response: WithdrawApiResponse = {};
 
       if (amount) {
         // Partial withdrawal
@@ -896,19 +898,23 @@ export class ZyfaiSDK {
           receiver: receiver || userAddress,
         });
       } else {
-        // Full withdrawal
-        response = await this.httpClient.get(ENDPOINTS.MANUAL_WITHDRAW);
+        // Full withdrawal - ask backend to trigger automatic withdrawal flow
+        response = await this.httpClient.get(ENDPOINTS.USER_WITHDRAW, {
+          params: { chainId },
+        });
       }
 
+      const success = response?.success ?? true;
+
       return {
-        success: true,
+        success,
         txHash: (response?.txHash ||
           response?.transactionHash ||
           "pending") as string,
         type: amount ? "partial" : "full",
         amount: amount || "all",
         receiver: receiver || userAddress,
-        status: "pending",
+        status: success ? "pending" : "failed",
       };
     } catch (error) {
       throw new Error(`Withdrawal failed: ${(error as Error).message}`);

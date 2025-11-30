@@ -79,7 +79,7 @@ async function main() {
       userAddress,
       chainId,
       usdcAddress,
-      "10000000" // 10 USDC = 10 * 10^6 (6 decimals)
+      "100000" // 0.1 USDC = 100000 (6 decimals)
     );
 
     console.log("\nDeposit successful!");
@@ -97,14 +97,14 @@ async function main() {
   // Withdraw funds (partial)
   console.log("Step 5: Withdrawing funds from Safe...");
   console.log(
-    "Requesting partial withdrawal of 5 USDC (5000000 units with 6 decimals)..."
+    "Requesting partial withdrawal of 0.1 USDC (100000 units with 6 decimals)..."
   );
 
   try {
     const withdrawResult = await sdk.withdrawFunds(
       userAddress,
       chainId,
-      "5000000", // Withdraw 5 USDC = 5 * 10^6 (6 decimals)
+      "100000", // Withdraw 0.1 USDC = 100000 (6 decimals)
       userAddress // Receive back to connected wallet
     );
 

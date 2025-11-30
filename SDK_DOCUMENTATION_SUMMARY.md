@@ -487,6 +487,8 @@ interface WithdrawResponse {
 }
 ```
 
+**Authentication:** `withdrawFunds` automatically performs SIWE authentication before calling `/users/withdraw` (full) or `/users/partial-withdraw` (partial), so no manual token handling is required.
+
 ---
 
 ## 🎯 Integration Examples

@@ -14,43 +14,22 @@ export const ENDPOINTS = {
   // Auth
   AUTH_LOGIN: "/auth/login",
   AUTH_CHALLENGE: "/auth/challenge",
-  AUTH_REFRESH: "/auth/refresh",
 
   // User
   USER_ME: "/users/me",
-  USER_UPDATE: "/users/me",
   USER_BY_SMART_WALLET: "/users/by-smart-wallet",
-
-  // Users
-  USERS_ME: "/users/me",
-  USERS_BY_ID: (userId: string) => `/users/${userId}`,
-  USERS_POSITION: (userId: string) => `/users/${userId}/position`,
-  USERS_DEPOSITS: (userId: string) => `/users/${userId}/deposits`,
-  USERS_WITHDRAW: (userId: string, chainId: number) =>
-    `/users/${userId}/withdraw/${chainId}`,
-  USERS_PARTIAL_WITHDRAW: (userId: string, chainId: number) =>
-    `/users/${userId}/partial-withdraw/${chainId}`,
-  USERS_NOTIFICATIONS: (userId: string) => `/users/${userId}/notifications`,
-  LOG_DEPOSIT: "/users/log_deposit",
-  MANUAL_WITHDRAW: "/users/manual-withdraw",
+  USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
 
   // Session Keys
   SESSION_KEYS_CONFIG: "/session-keys/config",
   SESSION_KEYS_ADD: "/session-keys/add",
-  SESSION_KEYS_REVOKE: "/session-keys/revoke",
-  SESSION_KEYS_HASH: "/session-keys/hash",
-  SESSION_KEYS: "/session-keys",
-  SESSION_KEYS_ACTIVATE: (chainId: number) =>
-    `/session-keys/activate/${chainId}`,
-  SESSION_KEYS_ACTIVE: "/session-keys/active",
 
   // Protocols
   PROTOCOLS: "/protocols",
 
   // History
   HISTORY: (userId: string) => `/history/${userId}`,
-  HISTORY_LATEST: (userId: string) => `/history/${userId}/latest`,
 
   // Data
   DATA_POSITION: "/data/position",
