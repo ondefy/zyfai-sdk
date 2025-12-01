@@ -369,6 +369,9 @@ All examples are available in the `examples/` directory:
 6. **`create-session-key.ts`** - Focused session key creation + registration
 7. **`deposit.ts`** - Standalone deposit helper (uses env `CHAIN_ID`, `TOKEN_ADDRESS`, `DEPOSIT_AMOUNT`)
 8. **`withdraw.ts`** - Standalone withdrawal helper (uses env `CHAIN_ID`, `WITHDRAW_AMOUNT`, `WITHDRAW_RECEIVER`)
+9. **`get-protocols.ts`** - Fetch available protocols for a chain
+10. **`get-positions.ts`** - Dump active positions for the connected wallet
+11. **`get-earnings.ts`** - Show earnings summary for the connected wallet
 
 ### Quick Start: Run the End-to-End Example
 

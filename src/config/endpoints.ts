@@ -2,6 +2,8 @@
  * API Endpoints Configuration
  */
 
+import { SupportedChainId } from "..";
+
 export const API_ENDPOINTS = {
   // staging: "https://staging-api.zyf.ai",
   staging: "http://localhost:3000",
@@ -17,7 +19,7 @@ export const ENDPOINTS = {
 
   // User
   USER_ME: "/users/me",
-  USER_BY_SMART_WALLET: "/users/by-smart-wallet",
+  USER_BY_SMART_WALLET: "/users/by-smart-wallet", // TODO: Check with Utkir if a similar endpoint is already available.
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
 
@@ -26,12 +28,11 @@ export const ENDPOINTS = {
   SESSION_KEYS_ADD: "/session-keys/add",
 
   // Protocols
-  PROTOCOLS: "/protocols",
-
-  // History
-  HISTORY: (userId: string) => `/history/${userId}`,
+  PROTOCOLS: (chainId: number) => `/protocols?chainId=${chainId}`,
 
   // Data
-  DATA_POSITION: "/data/position",
-  DATA_TVL: (chainId: number) => `/data/tvl/${chainId}`,
+  DATA_POSITION: (walletAddress: string) =>
+    `/data/position?walletAddress=${walletAddress}`,
+  DATA_HISTORY: (walletAddress: string, chainId: SupportedChainId) =>
+    `/data/history?walletAddress=${walletAddress}&chainId=${chainId}`,
 } as const;

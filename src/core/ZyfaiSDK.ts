@@ -328,12 +328,6 @@ export class ZyfaiSDK {
     const walletClient = this.getWalletClient();
     const chainConfig = getChainConfig(chainId);
 
-    // Check account type
-    const accountType = await getAccountType(
-      userAddress as Address,
-      chainConfig.publicClient
-    );
-
     // For EOA, get the deterministic Safe address
     // Note: Safe will be owned by userAddress, not the connected wallet
     const safeAddress = await getDeterministicSafeAddress({
@@ -636,9 +630,9 @@ export class ZyfaiSDK {
         chainConfig.publicClient
       );
 
-      if (accountType !== "Safe" && accountType !== "EOA") {
+      if (accountType !== "EOA") {
         throw new Error(
-          `Invalid account type for ${userAddress}. Must be a Safe or EOA.`
+          `Invalid account type for ${userAddress}. Must be an EOA.`
         );
       }
 
@@ -944,7 +938,7 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.get<any[]>(
-        `${ENDPOINTS.PROTOCOLS}?chainId=${chainId}`
+        ENDPOINTS.PROTOCOLS(chainId)
       );
 
       return {
@@ -988,10 +982,23 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      // Use the /data/position endpoint with walletAddress query parameter
+      const walletClient = this.getWalletClient(chainId);
+      const chainConfig = getChainConfig(chainId ?? 8453);
+      // Translate EOA into deterministic Safe address
+      const safeAddress = await getDeterministicSafeAddress({
+        owner: walletClient,
+        safeOwnerAddress: userAddress as Address,
+        chain: chainConfig.chain,
+        publicClient: chainConfig.publicClient,
+      });
+      console.log("safeAddress: ", safeAddress);
+
+      // Use the /data/position endpoint with smart wallet address
       const response = await this.httpClient.get<any>(
-        `${ENDPOINTS.DATA_POSITION}?walletAddress=${userAddress}`
+        ENDPOINTS.DATA_POSITION(safeAddress)
       );
+
+      console.log("response: ", response);
 
       return {
         success: true,
@@ -1039,10 +1046,8 @@ export class ZyfaiSDK {
 
       // Use the history endpoint to calculate earnings
       // API doesn't have a dedicated earnings endpoint yet
-      const endpoint = chainId
-        ? `/data/history?walletAddress=${userAddress}&chainId=${chainId}`
-        : `/data/history?walletAddress=${userAddress}&chainId=42161`; // Default to Arbitrum
-
+      const targetChain = chainId ?? (8453 as SupportedChainId);
+      const endpoint = ENDPOINTS.DATA_HISTORY(userAddress, targetChain);
       const response = await this.httpClient.get<any>(endpoint);
 
       // For now, return a placeholder response

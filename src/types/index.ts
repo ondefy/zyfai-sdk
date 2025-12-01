@@ -87,19 +87,21 @@ export interface SmartWalletResponse {
 export interface Protocol {
   id: string;
   name: string;
-  description: string;
-  tvl: string;
-  minApy: number;
-  maxApy: number;
-  pools: Pool[];
+  type: string;
+  description?: string;
+  imageUrl?: string;
+  website?: string;
+  strategies?: string[];
+  chains: number[];
+  pools?: Pool[];
 }
 
 export interface Pool {
   id: string;
   name: string;
   asset: string;
-  apy: number;
-  tvl: string;
+  apy?: number;
+  tvl?: string;
 }
 
 export interface ProtocolsResponse {
