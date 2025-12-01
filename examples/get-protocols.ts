@@ -38,12 +38,6 @@ async function main() {
   protocols.forEach((protocol, index) => {
     console.log(`${index + 1}. ${protocol.name}`);
     console.log(`   Description: ${protocol.description || "n/a"}`);
-    console.log(
-      `   APY: ${protocol.minApy}% - ${protocol.maxApy}%, Pools: ${
-        protocol.pools?.length ?? 0
-      }`
-    );
-    console.log(`   TVL: ${protocol.tvl}`);
     console.log();
   });
 }

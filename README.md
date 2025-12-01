@@ -323,27 +323,32 @@ const protocols = await sdk.getAvailableProtocols(42161);
 
 console.log(`Found ${protocols.protocols.length} protocols`);
 protocols.protocols.forEach((protocol) => {
-  console.log(
-    `${protocol.name}: ${protocol.minApy}% - ${protocol.maxApy}% APY`
-  );
-  console.log(`TVL: $${protocol.tvl}`);
-  console.log(`Pools: ${protocol.pools.length}`);
+  console.log(`${protocol.name} (${protocol.type})`);
+  console.log(`Chains: ${protocol.chains.join(", ")}`);
+  console.log(`Strategies: ${protocol.strategies?.join(", ") ?? "n/a"}`);
+  console.log(`Website: ${protocol.website ?? "n/a"}`);
+  console.log(`Pools: ${protocol.pools?.length ?? 0}`);
 });
 ```
 
-**Note**: This endpoint fetches protocols from `/api/v1/protocols?chainId={chainId}`
+**Note**: This endpoint fetches protocols from `/api/v1/protocols?chainId={chainId}` and returns additional metadata such as `type`, `strategies`, `chains`, `website`, and an optional `imageUrl`.
 
 ### 7. Monitor Positions
 
 Track all active DeFi positions for a user:
 
 ```typescript
-// Get position data for a wallet
 const positions = await sdk.getPositions(userAddress);
-console.log(`Active Position:`, positions.positions);
+positions.positions.forEach((bundle) => {
+  console.log(`Chain: ${bundle.chain}, Strategy: ${bundle.strategy}`);
+  bundle.positions.forEach((slot) => {
+    console.log(`Token: ${slot.token_symbol}, Pool: ${slot.pool}`);
+    console.log(`Underlying Amount: ${slot.underlyingAmount}`);
+  });
+});
 ```
 
-**Note**: This endpoint uses `/api/v1/data/position?walletAddress={address}` and returns a single position object from the API.
+**Note**: This endpoint uses `/api/v1/data/position?walletAddress={address}` (Smart wallet address) and returns bundles with nested slot data. Use each slot’s `underlyingAmount` for the canonical token balance.
 
 ### 8. Track Earnings
 

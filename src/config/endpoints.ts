@@ -5,8 +5,8 @@
 import { SupportedChainId } from "..";
 
 export const API_ENDPOINTS = {
-  // staging: "https://staging-api.zyf.ai",
-  staging: "http://localhost:3000",
+  staging: "https://staging-api.zyf.ai",
+  // staging: "http://localhost:3000",
   production: "https://api.zyf.ai",
 } as const;
 

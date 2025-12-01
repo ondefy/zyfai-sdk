@@ -138,10 +138,19 @@ async function main() {
     if (protocols.protocols.length > 0) {
       console.log("  Top Protocols:");
       protocols.protocols.slice(0, 3).forEach((protocol, index) => {
-        console.log(`\n  ${index + 1}. ${protocol.name}`);
-        console.log(`     TVL: $${protocol.tvl}`);
-        console.log(`     APY: ${protocol.minApy}% - ${protocol.maxApy}%`);
-        console.log(`     Pools: ${protocol.pools.length}`);
+        console.log(`\n  ${index + 1}. ${protocol.name} (${protocol.type})`);
+        console.log(
+          `     Chains: ${protocol.chains?.join(", ") ?? "not specified"}`
+        );
+        console.log(
+          `     Strategies: ${protocol.strategies?.join(", ") ?? "n/a"}`
+        );
+        console.log(`     Website: ${protocol.website ?? "n/a"}`);
+        console.log(
+          `     Pools: ${protocol.pools?.length ?? 0} | Image: ${
+            protocol.imageUrl ?? "n/a"
+          }`
+        );
       });
     }
   } catch (error) {
@@ -199,23 +208,34 @@ async function main() {
     console.log(`  Total Value: $${positions.totalValueUsd.toFixed(2)}`);
     console.log(`  Active Positions: ${positions.positions.length}`);
 
-    if (positions.positions.length > 0) {
-      console.log("\n  Position Details:");
-      positions.positions.forEach((position, index) => {
-        console.log(
-          `\n  ${index + 1}. ${position.protocol} - ${position.pool}`
-        );
-        console.log(`     Asset: ${position.asset.symbol}`);
-        console.log(`     Amount: ${position.amount}`);
-        console.log(`     Value: $${position.valueUsd.toFixed(2)}`);
-        console.log(`     APY: ${position.apy}%`);
-        console.log(
-          `     Unrealized Earnings: $${position.unrealizedEarnings.toFixed(2)}`
-        );
-      });
-    } else {
+    if (positions.positions.length === 0) {
       console.log("\n  No active positions found.");
       console.log("  Deposit funds to start earning yield!");
+    } else {
+      console.log("\n  Position Details:");
+      positions.positions.forEach((bundle, index) => {
+        console.log(
+          `\n  ${index + 1}. Chain: ${bundle.chain ?? "unknown"} | Strategy: ${
+            bundle.strategy ?? "n/a"
+          }`
+        );
+        console.log(`     Smart Wallet: ${bundle.smartWallet ?? "n/a"}`);
+        bundle.positions.forEach((slot, slotIndex) => {
+          console.log(`       Slot ${slotIndex + 1}:`);
+          console.log(
+            `         Protocol: ${slot.protocol_name ?? slot.protocol_id}`
+          );
+          console.log(`         Pool: ${slot.pool ?? "n/a"}`);
+          console.log(`         Token: ${slot.token_symbol ?? "n/a"}`);
+          console.log(
+            `         Underlying: ${
+              slot.underlyingAmount ?? slot.amount ?? "0"
+            }`
+          );
+          console.log(`         Pool APY: ${slot.pool_apy ?? "n/a"}`);
+          console.log(`         Pool TVL: ${slot.pool_tvl ?? "n/a"}`);
+        });
+      });
     }
 
     // Get positions on specific chain

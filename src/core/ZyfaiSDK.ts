@@ -991,14 +991,11 @@ export class ZyfaiSDK {
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
       });
-      console.log("safeAddress: ", safeAddress);
 
       // Use the /data/position endpoint with smart wallet address
       const response = await this.httpClient.get<any>(
         ENDPOINTS.DATA_POSITION(safeAddress)
       );
-
-      console.log("response: ", response);
 
       return {
         success: true,

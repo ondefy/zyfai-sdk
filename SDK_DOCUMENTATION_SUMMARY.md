@@ -346,26 +346,32 @@ getAvailableProtocols(
 #### Response Type
 
 ```typescript
+interface Protocol {
+  id: string;
+  name: string;
+  type: string;
+  chains: number[];
+  strategies?: string[];
+  description?: string;
+  imageUrl?: string;
+  website?: string;
+  pools?: Array<{
+    id: string;
+    name: string;
+    asset: string;
+    apy?: number;
+    tvl?: string;
+  }>;
+}
+
 interface ProtocolsResponse {
   success: boolean;
   chainId: number;
-  protocols: Array<{
-    id: string;
-    name: string;
-    description: string;
-    tvl: string;
-    minApy: number;
-    maxApy: number;
-    pools: Array<{
-      id: string;
-      name: string;
-      asset: string;
-      apy: number;
-      tvl: string;
-    }>;
-  }>;
+  protocols: Protocol[];
 }
 ```
+
+**Note:** Each protocol entry includes descriptive metadata (type, chains, strategies, web links, and optional pools) that can be surfaced directly in client UIs.
 
 ---
 
@@ -392,28 +398,32 @@ getPositions(
 #### Response Type
 
 ```typescript
+interface PositionSlot {
+  protocol_id?: string;
+  protocol_name?: string;
+  pool?: string;
+  token_symbol?: string;
+  underlyingAmount?: string;
+  pool_apy?: number;
+  pool_tvl?: string;
+}
+
+interface Position {
+  chain?: string;
+  strategy?: string;
+  smartWallet?: string;
+  positions: PositionSlot[];
+}
+
 interface PositionsResponse {
   success: boolean;
   userAddress: string;
   totalValueUsd: number;
-  positions: Array<{
-    id: string;
-    protocol: string;
-    pool: string;
-    chainId: number;
-    asset: {
-      address: string;
-      symbol: string;
-      decimals: number;
-    };
-    amount: string;
-    valueUsd: number;
-    apy: number;
-    unrealizedEarnings: number;
-    lastUpdate: number;
-  }>;
+  positions: Position[];
 }
 ```
+
+**Note:** Each `Position` represents a smart wallet + strategy bundle with nested slots. Use `underlyingAmount` from each slot as the canonical token balance.
 
 ---
 

@@ -111,20 +111,28 @@ export interface ProtocolsResponse {
 }
 
 export interface Position {
-  id: string;
-  protocol: string;
-  pool: string;
-  chainId: number;
-  asset: {
-    address: string;
-    symbol: string;
-    decimals: number;
-  };
-  amount: string;
-  valueUsd: number;
-  apy: number;
-  unrealizedEarnings: number;
-  lastUpdate: number;
+  id?: string;
+  chain?: string;
+  strategy?: string;
+  smartWallet?: Address;
+  positions: PositionSlot[];
+  hasActiveSessionKey?: boolean;
+  hasBalance?: boolean;
+  crosschainStrategy?: boolean;
+}
+
+export interface PositionSlot {
+  chain?: string;
+  protocol_id?: string;
+  protocol_name?: string;
+  pool?: string;
+  token_id?: string;
+  token_symbol?: string;
+  token_icon?: string;
+  amount?: string;
+  underlyingAmount?: string;
+  pool_apy?: number;
+  pool_tvl?: string;
 }
 
 export interface PositionsResponse {

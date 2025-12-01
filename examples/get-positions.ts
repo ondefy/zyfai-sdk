@@ -29,24 +29,31 @@ async function main() {
   console.log(`Fetching positions for ${connected}…`);
   const response = await sdk.getPositions(connected, chainId);
 
-  const positions = response.positions || [];
+  const positions = (response as any)?.positions ?? [];
   console.log(`Positions count: ${positions.length}`);
 
   if (positions.length === 0) {
     console.log("No active positions found.");
   }
 
-  positions.forEach((position, index) => {
-    console.log(
-      `${index + 1}. Protocol: ${position.protocol ?? "n/a"} | Pool: ${
-        position.pool ?? "n/a"
-      }`
-    );
-    console.log(`   Chain: ${position.chainId ?? "unknown"}`);
-    console.log(`   Asset: ${position.asset?.symbol ?? "n/a"}`);
-    console.log(`   Amount: ${position.amount ?? "0"}`);
-    console.log(`   Value (USD): ${position.valueUsd ?? 0}`);
-    console.log();
+  positions.forEach((position: any, index: number) => {
+    console.log(`\n--- Position ${index + 1} ---`);
+    console.log(`Chain: ${position.chain ?? position.chainId ?? "unknown"}`);
+    console.log(`Strategy: ${position.strategy ?? "n/a"}`);
+    console.log(`Smart Wallet: ${position.smartWallet ?? "n/a"}`);
+
+    const slots = position.positions ?? [];
+    slots.forEach((slot: any, slotIndex: number) => {
+      console.log(`  Slot ${slotIndex + 1}:`);
+      console.log(`    Protocol: ${slot.protocol_name ?? slot.protocol_id}`);
+      console.log(`    Pool: ${slot.pool ?? "n/a"}`);
+      console.log(`    Token: ${slot.token_symbol ?? "n/a"}`);
+      console.log(
+        `    Underlying Amount: ${slot.underlyingAmount ?? slot.amount ?? "0"}`
+      );
+      console.log(`    Pool APY: ${slot.pool_apy ?? "n/a"}`);
+      console.log(`    Pool TVL: ${slot.pool_tvl ?? "n/a"}`);
+    });
   });
 }
 
