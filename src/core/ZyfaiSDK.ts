@@ -74,7 +74,7 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Authenticate user with SIWE (Sign-In with Ethereum)
+   * Authenticate user with SIWE (Sign-In with Ethereum) & JWT token
    * This is required for accessing user-specific endpoints like session-keys/config
    * Uses the connected wallet address for authentication
    *

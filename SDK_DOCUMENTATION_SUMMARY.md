@@ -51,7 +51,7 @@ const positions = await sdk.getPositions("0xUserAddress");
 
 ### 1. Deploy Safe Smart Wallet
 
-Deploy an ERC-4337 compliant Safe Smart Account for a user.
+Deploy an ERC-4337 with ERC-7579 launchpad + smart session module standard compliant Safe Smart Account for a user.
 
 #### Function Signature
 
