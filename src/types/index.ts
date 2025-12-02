@@ -22,6 +22,9 @@ export interface DeploySafeResponse {
   status: "deployed" | "failed";
 }
 
+// Internal types - used by SDK implementation
+
+/** @internal */
 export interface UpdateUserProfileRequest {
   smartWallet?: string;
   chains?: number[];
@@ -29,6 +32,7 @@ export interface UpdateUserProfileRequest {
   autoSelectProtocols?: boolean;
 }
 
+/** @internal */
 export interface UpdateUserProfileResponse {
   success: boolean;
   userId: string;
@@ -36,6 +40,7 @@ export interface UpdateUserProfileResponse {
   chains?: number[];
 }
 
+/** @internal */
 export interface LoginResponse {
   userId: string;
   accessToken?: string;
@@ -46,16 +51,19 @@ export interface LoginResponse {
   smartWallet?: string | null;
 }
 
+/** @internal */
 export interface UserIdResponse {
   userId: string;
   smartWallet: Address;
 }
 
+/** @internal */
 export interface AddSessionKeyRequest {
   hash: Hex;
   nonces: number[];
 }
 
+/** @internal */
 export interface AddSessionKeyResponse {
   id: string;
   hash: string;
@@ -142,13 +150,8 @@ export interface PositionsResponse {
   positions: Position[];
 }
 
-export interface EarningsResponse {
-  success: boolean;
-  userAddress: string;
-  totalEarningsUsd: number;
-  unrealizedEarningsUsd: number;
-  realizedEarningsUsd: number;
-}
+// NOTE: EarningsResponse is planned for a future release
+// The earnings API endpoint is currently under development
 
 export interface DepositResponse {
   success: boolean;

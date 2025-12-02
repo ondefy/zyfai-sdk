@@ -1,6 +1,9 @@
 /**
  * ZyFAI SDK
  * TypeScript SDK for ZyFAI Yield Optimization Engine
+ *
+ * @packageDocumentation
+ * @module @zyfai/sdk
  */
 
 export { ZyfaiSDK } from "./core/ZyfaiSDK";
@@ -15,7 +18,7 @@ export {
 } from "./config/chains";
 
 export type {
-  // Config
+  // Configuration
   SDKConfig,
   Environment,
 
@@ -29,20 +32,14 @@ export type {
   SmartWalletResponse,
   ProtocolsResponse,
   PositionsResponse,
-  EarningsResponse,
   DepositResponse,
   WithdrawResponse,
-  UpdateUserProfileRequest,
-  UpdateUserProfileResponse,
-  LoginResponse,
-  UserIdResponse,
-  AddSessionKeyRequest,
-  AddSessionKeyResponse,
 
   // Protocol Types
   Protocol,
   Pool,
   Position,
+  PositionSlot,
 
   // Session Types
   Session,

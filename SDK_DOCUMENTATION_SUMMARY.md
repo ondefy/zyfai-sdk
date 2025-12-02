@@ -33,7 +33,7 @@ await sdk.connectAccount(walletProvider, 42161);
 // The connected account is used only for signing, not for determining which user's data to fetch
 await sdk.deploySafe("0xUserAddress", chainId);
 await sdk.createSessionKey("0xUserAddress", chainId);
-const earnings = await sdk.getEarnings("0xUserAddress");
+const positions = await sdk.getPositions("0xUserAddress");
 ```
 
 **Important:**
@@ -427,41 +427,7 @@ interface PositionsResponse {
 
 ---
 
-### 7. Get Earnings
-
-Retrieve earnings summary for a user.
-
-#### Function Signature
-
-```typescript
-getEarnings(
-  userAddress: string,
-  chainId?: number
-): Promise<EarningsResponse>
-```
-
-#### Request Parameters
-
-| Parameter     | Type   | Required | Description                           |
-| ------------- | ------ | -------- | ------------------------------------- |
-| `userAddress` | string | ✅       | User's EOA address                    |
-| `chainId`     | number | ❌       | Filter by chain (omit for all chains) |
-
-#### Response Type
-
-```typescript
-interface EarningsResponse {
-  success: boolean;
-  userAddress: string;
-  totalEarningsUsd: number;
-  unrealizedEarningsUsd: number;
-  realizedEarningsUsd: number;
-}
-```
-
----
-
-### 8. Withdraw Funds
+### 7. Withdraw Funds
 
 Execute a full or partial withdrawal from active positions to user's EOA.
 
@@ -565,11 +531,7 @@ const depositResult = await sdk.depositFunds(
 const positions = await sdk.getPositions(userAddress, chainId);
 console.log("Active positions:", positions.positions);
 
-// 5. Track earnings
-const earnings = await sdk.getEarnings(userAddress, chainId);
-console.log("Total earnings:", earnings.totalEarningsUsd);
-
-// 6. Withdraw - 50 USDC (least decimal units: 50 * 10^6)
+// 5. Withdraw - 50 USDC (least decimal units: 50 * 10^6)
 const withdrawResult = await sdk.withdrawFunds(
   userAddress,
   chainId,
@@ -617,11 +579,8 @@ class YieldService {
   }
 
   async getUserStats(userAddress: string) {
-    const [positions, earnings] = await Promise.all([
-      this.sdk.getPositions(userAddress),
-      this.sdk.getEarnings(userAddress),
-    ]);
-    return { positions, earnings };
+    const positions = await this.sdk.getPositions(userAddress);
+    return { positions };
   }
 }
 ```

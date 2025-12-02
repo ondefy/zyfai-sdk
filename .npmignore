@@ -1,7 +1,47 @@
+# Source files (dist is published)
 src/
+
+# Examples
+examples/
+
+# Development files
+*.ts
+!*.d.ts
 tsconfig.json
+tsup.config.ts
+
+# Documentation (except README)
+SDK_DOCUMENTATION_SUMMARY.md
+
+# Environment and config
+.env
+.env.*
+.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+
+# Git
+.git/
 .gitignore
-*.md
-!README.md
 
+# Lock files (users install fresh)
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
 
+# Node modules
+node_modules/

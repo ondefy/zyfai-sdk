@@ -1,14 +1,17 @@
 # ZyFAI SDK
 
+[![npm version](https://img.shields.io/npm/v/@zyfai/sdk.svg)](https://www.npmjs.com/package/@zyfai/sdk)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 TypeScript SDK for interacting with the ZyFAI Yield Optimization Engine. This SDK provides easy-to-use methods for deploying Safe smart wallets, managing DeFi positions, and optimizing yield across multiple protocols.
 
 ## Features
 
-- 🔐 **Safe Smart Wallet Deployment**: Deploy Safe wallets with deterministic addresses
-- 🔑 **Flexible Authentication**: Support for private keys and modern wallet providers
-- ⛓️ **Multi-Chain Support**: Works on Arbitrum, Base, and Plasma
-- 💰 **Yield Optimization**: Access to multiple DeFi protocols and strategies
-- 📊 **Position Tracking**: Monitor and manage your DeFi positions across chains
+- **Safe Smart Wallet Deployment**: Deploy Safe wallets with deterministic addresses
+- **Flexible Authentication**: Support for private keys and modern wallet providers
+- **Multi-Chain Support**: Works on Arbitrum, Base, and Plasma
+- **Yield Optimization**: Access to multiple DeFi protocols and strategies
+- **Position Tracking**: Monitor and manage your DeFi positions across chains
 
 ## Installation
 
@@ -348,19 +351,7 @@ positions.positions.forEach((bundle) => {
 });
 ```
 
-**Note**: This endpoint uses `/api/v1/data/position?walletAddress={address}` (Smart wallet address) and returns bundles with nested slot data. Use each slot’s `underlyingAmount` for the canonical token balance.
-
-### 8. Track Earnings
-
-Get earnings summary for a user:
-
-```typescript
-// Get earnings (placeholder - API endpoint in development)
-const earnings = await sdk.getEarnings(userAddress);
-console.log(`Total Earnings: $${earnings.totalEarningsUsd}`);
-```
-
-**Note**: The earnings endpoint is currently using placeholder data as the dedicated earnings API is under development. The SDK will be updated when the API endpoint is finalized.
+**Note**: This endpoint uses `/api/v1/data/position?walletAddress={address}` (Smart wallet address) and returns bundles with nested slot data. Use each slot's `underlyingAmount` for the canonical token balance.
 
 ## Examples
 
@@ -369,14 +360,11 @@ All examples are available in the `examples/` directory:
 1. **`end-to-end.ts`** - Complete workflow demonstrating all SDK features
 2. **`basic-usage.ts`** - Simple Safe deployment workflow
 3. **`deposit-withdraw.ts`** - Fund management examples
-4. **`session-key-simple.ts`** - Simplified session key creation
-5. **`data-retrieval.ts`** - Protocols, positions, and earnings
-6. **`create-session-key.ts`** - Focused session key creation + registration
-7. **`deposit.ts`** - Standalone deposit helper (uses env `CHAIN_ID`, `TOKEN_ADDRESS`, `DEPOSIT_AMOUNT`)
-8. **`withdraw.ts`** - Standalone withdrawal helper (uses env `CHAIN_ID`, `WITHDRAW_AMOUNT`, `WITHDRAW_RECEIVER`)
-9. **`get-protocols.ts`** - Fetch available protocols for a chain
-10. **`get-positions.ts`** - Dump active positions for the connected wallet
-11. **`get-earnings.ts`** - Show earnings summary for the connected wallet
+4. **`create-session-key.ts`** - Focused session key creation + registration
+5. **`deposit.ts`** - Standalone deposit helper (uses env `CHAIN_ID`, `TOKEN_ADDRESS`, `DEPOSIT_AMOUNT`)
+6. **`withdraw.ts`** - Standalone withdrawal helper (uses env `CHAIN_ID`, `WITHDRAW_AMOUNT`, `WITHDRAW_RECEIVER`)
+7. **`get-protocols.ts`** - Fetch available protocols for a chain
+8. **`get-positions.ts`** - Dump active positions for the connected wallet
 
 ### Quick Start: Run the End-to-End Example
 

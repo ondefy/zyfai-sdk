@@ -7,7 +7,7 @@
  * 3. Create session key for delegated transactions
  * 4. Check available protocols
  * 5. Deposit funds to Safe
- * 6. Monitor positions and earnings
+ * 6. Monitor positions
  * 7. Withdraw funds
  */
 
@@ -249,45 +249,9 @@ async function main() {
   console.log();
 
   // =================================================================
-  // STEP 8: Track Earnings
+  // STEP 8: Withdraw Funds (Optional - Commented Out)
   // =================================================================
-  console.log("STEP 8: Tracking Earnings");
-  console.log("-".repeat(60));
-
-  try {
-    // Get all earnings
-    const earnings = await sdk.getEarnings(userAddress);
-    console.log("Earnings retrieved successfully\n");
-    console.log("  Earnings Summary (All Chains):");
-    console.log(
-      `  Total Earnings:      $${earnings.totalEarningsUsd.toFixed(2)}`
-    );
-    console.log(
-      `  Unrealized Earnings: $${earnings.unrealizedEarningsUsd.toFixed(2)}`
-    );
-    console.log(
-      `  Realized Earnings:   $${earnings.realizedEarningsUsd.toFixed(2)}`
-    );
-
-    // Get earnings on specific chain
-    const baseEarnings = await sdk.getEarnings(userAddress, chainId);
-    console.log("\n  Earnings on Base:");
-    console.log(`  Total:      $${baseEarnings.totalEarningsUsd.toFixed(2)}`);
-    console.log(
-      `  Unrealized: $${baseEarnings.unrealizedEarningsUsd.toFixed(2)}`
-    );
-    console.log(
-      `  Realized:   $${baseEarnings.realizedEarningsUsd.toFixed(2)}`
-    );
-  } catch (error) {
-    console.log("✗ Failed to fetch earnings:", (error as Error).message);
-  }
-  console.log();
-
-  // =================================================================
-  // STEP 9: Withdraw Funds (Optional - Commented Out)
-  // =================================================================
-  console.log("STEP 9: Withdraw Funds (Optional)");
+  console.log("STEP 8: Withdraw Funds (Optional)");
   console.log("-".repeat(60));
   console.log("  To withdraw funds, uncomment the code below.");
   console.log("  You can perform full or partial withdrawals.");
@@ -336,12 +300,11 @@ async function main() {
   console.log("  Created session key for delegated transactions");
   console.log("  Checked available DeFi protocols");
   console.log("  Monitored active positions");
-  console.log("  Tracked earnings across protocols");
   console.log();
   console.log("Next Steps:");
   console.log("  1. Uncomment deposit code to add funds");
   console.log("  2. Wait for yield to accumulate");
-  console.log("  3. Monitor positions and earnings regularly");
+  console.log("  3. Monitor positions regularly");
   console.log("  4. Withdraw funds when ready");
   console.log();
   console.log("For more examples, check:");

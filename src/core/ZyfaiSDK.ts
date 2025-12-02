@@ -17,7 +17,6 @@ import type {
   WithdrawResponse,
   ProtocolsResponse,
   PositionsResponse,
-  EarningsResponse,
   UpdateUserProfileRequest,
   UpdateUserProfileResponse,
   LoginResponse,
@@ -1008,56 +1007,6 @@ export class ZyfaiSDK {
     }
   }
 
-  /**
-   * Get earnings summary for a user
-   *
-   * Note: This endpoint is not yet fully implemented in the API.
-   * For now, it will return data from the /data/history endpoint
-   *
-   * @param userAddress - User's EOA or Safe address
-   * @param chainId - Optional: Filter by specific chain ID
-   * @returns Total earnings, unrealized and realized earnings
-   *
-   * @example
-   * ```typescript
-   * // Get earnings across all chains
-   * const earnings = await sdk.getEarnings(userAddress);
-   * console.log(`Total: $${earnings.totalEarningsUsd}`);
-   *
-   * // Get earnings on a specific chain
-   * const arbEarnings = await sdk.getEarnings(userAddress, 42161);
-   * ```
-   */
-  async getEarnings(
-    userAddress: string,
-    chainId?: SupportedChainId
-  ): Promise<EarningsResponse> {
-    try {
-      if (!userAddress) {
-        throw new Error("User address is required");
-      }
-
-      if (chainId && !isSupportedChain(chainId)) {
-        throw new Error(`Unsupported chain ID: ${chainId}`);
-      }
-
-      // Use the history endpoint to calculate earnings
-      // API doesn't have a dedicated earnings endpoint yet
-      const targetChain = chainId ?? (8453 as SupportedChainId);
-      const endpoint = ENDPOINTS.DATA_HISTORY(userAddress, targetChain);
-      const response = await this.httpClient.get<any>(endpoint);
-
-      // For now, return a placeholder response
-      // The API team needs to implement a proper earnings calculation endpoint
-      return {
-        success: true,
-        userAddress,
-        totalEarningsUsd: 0,
-        unrealizedEarningsUsd: 0,
-        realizedEarningsUsd: 0,
-      };
-    } catch (error) {
-      throw new Error(`Failed to get earnings: ${(error as Error).message}`);
-    }
-  }
+  // NOTE: getEarnings method is planned for a future release.
+  // The earnings API endpoint is currently under development.
 }
