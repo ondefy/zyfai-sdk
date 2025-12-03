@@ -88,15 +88,17 @@ const walletInfo = await sdk.getSmartWalletAddress(userAddress, 42161);
 console.log("Safe Address:", walletInfo.address);
 console.log("Is Deployed:", walletInfo.isDeployed);
 
-// Deploy the Safe
+// Deploy the Safe (or get existing if already deployed)
 const result = await sdk.deploySafe(userAddress, 42161);
 
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
-  console.log("Status:", result.status); // 'deployed' | 'failed'
-  console.log("Transaction Hash:", result.txHash);
+  console.log("Status:", result.status); // 'deployed'
+  console.log("Transaction Hash:", result.txHash); // '0x0' if Safe already existed
 }
 ```
+
+**Note:** The `deploySafe` method automatically checks if the EOA already has a Safe deployed with ZyFAI. If a Safe already exists, it returns the existing Safe address without deploying again (transaction hash will be `0x0`).
 
 ### 2. Multi-Chain Support
 
@@ -237,39 +239,6 @@ console.log("Activation ID:", result.sessionActivation?.id);
 - The user record must have `smartWallet` and `chainId` set (automatically handled after calling `deploySafe` or `updateUserProfile`)
 - The SDK now auto-calls `/users/by-smart-wallet`, `/session-keys/config`, and `/session-keys/add`, so the returned payload already includes the `userId` and the activation record (`sessionActivation`)—no additional API calls are required on your side.
 
-#### Advanced Usage (Custom Configuration)
-
-For custom permissions, use `createSessionKeyWithConfig`:
-
-```typescript
-import { type Session } from "@zyfai/sdk";
-
-const sessions: Session[] = [
-  {
-    sessionValidator: "0x...",
-    sessionValidatorInitData: "0x",
-    salt: "0x00...01",
-    userOpPolicies: [],
-    erc7739Policies: { allowedERC7739Content: [], erc1271Policies: [] },
-    actions: [
-      {
-        actionTarget: "0xUSDC",
-        actionTargetSelector: "0xa9059cbb",
-        actionPolicies: [],
-      },
-    ],
-    permitERC4337Paymaster: true,
-    chainId: BigInt(42161),
-  },
-];
-
-const result = await sdk.createSessionKeyWithConfig(
-  userAddress,
-  42161,
-  sessions
-);
-```
-
 ### 4. Deposit Funds
 
 Transfer tokens to your Safe smart wallet:
@@ -353,18 +322,181 @@ positions.positions.forEach((bundle) => {
 
 **Note**: This endpoint uses `/api/v1/data/position?walletAddress={address}` (Smart wallet address) and returns bundles with nested slot data. Use each slot's `underlyingAmount` for the canonical token balance.
 
+### 8. Analytics & Data Endpoints
+
+The SDK provides access to various analytics and data endpoints:
+
+#### Get User Details
+
+```typescript
+const user = await sdk.getUserDetails();
+console.log("Smart Wallet:", user.user.smartWallet);
+console.log("Active Chains:", user.user.chains);
+```
+
+#### Get TVL & Volume
+
+```typescript
+const tvl = await sdk.getTVL();
+console.log("Total TVL:", tvl.totalTvl);
+
+const volume = await sdk.getVolume();
+console.log("Total Volume:", volume.volumeInUSD);
+```
+
+#### Get Active Wallets
+
+```typescript
+const wallets = await sdk.getActiveWallets(8453); // Base chain
+console.log("Active wallet count:", wallets.count);
+```
+
+#### Get Smart Wallets by EOA
+
+```typescript
+const result = await sdk.getSmartWalletsByEOA("0xYourEOA...");
+console.log("Smart wallets:", result.smartWallets);
+```
+
+#### Get Transaction History
+
+```typescript
+const history = await sdk.getHistory(walletAddress, 8453, {
+  limit: 50,
+  fromDate: "2024-01-01",
+});
+history.data.forEach((tx) => console.log(tx.type, tx.amount));
+```
+
+### 9. Earnings & Performance
+
+#### Get Onchain Earnings
+
+```typescript
+const earnings = await sdk.getOnchainEarnings(walletAddress);
+console.log("Total Earnings:", earnings.data.totalEarnings);
+console.log("Current Earnings:", earnings.data.currentEarnings);
+console.log("Lifetime Earnings:", earnings.data.lifetimeEarnings);
+```
+
+#### Calculate Onchain Earnings (Refresh)
+
+```typescript
+const updated = await sdk.calculateOnchainEarnings(walletAddress);
+console.log("Updated earnings:", updated.data.totalEarnings);
+```
+
+#### Get Daily Earnings
+
+```typescript
+const daily = await sdk.getDailyEarnings(
+  walletAddress,
+  "2024-01-01",
+  "2024-01-31"
+);
+daily.data.forEach((d) => console.log(d.date, d.earnings));
+```
+
+#### Get Daily APY History
+
+```typescript
+const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
+console.log("Average Weighted APY:", apyHistory.averageWeightedApy);
+```
+
+### 10. Opportunities & Strategies
+
+#### Get Safe Opportunities (Low Risk)
+
+```typescript
+const safeOpps = await sdk.getSafeOpportunities(8453);
+safeOpps.data.forEach((o) => {
+  console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
+});
+```
+
+#### Get Degen Strategies (High Risk)
+
+```typescript
+const degenStrats = await sdk.getDegenStrategies(8453);
+degenStrats.data.forEach((s) => {
+  console.log(`${s.protocolName} - ${s.poolName}: ${s.apy}% APY`);
+});
+```
+
+### 11. Rebalancing
+
+#### Get Rebalance Info
+
+```typescript
+// Get same-chain rebalances
+const rebalances = await sdk.getRebalanceInfo(false);
+console.log("Rebalance events:", rebalances.count);
+
+// Get cross-chain rebalances
+const crossChain = await sdk.getRebalanceInfo(true);
+```
+
+#### Get Rebalance Frequency
+
+```typescript
+const frequency = await sdk.getRebalanceFrequency(walletAddress);
+console.log("Tier:", frequency.tier);
+console.log("Max rebalances/day:", frequency.frequency);
+```
+
+### 12. Portfolio (Premium)
+
+#### Get Debank Portfolio (Multi-chain)
+
+```typescript
+const portfolio = await sdk.getDebankPortfolio(walletAddress);
+console.log("Total Value:", portfolio.totalValueUsd);
+Object.entries(portfolio.chains).forEach(([chain, data]) => {
+  console.log(`${chain}: $${data.totalValueUsd}`);
+});
+```
+
+**Note**: The Debank portfolio endpoint is a premium feature and may require additional authorization.
+
 ## Examples
 
 All examples are available in the `examples/` directory:
 
+### Core Features
+
 1. **`end-to-end.ts`** - Complete workflow demonstrating all SDK features
 2. **`basic-usage.ts`** - Simple Safe deployment workflow
-3. **`deposit-withdraw.ts`** - Fund management examples
-4. **`create-session-key.ts`** - Focused session key creation + registration
-5. **`deposit.ts`** - Standalone deposit helper (uses env `CHAIN_ID`, `TOKEN_ADDRESS`, `DEPOSIT_AMOUNT`)
-6. **`withdraw.ts`** - Standalone withdrawal helper (uses env `CHAIN_ID`, `WITHDRAW_AMOUNT`, `WITHDRAW_RECEIVER`)
+3. **`create-session-key.ts`** - Session key creation + registration
+4. **`deposit.ts`** - Deposit funds to Safe
+5. **`withdraw.ts`** - Withdraw funds from Safe
+6. **`deposit-withdraw.ts`** - Combined fund management examples
+
+### Data Retrieval
+
 7. **`get-protocols.ts`** - Fetch available protocols for a chain
-8. **`get-positions.ts`** - Dump active positions for the connected wallet
+8. **`get-positions.ts`** - Get active positions for a wallet
+9. **`get-user-details.ts`** - Get authenticated user details
+10. **`get-tvl-volume.ts`** - Get TVL and trading volume
+11. **`get-active-wallets.ts`** - Get active wallets by chain
+12. **`get-smart-wallets-by-eoa.ts`** - Get smart wallets by EOA
+13. **`get-first-topup.ts`** - Get first deposit information
+14. **`get-history.ts`** - Get transaction history
+
+### Analytics & Earnings
+
+15. **`get-onchain-earnings.ts`** - Get/calculate onchain earnings
+16. **`get-daily-earnings.ts`** - Get daily earnings breakdown
+17. **`get-apy-history.ts`** - Get daily APY history with weighted averages
+
+### Opportunities & Rebalancing
+
+18. **`get-opportunities.ts`** - Get safe and degen yield opportunities
+19. **`get-rebalance-info.ts`** - Get rebalance events and frequency tier
+
+### Premium Features
+
+20. **`get-debank-portfolio.ts`** - Get Debank multi-chain portfolio
 
 ### Quick Start: Run the End-to-End Example
 

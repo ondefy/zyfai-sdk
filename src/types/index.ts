@@ -150,8 +150,251 @@ export interface PositionsResponse {
   positions: Position[];
 }
 
-// NOTE: EarningsResponse is planned for a future release
-// The earnings API endpoint is currently under development
+// ============================================================================
+// User Types
+// ============================================================================
+
+export interface UserDetails {
+  id: string;
+  address: string;
+  smartWallet: string;
+  chains: number[];
+  protocols: Protocol[];
+  hasActiveSessionKey: boolean;
+  email?: string;
+  strategy?: string;
+  telegramId?: string;
+  walletType?: string;
+  autoSelectProtocols: boolean;
+  autocompounding?: boolean;
+  omniAccount?: boolean;
+  crosschainStrategy?: boolean;
+  agentName?: string;
+  customization?: Record<string, string[]>;
+}
+
+export interface UserDetailsResponse {
+  success: boolean;
+  user: UserDetails;
+}
+
+// ============================================================================
+// TVL & Volume Types
+// ============================================================================
+
+export interface TVLResponse {
+  success: boolean;
+  totalTvl: number;
+  byChain?: Record<string, number>;
+}
+
+export interface VolumeResponse {
+  success: boolean;
+  volumeInUSD: string;
+}
+
+// ============================================================================
+// Active Wallets Types
+// ============================================================================
+
+export interface ActiveWallet {
+  smartWallet: string;
+  chains: number[];
+  hasBalance: boolean;
+}
+
+export interface ActiveWalletsResponse {
+  success: boolean;
+  chainId: number;
+  wallets: ActiveWallet[];
+  count: number;
+}
+
+// ============================================================================
+// Smart Wallets by EOA Types
+// ============================================================================
+
+export interface SmartWalletsByEOAResponse {
+  success: boolean;
+  eoa: string;
+  smartWallets: string[];
+}
+
+// ============================================================================
+// First Topup Types
+// ============================================================================
+
+export interface FirstTopupResponse {
+  success: boolean;
+  walletAddress: string;
+  date: string;
+  amount?: string;
+  chainId?: number;
+}
+
+// ============================================================================
+// History Types
+// ============================================================================
+
+export interface HistoryEntry {
+  id?: string;
+  timestamp: string;
+  type: string;
+  amount: string;
+  token?: string;
+  txHash?: string;
+  chainId?: number;
+  protocol?: string;
+  pool?: string;
+}
+
+export interface HistoryResponse {
+  success: boolean;
+  walletAddress: string;
+  data: HistoryEntry[];
+  total: number;
+}
+
+// ============================================================================
+// Onchain Earnings Types
+// ============================================================================
+
+export interface OnchainEarnings {
+  walletAddress: string;
+  totalEarnings: number;
+  currentEarnings: number;
+  lifetimeEarnings: number;
+  unrealizedEarnings?: number;
+  currentEarningsByChain?: Record<string, number>;
+  unrealizedEarningsByChain?: Record<string, number>;
+  lastCheckTimestamp?: string;
+}
+
+export interface OnchainEarningsResponse {
+  success: boolean;
+  data: OnchainEarnings;
+}
+
+export interface DailyEarning {
+  date: string;
+  earnings: number;
+  balance?: number;
+  apy?: number;
+}
+
+export interface DailyEarningsResponse {
+  success: boolean;
+  walletAddress: string;
+  data: DailyEarning[];
+  count: number;
+  filters: {
+    startDate: string | null;
+    endDate: string | null;
+  };
+}
+
+// ============================================================================
+// Portfolio Types (Debank)
+// ============================================================================
+
+export interface PortfolioToken {
+  symbol: string;
+  amount: number;
+  valueUsd: number;
+  price?: number;
+}
+
+export interface ChainPortfolio {
+  chainId: number;
+  chainName: string;
+  totalValueUsd: number;
+  tokens: PortfolioToken[];
+}
+
+export interface DebankPortfolioResponse {
+  success: boolean;
+  walletAddress: string;
+  totalValueUsd: number;
+  chains: Record<string, ChainPortfolio>;
+}
+
+// ============================================================================
+// Opportunities Types
+// ============================================================================
+
+export interface Opportunity {
+  id: string;
+  protocolId: string;
+  protocolName: string;
+  poolName: string;
+  chainId: number;
+  apy: number;
+  tvl?: number;
+  asset?: string;
+  risk?: string;
+  strategyType: "safe" | "degen";
+  status?: string;
+}
+
+export interface OpportunitiesResponse {
+  success: boolean;
+  chainId?: number;
+  strategyType: "safe" | "degen";
+  data: Opportunity[];
+}
+
+// ============================================================================
+// Daily APY History Types
+// ============================================================================
+
+export interface DailyApyEntry {
+  date: string;
+  apy: number;
+  weightedApy?: number;
+  balance?: number;
+  protocol?: string;
+  pool?: string;
+}
+
+export interface DailyApyHistoryResponse {
+  success: boolean;
+  walletAddress: string;
+  history: Record<string, DailyApyEntry>;
+  totalDays: number;
+  requestedDays?: number;
+  averageWeightedApy?: number;
+}
+
+// ============================================================================
+// Rebalance Types
+// ============================================================================
+
+export interface RebalanceInfo {
+  id: string;
+  timestamp: string;
+  fromProtocol?: string;
+  toProtocol?: string;
+  fromPool?: string;
+  toPool?: string;
+  amount?: string;
+  isCrossChain: boolean;
+  fromChainId?: number;
+  toChainId?: number;
+}
+
+export interface RebalanceInfoResponse {
+  success: boolean;
+  data: RebalanceInfo[];
+  count: number;
+}
+
+export interface RebalanceFrequencyResponse {
+  success: boolean;
+  walletAddress: string;
+  tier: string;
+  frequency: number;
+  description?: string;
+}
 
 export interface DepositResponse {
   success: boolean;

@@ -1,17 +1,26 @@
 /**
  * API Endpoints Configuration
+ *
  */
 
 import { SupportedChainId } from "..";
 
+// Execution API
 export const API_ENDPOINTS = {
   staging: "https://staging-api.zyf.ai",
-  // staging: "http://localhost:3000",
   production: "https://api.zyf.ai",
 } as const;
 
-export const API_VERSION = "/api/v1";
+// Data API
+export const DATA_API_ENDPOINTS = {
+  staging: "https://staging-defiapi.zyf.ai",
+  production: "https://defiapi.zyf.ai",
+} as const;
 
+export const API_VERSION = "/api/v1";
+export const DATA_API_VERSION = "/api/v2";
+
+// Execution API Endpoints (v1)
 export const ENDPOINTS = {
   // Auth
   AUTH_LOGIN: "/auth/login",
@@ -29,9 +38,62 @@ export const ENDPOINTS = {
   // Protocols
   PROTOCOLS: (chainId: number) => `/protocols?chainId=${chainId}`,
 
-  // Data
+  // Data (v1)
   DATA_POSITION: (walletAddress: string) =>
     `/data/position?walletAddress=${walletAddress}`,
   DATA_HISTORY: (walletAddress: string, chainId: SupportedChainId) =>
     `/data/history?walletAddress=${walletAddress}&chainId=${chainId}`,
+  DATA_TVL: "/data/tvl",
+  DATA_VOLUME: "/data/volume",
+  DATA_FIRST_TOPUP: (walletAddress: string, chainId: number) =>
+    `/data/first-topup?walletAddress=${walletAddress}&chainId=${chainId}`,
+  DATA_ACTIVE_WALLETS: (chainId: number) =>
+    `/data/active-wallets?chainId=${chainId}`,
+  DATA_BY_EOA: (address: string) => `/data/by-eoa?address=${address}`,
+  DATA_REBALANCE_FREQUENCY: (walletAddress: string) =>
+    `/data/rebalance-frequency?walletAddress=${walletAddress}`,
+} as const;
+
+// Data API Endpoints (v2)
+export const DATA_ENDPOINTS = {
+  // Earnings
+  ONCHAIN_EARNINGS: (walletAddress: string) =>
+    `/usercheck/onchain-earnings?walletAddress=${walletAddress}`,
+  CALCULATE_ONCHAIN_EARNINGS: "/usercheck/calculate-onchain-earnings",
+  DAILY_EARNINGS: (
+    walletAddress: string,
+    startDate?: string,
+    endDate?: string
+  ) => {
+    let url = `/usercheck/daily-earnings?walletAddress=${walletAddress}`;
+    if (startDate) url += `&startDate=${startDate}`;
+    if (endDate) url += `&endDate=${endDate}`;
+    return url;
+  },
+
+  // Portfolio
+  DEBANK_PORTFOLIO_MULTICHAIN: (address: string) =>
+    `/debank/portfolio/multichain/${address}`,
+
+  // Opportunities
+  OPPORTUNITIES_SAFE: (chainId?: number) =>
+    chainId
+      ? `/opportunities/safes?chainId=${chainId}`
+      : "/opportunities/safes",
+  OPPORTUNITIES_DEGEN: (chainId?: number) =>
+    chainId
+      ? `/opportunities/degen-strategies?chainId=${chainId}`
+      : "/opportunities/degen-strategies",
+
+  // APY History
+  DAILY_APY_HISTORY_WEIGHTED: (walletAddress: string, days?: string) =>
+    `/daily-apy-history/weighted/${walletAddress}${
+      days ? `?days=${days}` : ""
+    }`,
+
+  // Rebalance
+  REBALANCE_INFO: (isCrossChain?: boolean) =>
+    isCrossChain !== undefined
+      ? `/rebalance/rebalance-info?isCrossChain=${isCrossChain}`
+      : "/rebalance/rebalance-info",
 } as const;

@@ -1,13 +1,23 @@
 /**
  * HTTP Client for API requests
+ *
+ * Supports two backends:
+ * - Execution API (v1): Main ZyFAI API for transactions
+ * - Data API (v2): DeFi data API for analytics
  */
 
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from "axios";
-import { API_ENDPOINTS, API_VERSION } from "../config/endpoints";
+import {
+  API_ENDPOINTS,
+  API_VERSION,
+  DATA_API_ENDPOINTS,
+  DATA_API_VERSION,
+} from "../config/endpoints";
 import type { Environment } from "../types";
 
 export class HttpClient {
   private client: AxiosInstance;
+  private dataClient: AxiosInstance;
   private apiKey: string;
   private authToken: string | null = null;
   private origin: string;
@@ -16,6 +26,7 @@ export class HttpClient {
   constructor(apiKey: string, environment: Environment = "production") {
     this.apiKey = apiKey;
 
+    // Execution API (v1)
     const endpoint = API_ENDPOINTS[environment];
     const parsedUrl = new URL(endpoint);
     this.origin = parsedUrl.origin;
@@ -31,7 +42,19 @@ export class HttpClient {
       timeout: 30000,
     });
 
+    // Data API (v2)
+    const dataEndpoint = DATA_API_ENDPOINTS[environment];
+    this.dataClient = axios.create({
+      baseURL: `${dataEndpoint}${DATA_API_VERSION}`,
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": apiKey,
+      },
+      timeout: 30000,
+    });
+
     this.setupInterceptors();
+    this.setupDataInterceptors();
   }
 
   setAuthToken(token: string) {
@@ -130,5 +153,69 @@ export class HttpClient {
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.client.delete<T>(url, config);
     return response.data;
+  }
+
+  // Data API methods (v2)
+  async dataGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.dataClient.get<T>(url, config);
+    return response.data;
+  }
+
+  async dataPost<T>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
+    const response = await this.dataClient.post<T>(url, data, config);
+    return response.data;
+  }
+
+  private setupDataInterceptors() {
+    // Request interceptor for data API
+    this.dataClient.interceptors.request.use(
+      (config) => {
+        config.headers["X-API-Key"] = this.apiKey;
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor for data API
+    this.dataClient.interceptors.response.use(
+      (response) => response,
+      (error: AxiosError) => {
+        if (error.response) {
+          const status = error.response.status;
+          const data = error.response.data as any;
+
+          switch (status) {
+            case 401:
+              throw new Error("Unauthorized: Invalid API key");
+            case 403:
+              throw new Error("Forbidden: Access denied to data API");
+            case 404:
+              throw new Error(
+                `Not found: ${
+                  data.message || data.error || "Resource not found"
+                }`
+              );
+            case 429:
+              throw new Error("Rate limit exceeded. Please try again later.");
+            case 500:
+              throw new Error(
+                data.error || "Internal server error. Please try again later."
+              );
+            default:
+              throw new Error(
+                data.message || data.error || "An error occurred"
+              );
+          }
+        } else if (error.request) {
+          throw new Error("Network error: Unable to reach the data server");
+        } else {
+          throw new Error(`Request error: ${error.message}`);
+        }
+      }
+    );
   }
 }

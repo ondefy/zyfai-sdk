@@ -53,6 +53,8 @@ const positions = await sdk.getPositions("0xUserAddress");
 
 Deploy an ERC-4337 with ERC-7579 launchpad + smart session module standard compliant Safe Smart Account for a user.
 
+**Important:** This method automatically checks if the EOA already has a Safe deployed with ZyFAI. If a Safe already exists, it returns the existing Safe address without deploying again.
+
 #### Function Signature
 
 ```typescript
@@ -75,18 +77,29 @@ deploySafe(
 interface DeploySafeResponse {
   success: boolean;
   safeAddress: string;
-  txHash: string;
+  txHash: string; // "0x0" if Safe already existed
   status: "deployed" | "failed";
 }
 ```
 
-#### Example Response
+#### Example Response (New Deployment)
 
 ```json
 {
   "success": true,
   "safeAddress": "0x9f3597d54c28a7945d9Ddf384ca0eD7e66f43776",
-  "txHash": "https://basescan.org/tx/0x26180d7afd86cebff4903c34b1863671800631a2e4a84cbe809bf39a106c7e8e",
+  "txHash": "0x26180d7afd86cebff4903c34b1863671800631a2e4a84cbe809bf39a106c7e8e",
+  "status": "deployed"
+}
+```
+
+#### Example Response (Safe Already Exists)
+
+```json
+{
+  "success": true,
+  "safeAddress": "0x9f3597d54c28a7945d9Ddf384ca0eD7e66f43776",
+  "txHash": "0x0",
   "status": "deployed"
 }
 ```
@@ -131,18 +144,6 @@ createSessionKey(
   - Or manually set via `updateUserProfile` method
 
 **Important**: The above endpoints require SIWE authentication. Ensure the user record contains the Safe address (set automatically after `deploySafe` or via `updateUserProfile`). If the user record doesn't exist or is missing these fields, you'll get a "User not found" error. The SDK now registers the session via `/session-keys/add`, so no extra API calls are needed client-side.
-
-#### Advanced Usage (Custom Configuration)
-
-For custom permissions and manual session configuration:
-
-```typescript
-createSessionKeyWithConfig(
-  userAddress: string,
-  chainId: number,
-  sessions: Session[]
-): Promise<SessionKeyResponse>
-```
 
 #### Session Type
 
@@ -214,35 +215,6 @@ interface SessionKeyResponse {
 // No manual configuration needed
 const result = await sdk.createSessionKey(userAddress, 42161);
 console.log("Signature:", result.signature);
-```
-
-**Advanced (Custom Config):**
-
-```typescript
-const sessions: Session[] = [
-  {
-    sessionValidator: "0x...",
-    sessionValidatorInitData: "0x",
-    salt: "0x00...01",
-    userOpPolicies: [],
-    erc7739Policies: { allowedERC7739Content: [], erc1271Policies: [] },
-    actions: [
-      {
-        actionTarget: "0xUSDC",
-        actionTargetSelector: "0xa9059cbb",
-        actionPolicies: [],
-      },
-    ],
-    permitERC4337Paymaster: true,
-    chainId: BigInt(42161),
-  },
-];
-
-const result = await sdk.createSessionKeyWithConfig(
-  userAddress,
-  42161,
-  sessions
-);
 ```
 
 ---
@@ -464,6 +436,180 @@ interface WithdrawResponse {
 ```
 
 **Authentication:** `withdrawFunds` automatically performs SIWE authentication before calling `/users/withdraw` (full) or `/users/partial-withdraw` (partial), so no manual token handling is required.
+
+---
+
+### 8. Get User Details
+
+Retrieve authenticated user details.
+
+#### Function Signature
+
+```typescript
+getUserDetails(): Promise<UserDetailsResponse>
+```
+
+#### Response Type
+
+```typescript
+interface UserDetailsResponse {
+  success: boolean;
+  user: {
+    id: string;
+    address: string;
+    smartWallet: string;
+    chains: number[];
+    protocols: Protocol[];
+    hasActiveSessionKey: boolean;
+    autoSelectProtocols: boolean;
+    // ... additional fields
+  };
+}
+```
+
+---
+
+### 9. Get TVL & Volume
+
+```typescript
+// Get total value locked
+const tvl = await sdk.getTVL();
+// Returns: { success, totalTvl, byChain? }
+
+// Get total volume
+const volume = await sdk.getVolume();
+// Returns: { success, volumeInUSD }
+```
+
+---
+
+### 10. Get Active Wallets
+
+```typescript
+const wallets = await sdk.getActiveWallets(chainId);
+// Returns: { success, chainId, wallets, count }
+```
+
+---
+
+### 11. Get Smart Wallets by EOA
+
+```typescript
+const result = await sdk.getSmartWalletsByEOA(eoaAddress);
+// Returns: { success, eoa, smartWallets }
+```
+
+---
+
+### 12. Get First Topup
+
+```typescript
+const firstTopup = await sdk.getFirstTopup(walletAddress, chainId);
+// Returns: { success, walletAddress, date, amount?, chainId? }
+```
+
+---
+
+### 13. Get History
+
+```typescript
+const history = await sdk.getHistory(walletAddress, chainId, {
+  limit: 50,
+  offset: 0,
+  fromDate: "2024-01-01",
+  toDate: "2024-12-31",
+});
+// Returns: { success, walletAddress, data, total }
+```
+
+---
+
+### 14. Get Onchain Earnings
+
+```typescript
+const earnings = await sdk.getOnchainEarnings(walletAddress);
+// Returns: { success, data: { walletAddress, totalEarnings, currentEarnings, lifetimeEarnings, ... } }
+```
+
+---
+
+### 15. Calculate Onchain Earnings
+
+Trigger recalculation of earnings.
+
+```typescript
+const updated = await sdk.calculateOnchainEarnings(walletAddress);
+```
+
+---
+
+### 16. Get Daily Earnings
+
+```typescript
+const daily = await sdk.getDailyEarnings(
+  walletAddress,
+  "2024-01-01",
+  "2024-01-31"
+);
+// Returns: { success, walletAddress, data, count, filters }
+```
+
+---
+
+### 17. Get Safe Opportunities
+
+```typescript
+const opportunities = await sdk.getSafeOpportunities(chainId);
+// Returns: { success, chainId, strategyType: "safe", data }
+```
+
+---
+
+### 18. Get Degen Strategies
+
+```typescript
+const strategies = await sdk.getDegenStrategies(chainId);
+// Returns: { success, chainId, strategyType: "degen", data }
+```
+
+---
+
+### 19. Get Daily APY History
+
+```typescript
+const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
+// Returns: { success, walletAddress, history, totalDays, averageWeightedApy }
+```
+
+---
+
+### 20. Get Rebalance Info
+
+```typescript
+const rebalances = await sdk.getRebalanceInfo(false); // same-chain
+const crossChain = await sdk.getRebalanceInfo(true); // cross-chain
+// Returns: { success, data, count }
+```
+
+---
+
+### 21. Get Rebalance Frequency
+
+```typescript
+const frequency = await sdk.getRebalanceFrequency(walletAddress);
+// Returns: { success, walletAddress, tier, frequency, description? }
+```
+
+---
+
+### 22. Get Debank Portfolio (Premium)
+
+```typescript
+const portfolio = await sdk.getDebankPortfolio(walletAddress);
+// Returns: { success, walletAddress, totalValueUsd, chains }
+```
+
+**Note:** This is a premium endpoint requiring additional authorization.
 
 ---
 

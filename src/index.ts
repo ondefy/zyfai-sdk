@@ -26,7 +26,7 @@ export type {
   Address,
   Hex,
 
-  // Response Types
+  // Core Response Types
   DeploySafeResponse,
   SessionKeyResponse,
   SmartWalletResponse,
@@ -34,6 +34,44 @@ export type {
   PositionsResponse,
   DepositResponse,
   WithdrawResponse,
+
+  // User Types
+  UserDetails,
+  UserDetailsResponse,
+
+  // Data Types
+  TVLResponse,
+  VolumeResponse,
+  ActiveWallet,
+  ActiveWalletsResponse,
+  SmartWalletsByEOAResponse,
+  FirstTopupResponse,
+  HistoryEntry,
+  HistoryResponse,
+
+  // Earnings Types
+  OnchainEarnings,
+  OnchainEarningsResponse,
+  DailyEarning,
+  DailyEarningsResponse,
+
+  // Portfolio Types
+  PortfolioToken,
+  ChainPortfolio,
+  DebankPortfolioResponse,
+
+  // Opportunities Types
+  Opportunity,
+  OpportunitiesResponse,
+
+  // APY History Types
+  DailyApyEntry,
+  DailyApyHistoryResponse,
+
+  // Rebalance Types
+  RebalanceInfo,
+  RebalanceInfoResponse,
+  RebalanceFrequencyResponse,
 
   // Protocol Types
   Protocol,

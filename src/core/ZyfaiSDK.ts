@@ -3,7 +3,7 @@
  */
 
 import { HttpClient } from "../utils/http-client";
-import { ENDPOINTS } from "../config/endpoints";
+import { ENDPOINTS, DATA_ENDPOINTS } from "../config/endpoints";
 import { ERC20_ABI } from "../config/abis";
 import type {
   SDKConfig,
@@ -23,6 +23,20 @@ import type {
   AddSessionKeyRequest,
   AddSessionKeyResponse,
   Environment,
+  UserDetailsResponse,
+  TVLResponse,
+  VolumeResponse,
+  ActiveWalletsResponse,
+  SmartWalletsByEOAResponse,
+  FirstTopupResponse,
+  HistoryResponse,
+  OnchainEarningsResponse,
+  DailyEarningsResponse,
+  DebankPortfolioResponse,
+  OpportunitiesResponse,
+  DailyApyHistoryResponse,
+  RebalanceInfoResponse,
+  RebalanceFrequencyResponse,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -511,92 +525,6 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Create session key with manual session configuration
-   * Use this method if you need custom session permissions
-   *
-   * @param userAddress - User's EOA or Safe address
-   * @param chainId - Target chain ID
-   * @param sessions - Custom session configurations (permissions, targets, policies)
-   * @returns Session key response with signature and nonces
-   *
-   * @example
-   * ```typescript
-   * import { type Session } from "@zyfai/sdk";
-   *
-   * // Define custom session permissions
-   * const sessions: Session[] = [{
-   *   sessionValidator: "0x...",
-   *   sessionValidatorInitData: "0x...",
-   *   salt: "0x...",
-   *   userOpPolicies: [],
-   *   erc7739Policies: {
-   *     allowedERC7739Content: [],
-   *     erc1271Policies: []
-   *   },
-   *   actions: [{
-   *     actionTarget: "0xTokenAddress",
-   *     actionTargetSelector: "0xa9059cbb",
-   *     actionPolicies: []
-   *   }],
-   *   permitERC4337Paymaster: true,
-   *   chainId: BigInt(8453)
-   * }];
-   *
-   * const result = await sdk.createSessionKeyWithConfig(userAddress, 8453, sessions);
-   * ```
-   */
-  async createSessionKeyWithConfig(
-    userAddress: string,
-    chainId: SupportedChainId,
-    sessions: Session[]
-  ): Promise<SessionKeyResponse> {
-    try {
-      // Validate inputs
-      if (!userAddress) {
-        throw new Error("User address is required");
-      }
-
-      if (!isSupportedChain(chainId)) {
-        throw new Error(`Unsupported chain ID: ${chainId}`);
-      }
-
-      // Ensure SIWE auth token is available
-      // This also stores the userId from the login response
-      await this.authenticateUser();
-
-      // Get userId from authentication (stored during login)
-      if (!this.authenticatedUserId) {
-        throw new Error(
-          "User ID not available. Please ensure authentication completed successfully."
-        );
-      }
-
-      // Sign the session payload
-      const signatureResult = await this.signSessionKey(
-        userAddress,
-        chainId,
-        sessions
-      );
-
-      // Register the session key
-      const activation = await this.activateSessionKey(
-        signatureResult.signature,
-        signatureResult.sessionNonces
-      );
-
-      return {
-        ...signatureResult,
-        userId: this.authenticatedUserId,
-        sessionActivation: activation,
-      };
-    } catch (error) {
-      throw new Error(
-        `Failed to create session key with config: ${(error as Error).message}`
-      );
-    }
-  }
-
-  /**
    * Internal method to sign session key
    * @private
    */
@@ -1006,6 +934,718 @@ export class ZyfaiSDK {
     }
   }
 
-  // NOTE: getEarnings method is planned for a future release.
-  // The earnings API endpoint is currently under development.
+  // ============================================================================
+  // User Details Methods
+  // ============================================================================
+
+  /**
+   * Get current authenticated user details
+   * Requires SIWE authentication
+   *
+   * @returns User details including smart wallet, chains, protocols, etc.
+   *
+   * @example
+   * ```typescript
+   * await sdk.connectAccount(privateKey, chainId);
+   * const user = await sdk.getUserDetails();
+   * console.log("Smart Wallet:", user.user.smartWallet);
+   * console.log("Chains:", user.user.chains);
+   * ```
+   */
+  async getUserDetails(): Promise<UserDetailsResponse> {
+    try {
+      await this.authenticateUser();
+
+      const response = await this.httpClient.get<any>(ENDPOINTS.USER_ME);
+
+      return {
+        success: true,
+        user: {
+          id: response.id,
+          address: response.address,
+          smartWallet: response.smartWallet,
+          chains: response.chains || [],
+          protocols: response.protocols || [],
+          hasActiveSessionKey: response.hasActiveSessionKey || false,
+          email: response.email,
+          strategy: response.strategy,
+          telegramId: response.telegramId,
+          walletType: response.walletType,
+          autoSelectProtocols: response.autoSelectProtocols || false,
+          autocompounding: response.autocompounding,
+          omniAccount: response.omniAccount,
+          crosschainStrategy: response.crosschainStrategy,
+          agentName: response.agentName,
+          customization: response.customization,
+        },
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get user details: ${(error as Error).message}`
+      );
+    }
+  }
+
+  // ============================================================================
+  // TVL & Volume Methods
+  // ============================================================================
+
+  /**
+   * Get total value locked (TVL) across all ZyFAI accounts
+   *
+   * @returns Total TVL in USD and breakdown by chain
+   *
+   * @example
+   * ```typescript
+   * const tvl = await sdk.getTVL();
+   * console.log("Total TVL:", tvl.totalTvl);
+   * ```
+   */
+  async getTVL(): Promise<TVLResponse> {
+    try {
+      const response = await this.httpClient.get<any>(ENDPOINTS.DATA_TVL);
+
+      return {
+        success: true,
+        totalTvl: response.totalTvl || response.tvl || 0,
+        byChain: response.byChain,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get TVL: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get total volume across all ZyFAI accounts
+   *
+   * @returns Total volume in USD
+   *
+   * @example
+   * ```typescript
+   * const volume = await sdk.getVolume();
+   * console.log("Total Volume:", volume.volumeInUSD);
+   * ```
+   */
+  async getVolume(): Promise<VolumeResponse> {
+    try {
+      const response = await this.httpClient.get<any>(ENDPOINTS.DATA_VOLUME);
+
+      return {
+        success: true,
+        volumeInUSD: response.volumeInUSD || "0",
+      };
+    } catch (error) {
+      throw new Error(`Failed to get volume: ${(error as Error).message}`);
+    }
+  }
+
+  // ============================================================================
+  // Active Wallets Methods
+  // ============================================================================
+
+  /**
+   * Get active wallets for a specific chain
+   *
+   * @param chainId - Chain ID to filter wallets
+   * @returns List of active wallets on the specified chain
+   *
+   * @example
+   * ```typescript
+   * const wallets = await sdk.getActiveWallets(8453); // Base
+   * console.log("Active wallets:", wallets.count);
+   * ```
+   */
+  async getActiveWallets(chainId: number): Promise<ActiveWalletsResponse> {
+    try {
+      if (!chainId) {
+        throw new Error("Chain ID is required");
+      }
+
+      const response = await this.httpClient.get<any>(
+        ENDPOINTS.DATA_ACTIVE_WALLETS(chainId)
+      );
+
+      const wallets = Array.isArray(response)
+        ? response
+        : response.wallets || [];
+
+      return {
+        success: true,
+        chainId,
+        wallets: wallets.map((w: any) => ({
+          smartWallet: w.smartWallet || w,
+          chains: w.chains || [chainId],
+          hasBalance: w.hasBalance ?? true,
+        })),
+        count: wallets.length,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get active wallets: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get smart wallets associated with an EOA address
+   *
+   * @param eoaAddress - EOA (externally owned account) address
+   * @returns List of smart wallets owned by the EOA
+   *
+   * @example
+   * ```typescript
+   * const result = await sdk.getSmartWalletsByEOA("0x...");
+   * console.log("Smart wallets:", result.smartWallets);
+   * ```
+   */
+  async getSmartWalletsByEOA(
+    eoaAddress: string
+  ): Promise<SmartWalletsByEOAResponse> {
+    try {
+      if (!eoaAddress) {
+        throw new Error("EOA address is required");
+      }
+
+      const response = await this.httpClient.get<any>(
+        ENDPOINTS.DATA_BY_EOA(eoaAddress)
+      );
+
+      const smartWallets = Array.isArray(response)
+        ? response
+        : response.smartWallets || [response.smartWallet].filter(Boolean);
+
+      return {
+        success: true,
+        eoa: eoaAddress,
+        smartWallets,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get smart wallets by EOA: ${(error as Error).message}`
+      );
+    }
+  }
+
+  // ============================================================================
+  // First Topup & History Methods
+  // ============================================================================
+
+  /**
+   * Get the first topup (deposit) information for a wallet
+   *
+   * @param walletAddress - Smart wallet address
+   * @param chainId - Chain ID
+   * @returns First topup date and details
+   *
+   * @example
+   * ```typescript
+   * const firstTopup = await sdk.getFirstTopup("0x...", 8453);
+   * console.log("First deposit date:", firstTopup.date);
+   * ```
+   */
+  async getFirstTopup(
+    walletAddress: string,
+    chainId: number
+  ): Promise<FirstTopupResponse> {
+    try {
+      if (!walletAddress) {
+        throw new Error("Wallet address is required");
+      }
+      if (!chainId) {
+        throw new Error("Chain ID is required");
+      }
+
+      const response = await this.httpClient.get<any>(
+        ENDPOINTS.DATA_FIRST_TOPUP(walletAddress, chainId)
+      );
+
+      return {
+        success: true,
+        walletAddress,
+        date: response.date || response.firstTopup?.date || "",
+        amount: response.amount,
+        chainId: response.chainId || chainId,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get first topup: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get transaction history for a wallet
+   *
+   * @param walletAddress - Smart wallet address
+   * @param chainId - Chain ID
+   * @param options - Optional pagination and date filters
+   * @returns Transaction history
+   *
+   * @example
+   * ```typescript
+   * const history = await sdk.getHistory("0x...", 8453, { limit: 50 });
+   * history.data.forEach(tx => console.log(tx.type, tx.amount));
+   * ```
+   */
+  async getHistory(
+    walletAddress: string,
+    chainId: SupportedChainId,
+    options?: {
+      limit?: number;
+      offset?: number;
+      fromDate?: string;
+      toDate?: string;
+    }
+  ): Promise<HistoryResponse> {
+    try {
+      if (!walletAddress) {
+        throw new Error("Wallet address is required");
+      }
+      if (!chainId) {
+        throw new Error("Chain ID is required");
+      }
+
+      let endpoint = ENDPOINTS.DATA_HISTORY(walletAddress, chainId);
+      if (options?.limit) endpoint += `&limit=${options.limit}`;
+      if (options?.offset) endpoint += `&offset=${options.offset}`;
+      if (options?.fromDate) endpoint += `&fromDate=${options.fromDate}`;
+      if (options?.toDate) endpoint += `&toDate=${options.toDate}`;
+
+      const response = await this.httpClient.get<any>(endpoint);
+
+      return {
+        success: true,
+        walletAddress,
+        data: response.data || [],
+        total: response.total || 0,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get history: ${(error as Error).message}`);
+    }
+  }
+
+  // ============================================================================
+  // Onchain Earnings Methods (Data API v2)
+  // ============================================================================
+
+  /**
+   * Get onchain earnings for a wallet
+   *
+   * @param walletAddress - Smart wallet address
+   * @returns Onchain earnings data including total, current, and lifetime
+   *
+   * @example
+   * ```typescript
+   * const earnings = await sdk.getOnchainEarnings("0x...");
+   * console.log("Total earnings:", earnings.data.totalEarnings);
+   * ```
+   */
+  async getOnchainEarnings(
+    walletAddress: string
+  ): Promise<OnchainEarningsResponse> {
+    try {
+      if (!walletAddress) {
+        throw new Error("Wallet address is required");
+      }
+
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.ONCHAIN_EARNINGS(walletAddress)
+      );
+
+      return {
+        success: true,
+        data: {
+          walletAddress,
+          totalEarnings: response.total_earnings || response.totalEarnings || 0,
+          currentEarnings:
+            response.current_earnings || response.currentEarnings || 0,
+          lifetimeEarnings:
+            response.lifetime_earnings || response.lifetimeEarnings || 0,
+          unrealizedEarnings: response.unrealized_earnings,
+          currentEarningsByChain: response.current_earnings_by_chain,
+          unrealizedEarningsByChain: response.unrealized_earnings_by_chain,
+          lastCheckTimestamp: response.last_check_timestamp,
+        },
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get onchain earnings: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Calculate/refresh onchain earnings for a wallet
+   * This triggers a recalculation of earnings on the backend
+   *
+   * @param walletAddress - Smart wallet address
+   * @returns Updated onchain earnings data
+   *
+   * @example
+   * ```typescript
+   * const earnings = await sdk.calculateOnchainEarnings("0x...");
+   * console.log("Calculated earnings:", earnings.data.totalEarnings);
+   * ```
+   */
+  async calculateOnchainEarnings(
+    walletAddress: string
+  ): Promise<OnchainEarningsResponse> {
+    try {
+      if (!walletAddress) {
+        throw new Error("Wallet address is required");
+      }
+
+      const response = await this.httpClient.dataPost<any>(
+        DATA_ENDPOINTS.CALCULATE_ONCHAIN_EARNINGS,
+        { walletAddress }
+      );
+
+      const data = response.data || response;
+
+      return {
+        success: true,
+        data: {
+          walletAddress,
+          totalEarnings: data.total_earnings || data.totalEarnings || 0,
+          currentEarnings: data.current_earnings || data.currentEarnings || 0,
+          lifetimeEarnings:
+            data.lifetime_earnings || data.lifetimeEarnings || 0,
+          unrealizedEarnings: data.unrealized_earnings,
+          lastCheckTimestamp: data.last_check_timestamp,
+        },
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to calculate onchain earnings: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get daily earnings for a wallet within a date range
+   *
+   * @param walletAddress - Smart wallet address
+   * @param startDate - Start date (YYYY-MM-DD format)
+   * @param endDate - End date (YYYY-MM-DD format)
+   * @returns Daily earnings breakdown
+   *
+   * @example
+   * ```typescript
+   * const daily = await sdk.getDailyEarnings("0x...", "2024-01-01", "2024-01-31");
+   * daily.data.forEach(d => console.log(d.date, d.earnings));
+   * ```
+   */
+  async getDailyEarnings(
+    walletAddress: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<DailyEarningsResponse> {
+    try {
+      if (!walletAddress) {
+        throw new Error("Wallet address is required");
+      }
+
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.DAILY_EARNINGS(walletAddress, startDate, endDate)
+      );
+
+      return {
+        success: true,
+        walletAddress,
+        data: response.data || [],
+        count: response.count || 0,
+        filters: {
+          startDate: startDate || null,
+          endDate: endDate || null,
+        },
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get daily earnings: ${(error as Error).message}`
+      );
+    }
+  }
+
+  // ============================================================================
+  // Portfolio Methods (Data API v2)
+  // ============================================================================
+
+  /**
+   * Get Debank portfolio for a wallet across multiple chains
+   * Note: This is a paid endpoint and may require authorization
+   *
+   * @param walletAddress - Smart wallet address
+   * @returns Multi-chain portfolio data
+   *
+   * @example
+   * ```typescript
+   * const portfolio = await sdk.getDebankPortfolio("0x...");
+   * console.log("Total value:", portfolio.totalValueUsd);
+   * ```
+   */
+  async getDebankPortfolio(
+    walletAddress: string
+  ): Promise<DebankPortfolioResponse> {
+    try {
+      if (!walletAddress) {
+        throw new Error("Wallet address is required");
+      }
+
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.DEBANK_PORTFOLIO_MULTICHAIN(walletAddress)
+      );
+
+      const data = response.data || response;
+
+      return {
+        success: true,
+        walletAddress,
+        totalValueUsd: data.totalValueUsd || 0,
+        chains: data.chains || data,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get Debank portfolio: ${(error as Error).message}`
+      );
+    }
+  }
+
+  // ============================================================================
+  // Opportunities Methods (Data API v2)
+  // ============================================================================
+
+  /**
+   * Get safe (low-risk) yield opportunities
+   *
+   * @param chainId - Optional chain ID filter
+   * @returns List of safe yield opportunities
+   *
+   * @example
+   * ```typescript
+   * const opportunities = await sdk.getSafeOpportunities(8453);
+   * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
+   * ```
+   */
+  async getSafeOpportunities(chainId?: number): Promise<OpportunitiesResponse> {
+    try {
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId)
+      );
+
+      const data = response.data || response || [];
+
+      return {
+        success: true,
+        chainId,
+        strategyType: "safe",
+        data: Array.isArray(data)
+          ? data.map((o: any) => ({
+              id: o.id,
+              protocolId: o.protocol_id || o.protocolId,
+              protocolName: o.protocol_name || o.protocolName,
+              poolName: o.pool_name || o.poolName,
+              chainId: o.chain_id || o.chainId,
+              apy: o.apy || o.pool_apy || 0,
+              tvl: o.tvl || o.zyfiTvl,
+              asset: o.asset || o.underlying_token,
+              risk: o.risk,
+              strategyType: "safe",
+              status: o.status,
+            }))
+          : [],
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get safe opportunities: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get degen (high-risk, high-reward) yield strategies
+   *
+   * @param chainId - Optional chain ID filter
+   * @returns List of degen strategies
+   *
+   * @example
+   * ```typescript
+   * const strategies = await sdk.getDegenStrategies(8453);
+   * strategies.data.forEach(s => console.log(s.protocolName, s.apy));
+   * ```
+   */
+  async getDegenStrategies(chainId?: number): Promise<OpportunitiesResponse> {
+    try {
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId)
+      );
+
+      const data = response.data || response || [];
+
+      return {
+        success: true,
+        chainId,
+        strategyType: "degen",
+        data: Array.isArray(data)
+          ? data.map((o: any) => ({
+              id: o.id,
+              protocolId: o.protocol_id || o.protocolId,
+              protocolName: o.protocol_name || o.protocolName,
+              poolName: o.pool_name || o.poolName,
+              chainId: o.chain_id || o.chainId,
+              apy: o.apy || o.pool_apy || 0,
+              tvl: o.tvl || o.zyfiTvl,
+              asset: o.asset || o.underlying_token,
+              risk: o.risk,
+              strategyType: "degen",
+              status: o.status,
+            }))
+          : [],
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get degen strategies: ${(error as Error).message}`
+      );
+    }
+  }
+
+  // ============================================================================
+  // APY History Methods (Data API v2)
+  // ============================================================================
+
+  /**
+   * Get daily APY history with weighted average for a wallet
+   *
+   * @param walletAddress - Smart wallet address
+   * @param days - Period: "7D", "14D", or "30D" (default: "7D")
+   * @returns Daily APY history with weighted averages
+   *
+   * @example
+   * ```typescript
+   * const apyHistory = await sdk.getDailyApyHistory("0x...", "30D");
+   * console.log("Average APY:", apyHistory.averageWeightedApy);
+   * ```
+   */
+  async getDailyApyHistory(
+    walletAddress: string,
+    days: "7D" | "14D" | "30D" = "7D"
+  ): Promise<DailyApyHistoryResponse> {
+    try {
+      if (!walletAddress) {
+        throw new Error("Wallet address is required");
+      }
+
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.DAILY_APY_HISTORY_WEIGHTED(walletAddress, days)
+      );
+
+      const data = response.data || response;
+
+      return {
+        success: true,
+        walletAddress,
+        history: data.history || {},
+        totalDays: data.total_days || data.totalDays || 0,
+        requestedDays: data.requested_days || data.requestedDays,
+        averageWeightedApy:
+          data.average_final_weighted_apy_after_fee ||
+          data.averageWeightedApy ||
+          0,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get daily APY history: ${(error as Error).message}`
+      );
+    }
+  }
+
+  // ============================================================================
+  // Rebalance Methods
+  // ============================================================================
+
+  /**
+   * Get rebalance information
+   * Shows yield generated by rebalancing strategies
+   *
+   * @param isCrossChain - Filter by cross-chain or same-chain rebalances
+   * @returns List of rebalance events
+   *
+   * @example
+   * ```typescript
+   * // Get same-chain rebalance info
+   * const rebalances = await sdk.getRebalanceInfo(false);
+   * console.log("Rebalance count:", rebalances.count);
+   * ```
+   */
+  async getRebalanceInfo(
+    isCrossChain?: boolean
+  ): Promise<RebalanceInfoResponse> {
+    try {
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.REBALANCE_INFO(isCrossChain)
+      );
+
+      const data = response.data || response || [];
+
+      return {
+        success: true,
+        data: Array.isArray(data)
+          ? data.map((r: any) => ({
+              id: r.id,
+              timestamp: r.timestamp || r.created_at,
+              fromProtocol: r.from_protocol || r.fromProtocol,
+              toProtocol: r.to_protocol || r.toProtocol,
+              fromPool: r.from_pool || r.fromPool,
+              toPool: r.to_pool || r.toPool,
+              amount: r.amount,
+              isCrossChain: r.is_cross_chain ?? r.isCrossChain ?? false,
+              fromChainId: r.from_chain_id || r.fromChainId,
+              toChainId: r.to_chain_id || r.toChainId,
+            }))
+          : [],
+        count: data.length,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get rebalance info: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get rebalance frequency/tier for a wallet
+   * Determines how often the wallet can be rebalanced based on tier
+   *
+   * @param walletAddress - Smart wallet address
+   * @returns Rebalance frequency tier and details
+   *
+   * @example
+   * ```typescript
+   * const frequency = await sdk.getRebalanceFrequency("0x...");
+   * console.log("Tier:", frequency.tier);
+   * console.log("Max rebalances/day:", frequency.frequency);
+   * ```
+   */
+  async getRebalanceFrequency(
+    walletAddress: string
+  ): Promise<RebalanceFrequencyResponse> {
+    try {
+      if (!walletAddress) {
+        throw new Error("Wallet address is required");
+      }
+
+      const response = await this.httpClient.get<any>(
+        ENDPOINTS.DATA_REBALANCE_FREQUENCY(walletAddress)
+      );
+
+      return {
+        success: true,
+        walletAddress,
+        tier: response.tier || "standard",
+        frequency: response.frequency || response.rebalanceFrequency || 1,
+        description: response.description,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get rebalance frequency: ${(error as Error).message}`
+      );
+    }
+  }
 }
