@@ -67,9 +67,9 @@ export class ZyfaiSDK {
   private signer: PrivateKeyAccount | null = null;
   private walletClient: WalletClient | null = null;
   private bundlerApiKey?: string;
-  private isAuthenticated: boolean = false; // TODO: Check with Utkir for how long the authentication token is valid for.
+  private isAuthenticated: boolean = false;
   private authenticatedUserId: string | null = null; // Stored from login response
-  private environment: Environment; // TODO: The encironment should be removed. Having the same key for staging and production is not ideal, but for now it's fine.
+  private environment: Environment; // TODO: The environment should be removed. Having the same key for staging and production is not ideal, but for now it's fine.
 
   constructor(config: SDKConfig | string) {
     // Support both object and string initialization

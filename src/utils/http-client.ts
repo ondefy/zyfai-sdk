@@ -27,9 +27,9 @@ export class HttpClient {
   /**
    * Create HTTP client for both Execution API and Data API
    *
-   * @param apiKey - API key for Execution API (Utkir's backend)
+   * @param apiKey - API key for Execution API
    * @param environment - 'staging' or 'production'
-   * @param dataApiKey - API key for Data API (Sunny's backend) - defaults to apiKey
+   * @param dataApiKey - API key for Data API - defaults to apiKey
    */
   constructor(
     apiKey: string,
