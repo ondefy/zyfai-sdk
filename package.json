@@ -51,11 +51,11 @@
   "license": "MIT",
   "homepage": "https://zyf.ai",
   "bugs": {
-    "url": "https://github.com/zyfai/zyfai-sdk/issues"
+    "url": "https://github.com/ondefy/zyfai-sdk/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zyfai/zyfai-sdk.git"
+    "url": "git+https://github.com/ondefy/zyfai-sdk.git"
   },
   "engines": {
     "node": ">=18.0.0"

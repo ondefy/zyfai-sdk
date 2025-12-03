@@ -57,10 +57,10 @@ const positions = await sdk.getPositions("0xUserAddress");
 
 ### API Endpoints
 
-| Environment  | Execution API                | Data API                          |
-| ------------ | ---------------------------- | --------------------------------- |
-| `production` | `https://api.zyf.ai`         | `https://defi-api.zyf.ai`         |
-| `staging`    | `https://staging-api.zyf.ai` | `https://staging-defi-api.zyf.ai` |
+| Environment  | Execution API                | Data API                         |
+| ------------ | ---------------------------- | -------------------------------- |
+| `production` | `https://api.zyf.ai`         | `https://defiapi.zyf.ai`         |
+| `staging`    | `https://staging-api.zyf.ai` | `https://staging-defiapi.zyf.ai` |
 
 **Important:**
 

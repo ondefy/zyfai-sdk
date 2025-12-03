@@ -58,10 +58,10 @@ const sdk = new ZyfaiSDK({
 
 **API Endpoints by Environment:**
 
-| Environment  | Execution API                | Data API                          |
-| ------------ | ---------------------------- | --------------------------------- |
-| `production` | `https://api.zyf.ai`         | `https://defi-api.zyf.ai`         |
-| `staging`    | `https://staging-api.zyf.ai` | `https://staging-defi-api.zyf.ai` |
+| Environment  | Execution API                | Data API                         |
+| ------------ | ---------------------------- | -------------------------------- |
+| `production` | `https://api.zyf.ai`         | `https://defiapi.zyf.ai`         |
+| `staging`    | `https://staging-api.zyf.ai` | `https://staging-defiapi.zyf.ai` |
 
 ### Connect Account
 
