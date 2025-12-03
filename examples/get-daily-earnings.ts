@@ -51,7 +51,7 @@ async function main() {
     const response = await sdk.getDailyEarnings(smartWallet, startDate, endDate);
 
     console.log("\nDaily Earnings:");
-    console.log("-".repeat(60));
+    console.log("-".repeat(80));
     console.log(`  Wallet: ${response.walletAddress}`);
     console.log(`  Date Range: ${response.filters.startDate} to ${response.filters.endDate}`);
     console.log(`  Total Days: ${response.count}\n`);
@@ -59,20 +59,22 @@ async function main() {
     if (response.data.length === 0) {
       console.log("  No daily earnings data found.");
     } else {
-      let totalEarnings = 0;
-      console.log("  Date           | Earnings     | Balance      | APY");
-      console.log("  " + "-".repeat(55));
+      let totalDelta = 0;
+      console.log("  Date       | Total Earnings | Daily Delta  | Lifetime     | Unrealized");
+      console.log("  " + "-".repeat(72));
 
-      response.data.forEach((day) => {
-        totalEarnings += day.earnings || 0;
-        const earnings = (day.earnings || 0).toFixed(4).padStart(10);
-        const balance = day.balance ? day.balance.toFixed(2).padStart(10) : "n/a".padStart(10);
-        const apy = day.apy ? `${day.apy.toFixed(2)}%` : "n/a";
-        console.log(`  ${day.date} | $${earnings} | $${balance} | ${apy}`);
+      response.data.forEach((day: any) => {
+        totalDelta += day.daily_total_delta || 0;
+        const date = day.snapshot_date || "n/a";
+        const total = (day.total_earnings || 0).toFixed(4).padStart(10);
+        const delta = (day.daily_total_delta || 0).toFixed(4).padStart(10);
+        const lifetime = (day.total_lifetime_earnings || 0).toFixed(4).padStart(10);
+        const unrealized = (day.total_unrealized_earnings || 0).toFixed(4).padStart(10);
+        console.log(`  ${date} | $${total} | $${delta} | $${lifetime} | $${unrealized}`);
       });
 
-      console.log("  " + "-".repeat(55));
-      console.log(`  Total Earnings: $${totalEarnings.toFixed(4)}`);
+      console.log("  " + "-".repeat(72));
+      console.log(`  Total Daily Delta: $${totalDelta.toFixed(4)}`);
     }
   } catch (error) {
     console.log("\nFailed to fetch daily earnings:", (error as Error).message);

@@ -46,6 +46,7 @@ export type {
   ActiveWalletsResponse,
   SmartWalletsByEOAResponse,
   FirstTopupResponse,
+  HistoryPosition,
   HistoryEntry,
   HistoryResponse,
 

@@ -56,7 +56,7 @@ async function main() {
       `  Lifetime Earnings: $${earnings.data.lifetimeEarnings.toFixed(6)}`
     );
 
-    if (earnings.data.unrealizedEarnings !== undefined) {
+    if (earnings.data.unrealizedEarnings !== undefined && typeof earnings.data.unrealizedEarnings === "number") {
       console.log(
         `  Unrealized Earnings: $${earnings.data.unrealizedEarnings.toFixed(6)}`
       );
@@ -66,7 +66,8 @@ async function main() {
       console.log("\n  Earnings by Chain:");
       Object.entries(earnings.data.currentEarningsByChain).forEach(
         ([chain, value]) => {
-          console.log(`    Chain ${chain}: $${value.toFixed(6)}`);
+          const numValue = typeof value === "number" ? value : 0;
+          console.log(`    Chain ${chain}: $${numValue.toFixed(6)}`);
         }
       );
     }

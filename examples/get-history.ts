@@ -52,14 +52,24 @@ async function main() {
   if (response.data.length === 0) {
     console.log("  No transaction history found.");
   } else {
-    response.data.forEach((tx, index) => {
-      console.log(`  ${index + 1}. ${tx.type || "unknown"}`);
-      console.log(`     Timestamp: ${tx.timestamp}`);
-      console.log(`     Amount: ${tx.amount || "n/a"}`);
-      if (tx.token) console.log(`     Token: ${tx.token}`);
-      if (tx.protocol) console.log(`     Protocol: ${tx.protocol}`);
-      if (tx.pool) console.log(`     Pool: ${tx.pool}`);
-      if (tx.txHash) console.log(`     Tx Hash: ${tx.txHash}`);
+    response.data.forEach((tx: any, index: number) => {
+      console.log(`  ${index + 1}. ${tx.action || "unknown"}`);
+      console.log(`     Date: ${tx.date || "n/a"}`);
+      console.log(`     Chain: ${tx.chainId || "n/a"}`);
+      console.log(`     Strategy: ${tx.strategy || "n/a"}`);
+      console.log(`     Crosschain: ${tx.crosschain ? "Yes" : "No"}`);
+      console.log(`     Rebalance: ${tx.rebalance ? "Yes" : "No"}`);
+      if (tx.transactionHash) {
+        console.log(`     Tx Hash: ${tx.transactionHash.slice(0, 20)}...`);
+      }
+      if (tx.positions && tx.positions.length > 0) {
+        console.log(`     Positions:`);
+        tx.positions.forEach((pos: any, posIndex: number) => {
+          console.log(`       ${posIndex + 1}. ${pos.protocol_name || "Unknown"} - ${pos.pool || "n/a"}`);
+          console.log(`          Token: ${pos.token_symbol || "n/a"}`);
+          console.log(`          Amount: ${pos.amount || "n/a"}`);
+        });
+      }
       console.log();
     });
   }

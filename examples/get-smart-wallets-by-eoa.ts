@@ -41,15 +41,14 @@ async function main() {
   console.log("\nSmart Wallets by EOA:");
   console.log("-".repeat(60));
   console.log(`  EOA: ${response.eoa}`);
-  console.log(`  Smart Wallets Found: ${response.smartWallets.length}`);
+  console.log(`  Smart Wallet: ${response.smartWallet ?? "None"}`);
+  console.log(`  Chains: ${response.chains?.join(", ") ?? "None"}`);
 
-  if (response.smartWallets.length === 0) {
+  if (!response.smartWallet) {
     console.log("\n  No smart wallets associated with this EOA.");
   } else {
-    console.log("\n  Smart Wallets:");
-    response.smartWallets.forEach((wallet, index) => {
-      console.log(`    ${index + 1}. ${wallet}`);
-    });
+    console.log("\n  Associated Smart Wallet:");
+    console.log(`    ${response.smartWallet}`);
   }
 }
 
@@ -57,4 +56,3 @@ main().catch((error) => {
   console.error("Script failed:", error);
   process.exit(1);
 });
-

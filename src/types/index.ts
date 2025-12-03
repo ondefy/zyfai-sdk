@@ -124,13 +124,18 @@ export interface ProtocolsResponse {
 }
 
 export interface Position {
-  id?: string;
-  chain?: string;
+  user?: string;
+  eoa?: Address;
+  chains?: number[];
   strategy?: string;
   smartWallet?: Address;
   positions: PositionSlot[];
   hasActiveSessionKey?: boolean;
   hasBalance?: boolean;
+  newSessionKeyAvailable?: boolean;
+  hasStaleBalance?: string[];
+  contracts?: Address[];
+  omniAccount?: boolean;
   crosschainStrategy?: boolean;
 }
 
@@ -138,6 +143,7 @@ export interface PositionSlot {
   chain?: string;
   protocol_id?: string;
   protocol_name?: string;
+  protocol_icon?: string;
   pool?: string;
   token_id?: string;
   token_symbol?: string;
@@ -145,7 +151,7 @@ export interface PositionSlot {
   amount?: string;
   underlyingAmount?: string;
   pool_apy?: number;
-  pool_tvl?: string;
+  pool_tvl?: number;
 }
 
 export interface PositionsResponse {
@@ -222,7 +228,9 @@ export interface ActiveWalletsResponse {
 export interface SmartWalletsByEOAResponse {
   success: boolean;
   eoa: string;
+  smartWallet: string | null;
   smartWallets: string[];
+  chains: number[];
 }
 
 // ============================================================================
@@ -241,16 +249,34 @@ export interface FirstTopupResponse {
 // History Types
 // ============================================================================
 
+export interface HistoryPosition {
+  pool?: string;
+  amount?: string;
+  token_id?: string;
+  token_icon?: string;
+  amountInUSD?: string;
+  protocol_id?: string;
+  token_symbol?: string;
+  protocol_icon?: string;
+  protocol_name?: string;
+}
+
 export interface HistoryEntry {
   id?: string;
-  timestamp: string;
-  type: string;
-  amount: string;
-  token?: string;
-  txHash?: string;
+  action?: string;
+  date?: string;
+  strategy?: string;
+  positions?: HistoryPosition[];
   chainId?: number;
-  protocol?: string;
-  pool?: string;
+  transactionHash?: string;
+  destinationChainId?: number;
+  sourceChains?: number[];
+  crosschain?: boolean;
+  rebalance?: boolean;
+  zkProofIpfsHash?: string;
+  validationRegistryTxHash?: string;
+  validationRegistryChainId?: number;
+  validationRegistryAddress?: string;
 }
 
 export interface HistoryResponse {
@@ -281,10 +307,17 @@ export interface OnchainEarningsResponse {
 }
 
 export interface DailyEarning {
-  date: string;
-  earnings: number;
-  balance?: number;
-  apy?: number;
+  wallet_address?: string;
+  snapshot_date: string;
+  total_current_earnings: number;
+  total_lifetime_earnings: number;
+  total_unrealized_earnings: number;
+  total_earnings: number;
+  daily_current_delta: number;
+  daily_lifetime_delta: number;
+  daily_unrealized_delta: number;
+  daily_total_delta: number;
+  created_at?: string;
 }
 
 export interface DailyEarningsResponse {

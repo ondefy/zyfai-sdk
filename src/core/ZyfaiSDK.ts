@@ -1110,14 +1110,19 @@ export class ZyfaiSDK {
         ENDPOINTS.DATA_BY_EOA(eoaAddress)
       );
 
-      const smartWallets = Array.isArray(response)
-        ? response
-        : response.smartWallets || [response.smartWallet].filter(Boolean);
+      // API returns: { agent: "0x...", chains: [...] }
+      // Parse smartWallet from different possible field names
+      const smartWallet =
+        response.agent || response.smartWallet || response.smartWallets?.[0];
+      const smartWallets = smartWallet ? [smartWallet] : [];
+      const chains = response.chains || [];
 
       return {
         success: true,
         eoa: eoaAddress,
+        smartWallet: smartWallet || null,
         smartWallets,
+        chains,
       };
     } catch (error) {
       throw new Error(
