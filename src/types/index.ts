@@ -8,8 +8,13 @@ export type Hex = `0x${string}`;
 export type Environment = "staging" | "production";
 
 export interface SDKConfig {
+  /** API key for the Execution API (Utkir's backend) */
   apiKey: string;
+  /** API key for the Data API (Sunny's backend) - defaults to apiKey if not provided */
+  dataApiKey?: string;
+  /** Environment: 'staging' or 'production' (default: 'production') */
   environment?: Environment;
+  /** Bundler API key for Safe deployment (e.g., Pimlico) */
   bundlerApiKey?: string;
 }
 

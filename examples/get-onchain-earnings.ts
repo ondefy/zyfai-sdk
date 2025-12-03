@@ -2,6 +2,7 @@
  * Example: Get Onchain Earnings
  *
  * Demonstrates fetching and calculating onchain earnings for a wallet
+ * Note: This uses the Data API which may require a separate API key
  */
 
 import { config } from "dotenv";
@@ -11,6 +12,7 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
+  const dataApiKey = process.env.ZYFAI_DATA_API_KEY; // Optional: separate Data API key
   const bundlerApiKey = process.env.BUNDLER_API_KEY;
   const privateKey = process.env.PRIVATE_KEY;
 
@@ -24,6 +26,7 @@ async function main() {
 
   const sdk = new ZyfaiSDK({
     apiKey,
+    dataApiKey, // Uses apiKey if not provided
     bundlerApiKey,
     environment: "staging",
   });
@@ -46,11 +49,17 @@ async function main() {
     console.log("-".repeat(50));
     console.log(`  Wallet: ${earnings.data.walletAddress}`);
     console.log(`  Total Earnings: $${earnings.data.totalEarnings.toFixed(6)}`);
-    console.log(`  Current Earnings: $${earnings.data.currentEarnings.toFixed(6)}`);
-    console.log(`  Lifetime Earnings: $${earnings.data.lifetimeEarnings.toFixed(6)}`);
+    console.log(
+      `  Current Earnings: $${earnings.data.currentEarnings.toFixed(6)}`
+    );
+    console.log(
+      `  Lifetime Earnings: $${earnings.data.lifetimeEarnings.toFixed(6)}`
+    );
 
     if (earnings.data.unrealizedEarnings !== undefined) {
-      console.log(`  Unrealized Earnings: $${earnings.data.unrealizedEarnings.toFixed(6)}`);
+      console.log(
+        `  Unrealized Earnings: $${earnings.data.unrealizedEarnings.toFixed(6)}`
+      );
     }
 
     if (earnings.data.currentEarningsByChain) {
@@ -66,7 +75,10 @@ async function main() {
       console.log(`\n  Last Updated: ${earnings.data.lastCheckTimestamp}`);
     }
   } catch (error) {
-    console.log("\nFailed to fetch onchain earnings:", (error as Error).message);
+    console.log(
+      "\nFailed to fetch onchain earnings:",
+      (error as Error).message
+    );
   }
 
   // Option: Calculate/refresh earnings
@@ -87,4 +99,3 @@ main().catch((error) => {
   console.error("Script failed:", error);
   process.exit(1);
 });
-

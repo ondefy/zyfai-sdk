@@ -32,6 +32,7 @@ async function main() {
 
   // Validate environment variables
   const apiKey = process.env.ZYFAI_API_KEY;
+  const dataApiKey = process.env.ZYFAI_DATA_API_KEY; // Optional: separate Data API key
   const bundlerApiKey = process.env.BUNDLER_API_KEY;
   const privateKey = process.env.PRIVATE_KEY;
 
@@ -40,7 +41,9 @@ async function main() {
       "Missing required environment variables:\n" +
         "- ZYFAI_API_KEY\n" +
         "- BUNDLER_API_KEY\n" +
-        "- PRIVATE_KEY"
+        "- PRIVATE_KEY\n" +
+        "Optional:\n" +
+        "- ZYFAI_DATA_API_KEY (for Data API, defaults to ZYFAI_API_KEY)"
     );
   }
 
@@ -52,12 +55,16 @@ async function main() {
 
   const sdk = new ZyfaiSDK({
     apiKey,
+    dataApiKey, // Uses apiKey if not provided
     environment: "staging",
     bundlerApiKey,
   });
 
   console.log("SDK initialized successfully");
   console.log(`  Environment: staging`);
+  console.log(
+    `  Data API Key: ${dataApiKey ? "provided" : "using main API key"}`
+  );
   console.log();
 
   // =================================================================

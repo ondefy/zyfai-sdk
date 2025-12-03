@@ -2,6 +2,7 @@
  * Example: Get Yield Opportunities
  *
  * Demonstrates fetching safe and degen yield opportunities
+ * Note: This uses the Data API which may require a separate API key
  */
 
 import { config } from "dotenv";
@@ -11,6 +12,7 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
+  const dataApiKey = process.env.ZYFAI_DATA_API_KEY; // Optional: separate Data API key
   const bundlerApiKey = process.env.BUNDLER_API_KEY;
   const privateKey = process.env.PRIVATE_KEY;
 
@@ -24,6 +26,7 @@ async function main() {
 
   const sdk = new ZyfaiSDK({
     apiKey,
+    dataApiKey, // Uses apiKey if not provided
     bundlerApiKey,
     environment: "staging",
   });
@@ -63,7 +66,10 @@ async function main() {
       }
     }
   } catch (error) {
-    console.log("Failed to fetch safe opportunities:", (error as Error).message);
+    console.log(
+      "Failed to fetch safe opportunities:",
+      (error as Error).message
+    );
   }
 
   // Get Degen Strategies
@@ -81,7 +87,9 @@ async function main() {
     } else {
       // Sort by APY descending
       const sorted = [...degenStrats.data].sort((a, b) => b.apy - a.apy);
-      console.log("  Protocol          | Pool                | APY      | Status");
+      console.log(
+        "  Protocol          | Pool                | APY      | Status"
+      );
       console.log("  " + "-".repeat(65));
 
       sorted.slice(0, 10).forEach((strat) => {
@@ -105,4 +113,3 @@ main().catch((error) => {
   console.error("Script failed:", error);
   process.exit(1);
 });
-

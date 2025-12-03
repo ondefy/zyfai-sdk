@@ -19,12 +19,25 @@ export class HttpClient {
   private client: AxiosInstance;
   private dataClient: AxiosInstance;
   private apiKey: string;
+  private dataApiKey: string;
   private authToken: string | null = null;
   private origin: string;
   private host: string;
 
-  constructor(apiKey: string, environment: Environment = "production") {
+  /**
+   * Create HTTP client for both Execution API and Data API
+   *
+   * @param apiKey - API key for Execution API (Utkir's backend)
+   * @param environment - 'staging' or 'production'
+   * @param dataApiKey - API key for Data API (Sunny's backend) - defaults to apiKey
+   */
+  constructor(
+    apiKey: string,
+    environment: Environment = "production",
+    dataApiKey?: string
+  ) {
     this.apiKey = apiKey;
+    this.dataApiKey = dataApiKey || apiKey; // Fall back to main API key if not provided
 
     // Execution API (v1)
     const endpoint = API_ENDPOINTS[environment];
@@ -36,7 +49,7 @@ export class HttpClient {
       baseURL: `${endpoint}${API_VERSION}`,
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": apiKey,
+        "X-API-Key": this.apiKey,
         Origin: this.origin,
       },
       timeout: 30000,
@@ -48,7 +61,7 @@ export class HttpClient {
       baseURL: `${dataEndpoint}${DATA_API_VERSION}`,
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": apiKey,
+        "X-API-Key": this.dataApiKey,
       },
       timeout: 30000,
     });
@@ -174,7 +187,7 @@ export class HttpClient {
     // Request interceptor for data API
     this.dataClient.interceptors.request.use(
       (config) => {
-        config.headers["X-API-Key"] = this.apiKey;
+        config.headers["X-API-Key"] = this.dataApiKey;
         return config;
       },
       (error) => Promise.reject(error)

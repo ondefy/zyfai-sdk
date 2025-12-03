@@ -25,9 +25,12 @@ pnpm add @zyfai/sdk viem
 
 ## Prerequisites
 
-1. **ZyFAI API Key**: Get your API key from [ZyFAI Dashboard](https://app.zyf.ai)
-2. **Bundler API Key**: Required for Safe deployment. Get it from:
+1. **Execution API Key**: API key for the Execution API (Safe deployment, transactions, session keys)
+2. **Data API Key** (optional): API key for the Data API (earnings, opportunities, analytics). If not provided, uses the Execution API key.
+3. **Bundler API Key**: Required for Safe deployment. Get it from:
    - [Pimlico](https://www.pimlico.io/) (Recommended)
+
+**Get your API keys from [ZyFAI Dashboard](https://app.zyf.ai)**
 
 ## Quick Start
 
@@ -37,7 +40,8 @@ pnpm add @zyfai/sdk viem
 import { ZyfaiSDK } from "@zyfai/sdk";
 
 const sdk = new ZyfaiSDK({
-  apiKey: "your-zyfai-api-key",
+  apiKey: "your-execution-api-key", // Execution API (transactions, Safe deployment)
+  dataApiKey: "your-data-api-key", // Data API (analytics, earnings, opportunities)
   bundlerApiKey: "your-bundler-api-key", // Required for Safe deployment
   environment: "production", // or 'staging' (default: 'production')
 });
@@ -45,11 +49,19 @@ const sdk = new ZyfaiSDK({
 
 **Configuration Options:**
 
-- `apiKey`: Your ZyFAI API key (required)
-- `environment`: API environment - uses hardcoded endpoints:
-  - `"production"` → `https://api.zyf.ai`
-  - `"staging"` → `https://staging-api.zyf.ai`
-- `bundlerApiKey`: Pimlico API key or custom bundler URL for Safe deployment
+| Option          | Required | Description                                                                                     |
+| --------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `apiKey`        | Yes      | API key for Execution API (Safe deployment, transactions, session keys)                         |
+| `dataApiKey`    | No       | API key for Data API (earnings, opportunities, analytics). Defaults to `apiKey` if not provided |
+| `bundlerApiKey` | No\*     | Pimlico API key for Safe deployment (\*required for `deploySafe`)                               |
+| `environment`   | No       | `"production"` or `"staging"` (default: `"production"`)                                         |
+
+**API Endpoints by Environment:**
+
+| Environment  | Execution API                | Data API                          |
+| ------------ | ---------------------------- | --------------------------------- |
+| `production` | `https://api.zyf.ai`         | `https://defi-api.zyf.ai`         |
+| `staging`    | `https://staging-api.zyf.ai` | `https://staging-defi-api.zyf.ai` |
 
 ### Connect Account
 
@@ -88,17 +100,15 @@ const walletInfo = await sdk.getSmartWalletAddress(userAddress, 42161);
 console.log("Safe Address:", walletInfo.address);
 console.log("Is Deployed:", walletInfo.isDeployed);
 
-// Deploy the Safe (or get existing if already deployed)
+// Deploy the Safe
 const result = await sdk.deploySafe(userAddress, 42161);
 
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
-  console.log("Status:", result.status); // 'deployed'
-  console.log("Transaction Hash:", result.txHash); // '0x0' if Safe already existed
+  console.log("Status:", result.status); // 'deployed' | 'failed'
+  console.log("Transaction Hash:", result.txHash);
 }
 ```
-
-**Note:** The `deploySafe` method automatically checks if the EOA already has a Safe deployed with ZyFAI. If a Safe already exists, it returns the existing Safe address without deploying again (transaction hash will be `0x0`).
 
 ### 2. Multi-Chain Support
 
@@ -668,6 +678,30 @@ try {
 4. **Handle Errors Gracefully**: Implement proper error handling for all SDK methods
 5. **Validate Chain IDs**: Ensure you're using supported chains (Arbitrum, Base, Plasma)
 6. **Use Explicit Parameters**: Always pass explicit `userAddress` and `chainId` to methods
+
+## Environment Variables
+
+For running the examples, set up the following environment variables:
+
+```bash
+# Required: Execution API key (Safe deployment, transactions, session keys)
+ZYFAI_API_KEY=your-execution-api-key
+
+# Optional: Data API key (earnings, opportunities, analytics)
+# Falls back to ZYFAI_API_KEY if not provided
+ZYFAI_DATA_API_KEY=your-data-api-key
+
+# Required for Safe deployment: Bundler API key (e.g., Pimlico)
+BUNDLER_API_KEY=your-pimlico-api-key
+
+# Required for examples: Private key for signing transactions
+# WARNING: Never commit your private key to version control!
+PRIVATE_KEY=0x...
+
+# Optional: Chain ID (default: 8453 for Base)
+# Supported: 42161 (Arbitrum), 8453 (Base), 9745 (Plasma)
+CHAIN_ID=8453
+```
 
 ## Troubleshooting
 

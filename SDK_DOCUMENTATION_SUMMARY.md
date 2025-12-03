@@ -12,12 +12,22 @@
 
 ## 🏗️ SDK Architecture
 
-### Flexible, Parameter-Based Design
+### Dual Backend Design
+
+The SDK connects to two separate backends:
+
+| Backend           | Purpose                                                  | API Version |
+| ----------------- | -------------------------------------------------------- | ----------- |
+| **Execution API** | Safe deployment, transactions, session keys, withdrawals | `/api/v1`   |
+| **Data API**      | Earnings, opportunities, APY history, analytics          | `/api/v2`   |
+
+### Initialization
 
 ```typescript
 // 1. Initialize SDK with configuration
 const sdk = new ZyfaiSDK({
-  apiKey: "YOUR_API_KEY",
+  apiKey: "YOUR_EXECUTION_API_KEY", // Execution API
+  dataApiKey: "YOUR_DATA_API_KEY", // Data API (optional, defaults to apiKey)
   bundlerApiKey: "YOUR_BUNDLER_API_KEY", // Required for Safe deployment
   environment: "production", // or 'staging'
 });
@@ -36,14 +46,55 @@ await sdk.createSessionKey("0xUserAddress", chainId);
 const positions = await sdk.getPositions("0xUserAddress");
 ```
 
+### Configuration Options
+
+| Option          | Required | Description                                             |
+| --------------- | -------- | ------------------------------------------------------- |
+| `apiKey`        | Yes      | API key for Execution API                               |
+| `dataApiKey`    | No       | API key for Data API (defaults to `apiKey`)             |
+| `bundlerApiKey` | No\*     | Pimlico API key (\*required for `deploySafe`)           |
+| `environment`   | No       | `"production"` or `"staging"` (default: `"production"`) |
+
+### API Endpoints
+
+| Environment  | Execution API                | Data API                          |
+| ------------ | ---------------------------- | --------------------------------- |
+| `production` | `https://api.zyf.ai`         | `https://defi-api.zyf.ai`         |
+| `staging`    | `https://staging-api.zyf.ai` | `https://staging-defi-api.zyf.ai` |
+
 **Important:**
 
-- **Environment-Based Endpoints**: API URLs are hardcoded based on environment:
-  - `production` → `https://api.zyf.ai`
-  - `staging` → `https://staging-api.zyf.ai`
 - **SIWE Authentication**: Session key creation requires SIWE (Sign-In with Ethereum) authentication
 - **Least Decimal Units**: Deposit and withdrawal amounts use raw token units (e.g., 1 USDC = 1000000)
 - The SDK does not connect to wallets directly. The client handles wallet connection on their frontend and passes the provider.
+
+### Method to API Mapping
+
+| Method                     | API           | Requires Auth |
+| -------------------------- | ------------- | ------------- |
+| `deploySafe`               | Execution API | No            |
+| `getSmartWalletAddress`    | Local         | No            |
+| `createSessionKey`         | Execution API | Yes (SIWE)    |
+| `depositFunds`             | Execution API | Yes (SIWE)    |
+| `withdrawFunds`            | Execution API | Yes (SIWE)    |
+| `getAvailableProtocols`    | Execution API | No            |
+| `getPositions`             | Execution API | No            |
+| `getUserDetails`           | Execution API | No            |
+| `getTVL`                   | Execution API | No            |
+| `getVolume`                | Execution API | No            |
+| `getFirstTopup`            | Execution API | No            |
+| `getHistory`               | Execution API | No            |
+| `getActiveWallets`         | Execution API | No            |
+| `getSmartWalletsByEOA`     | Execution API | No            |
+| `getRebalanceFrequency`    | Execution API | No            |
+| `getOnchainEarnings`       | **Data API**  | No            |
+| `calculateOnchainEarnings` | **Data API**  | No            |
+| `getDailyEarnings`         | **Data API**  | No            |
+| `getDebankPortfolio`       | **Data API**  | No            |
+| `getSafeOpportunities`     | **Data API**  | No            |
+| `getDegenStrategies`       | **Data API**  | No            |
+| `getDailyApyHistory`       | **Data API**  | No            |
+| `getRebalanceInfo`         | **Data API**  | No            |
 
 ---
 
@@ -52,8 +103,6 @@ const positions = await sdk.getPositions("0xUserAddress");
 ### 1. Deploy Safe Smart Wallet
 
 Deploy an ERC-4337 with ERC-7579 launchpad + smart session module standard compliant Safe Smart Account for a user.
-
-**Important:** This method automatically checks if the EOA already has a Safe deployed with ZyFAI. If a Safe already exists, it returns the existing Safe address without deploying again.
 
 #### Function Signature
 
@@ -77,29 +126,18 @@ deploySafe(
 interface DeploySafeResponse {
   success: boolean;
   safeAddress: string;
-  txHash: string; // "0x0" if Safe already existed
+  txHash: string;
   status: "deployed" | "failed";
 }
 ```
 
-#### Example Response (New Deployment)
+#### Example Response
 
 ```json
 {
   "success": true,
   "safeAddress": "0x9f3597d54c28a7945d9Ddf384ca0eD7e66f43776",
   "txHash": "0x26180d7afd86cebff4903c34b1863671800631a2e4a84cbe809bf39a106c7e8e",
-  "status": "deployed"
-}
-```
-
-#### Example Response (Safe Already Exists)
-
-```json
-{
-  "success": true,
-  "safeAddress": "0x9f3597d54c28a7945d9Ddf384ca0eD7e66f43776",
-  "txHash": "0x0",
   "status": "deployed"
 }
 ```

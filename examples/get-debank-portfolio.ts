@@ -2,7 +2,7 @@
  * Example: Get Debank Portfolio
  *
  * Demonstrates fetching multi-chain portfolio data via Debank
- * Note: This is a premium endpoint and may require additional authorization
+ * Note: This uses the Data API which may require a separate API key
  */
 
 import { config } from "dotenv";
@@ -12,6 +12,7 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
+  const dataApiKey = process.env.ZYFAI_DATA_API_KEY; // Optional: separate Data API key
   const bundlerApiKey = process.env.BUNDLER_API_KEY;
   const privateKey = process.env.PRIVATE_KEY;
 
@@ -25,6 +26,7 @@ async function main() {
 
   const sdk = new ZyfaiSDK({
     apiKey,
+    dataApiKey, // Uses apiKey if not provided
     bundlerApiKey,
     environment: "staging",
   });
