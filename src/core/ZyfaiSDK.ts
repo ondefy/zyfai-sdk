@@ -20,7 +20,6 @@ import type {
   UpdateUserProfileRequest,
   UpdateUserProfileResponse,
   LoginResponse,
-  UserIdResponse,
   AddSessionKeyRequest,
   AddSessionKeyResponse,
   Environment,
@@ -55,6 +54,7 @@ export class ZyfaiSDK {
   private walletClient: WalletClient | null = null;
   private bundlerApiKey?: string;
   private isAuthenticated: boolean = false; // TODO: Check with Utkir for how long the authentication token is valid for.
+  private authenticatedUserId: string | null = null; // Stored from login response
   private environment: Environment; // TODO: The encironment should be removed. Having the same key for staging and production is not ideal, but for now it's fine.
 
   constructor(config: SDKConfig | string) {
@@ -139,8 +139,9 @@ export class ZyfaiSDK {
         throw new Error("Authentication response missing access token");
       }
 
-      // Step 6: Store auth token
+      // Step 6: Store auth token and userId
       this.httpClient.setAuthToken(authToken);
+      this.authenticatedUserId = loginResponse.userId || null;
       this.isAuthenticated = true;
     } catch (error) {
       throw new Error(
@@ -449,7 +450,15 @@ export class ZyfaiSDK {
   ): Promise<SessionKeyResponse> {
     try {
       // Authenticate to ensure user exists and JWT token is available
+      // This also stores the userId from the login response
       await this.authenticateUser();
+
+      // Get userId from authentication (stored during login)
+      if (!this.authenticatedUserId) {
+        throw new Error(
+          "User ID not available. Please ensure authentication completed successfully."
+        );
+      }
 
       // Get Safe address first
       const walletClient = this.getWalletClient();
@@ -460,15 +469,6 @@ export class ZyfaiSDK {
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
       });
-
-      // Fetch user ID by smart wallet (required for session key management)
-      const userInfo = await this.httpClient.get<UserIdResponse>(
-        `${ENDPOINTS.USER_BY_SMART_WALLET}?smartWallet=${safeAddress}`
-      );
-
-      if (!userInfo?.userId) {
-        throw new Error("Unable to resolve user ID for provided smart wallet");
-      }
 
       // Fetch personalized session configuration (requires SIWE auth)
       const sessionConfig = await this.httpClient.get<any[]>(
@@ -500,7 +500,7 @@ export class ZyfaiSDK {
 
       return {
         ...signatureResult,
-        userId: userInfo.userId,
+        userId: this.authenticatedUserId,
         sessionActivation: activation,
       };
     } catch (error) {
@@ -561,7 +561,15 @@ export class ZyfaiSDK {
       }
 
       // Ensure SIWE auth token is available
+      // This also stores the userId from the login response
       await this.authenticateUser();
+
+      // Get userId from authentication (stored during login)
+      if (!this.authenticatedUserId) {
+        throw new Error(
+          "User ID not available. Please ensure authentication completed successfully."
+        );
+      }
 
       // Sign the session payload
       const signatureResult = await this.signSessionKey(
@@ -569,15 +577,6 @@ export class ZyfaiSDK {
         chainId,
         sessions
       );
-
-      // Resolve user information via smart wallet address
-      const userInfo = await this.httpClient.get<UserIdResponse>(
-        `${ENDPOINTS.USER_BY_SMART_WALLET}?smartWallet=${signatureResult.sessionKeyAddress}`
-      );
-
-      if (!userInfo?.userId) {
-        throw new Error("Unable to resolve user ID for provided smart wallet");
-      }
 
       // Register the session key
       const activation = await this.activateSessionKey(
@@ -587,7 +586,7 @@ export class ZyfaiSDK {
 
       return {
         ...signatureResult,
-        userId: userInfo.userId,
+        userId: this.authenticatedUserId,
         sessionActivation: activation,
       };
     } catch (error) {

@@ -19,7 +19,6 @@ export const ENDPOINTS = {
 
   // User
   USER_ME: "/users/me",
-  USER_BY_SMART_WALLET: "/users/by-smart-wallet", // TODO: Check with Utkir if a similar endpoint is already available.
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
 
