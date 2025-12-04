@@ -25,6 +25,8 @@ export interface DeploySafeResponse {
   safeAddress: Address;
   txHash: string;
   status: "deployed" | "failed";
+  /** True if the Safe was already deployed (no new deployment needed) */
+  alreadyDeployed?: boolean;
 }
 
 // Internal types - used by SDK implementation

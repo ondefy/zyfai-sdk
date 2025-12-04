@@ -100,15 +100,22 @@ const walletInfo = await sdk.getSmartWalletAddress(userAddress, 42161);
 console.log("Safe Address:", walletInfo.address);
 console.log("Is Deployed:", walletInfo.isDeployed);
 
-// Deploy the Safe
+// Deploy the Safe (automatically checks if already deployed)
 const result = await sdk.deploySafe(userAddress, 42161);
 
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
   console.log("Status:", result.status); // 'deployed' | 'failed'
-  console.log("Transaction Hash:", result.txHash);
+  
+  if (result.alreadyDeployed) {
+    console.log("Safe was already deployed - no action needed");
+  } else {
+    console.log("Transaction Hash:", result.txHash);
+  }
 }
 ```
+
+**Note:** The SDK proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns `alreadyDeployed: true` without making any transactions.
 
 ### 2. Multi-Chain Support
 

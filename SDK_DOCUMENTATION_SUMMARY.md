@@ -133,10 +133,14 @@ interface DeploySafeResponse {
   safeAddress: string;
   txHash: string;
   status: "deployed" | "failed";
+  /** True if the Safe was already deployed (no new deployment needed) */
+  alreadyDeployed?: boolean;
 }
 ```
 
-#### Example Response
+**Note:** The SDK proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns `alreadyDeployed: true` without making any transactions.
+
+#### Example Response (New Deployment)
 
 ```json
 {
@@ -144,6 +148,18 @@ interface DeploySafeResponse {
   "safeAddress": "0x9f3597d54c28a7945d9Ddf384ca0eD7e66f43776",
   "txHash": "0x26180d7afd86cebff4903c34b1863671800631a2e4a84cbe809bf39a106c7e8e",
   "status": "deployed"
+}
+```
+
+#### Example Response (Already Deployed)
+
+```json
+{
+  "success": true,
+  "safeAddress": "0x9f3597d54c28a7945d9Ddf384ca0eD7e66f43776",
+  "txHash": "0x0",
+  "status": "deployed",
+  "alreadyDeployed": true
 }
 ```
 

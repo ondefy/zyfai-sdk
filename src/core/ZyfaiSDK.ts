@@ -408,6 +408,31 @@ export class ZyfaiSDK {
       const walletClient = this.getWalletClient(chainId);
       const chainConfig = getChainConfig(chainId);
 
+      // Check if Safe is already deployed before attempting deployment
+      const safeAddress = await getDeterministicSafeAddress({
+        owner: walletClient,
+        safeOwnerAddress: userAddress as Address,
+        chain: chainConfig.chain,
+        publicClient: chainConfig.publicClient,
+        environment: this.environment,
+      });
+
+      const alreadyDeployed = await isSafeDeployed(
+        safeAddress,
+        chainConfig.publicClient
+      );
+
+      if (alreadyDeployed) {
+        // Safe already exists - return success without redeploying
+        return {
+          success: true,
+          safeAddress,
+          txHash: "0x0",
+          status: "deployed",
+          alreadyDeployed: true,
+        };
+      }
+
       // Verify that userAddress is an EOA
       const accountType = await getAccountType(
         userAddress as Address,
