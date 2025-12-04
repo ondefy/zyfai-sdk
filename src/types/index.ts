@@ -196,10 +196,19 @@ export interface UserDetailsResponse {
 // TVL & Volume Types
 // ============================================================================
 
+export interface TVLBreakdown {
+  chain_id: number;
+  protocol_id: string | null;
+  protocol_name: string | null;
+  pool: string | null;
+  total_balance: number;
+}
+
 export interface TVLResponse {
   success: boolean;
   totalTvl: number;
-  byChain?: Record<string, number>;
+  byChain?: Record<number, number>;
+  breakdown?: TVLBreakdown[];
 }
 
 export interface VolumeResponse {

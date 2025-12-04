@@ -1026,10 +1026,20 @@ export class ZyfaiSDK {
     try {
       const response = await this.httpClient.get<any>(ENDPOINTS.DATA_TVL);
 
+      // API returns: { "146": 15, "8453": 874, "9745": 8, "42161": 62, "total": 959, "breakdown": [...] }
+      const byChain: Record<number, number> = {};
+      for (const key of Object.keys(response)) {
+        const numKey = parseInt(key, 10);
+        if (!isNaN(numKey) && typeof response[key] === "number") {
+          byChain[numKey] = response[key];
+        }
+      }
+
       return {
         success: true,
-        totalTvl: response.totalTvl || response.tvl || 0,
-        byChain: response.byChain,
+        totalTvl: response.total || response.totalTvl || response.tvl || 0,
+        byChain,
+        breakdown: response.breakdown,
       };
     } catch (error) {
       throw new Error(`Failed to get TVL: ${(error as Error).message}`);
