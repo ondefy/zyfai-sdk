@@ -349,6 +349,7 @@ export class ZyfaiSDK {
       safeOwnerAddress: userAddress as Address,
       chain: chainConfig.chain,
       publicClient: chainConfig.publicClient,
+      environment: this.environment,
     });
 
     const isDeployed = await isSafeDeployed(
@@ -414,6 +415,7 @@ export class ZyfaiSDK {
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
         bundlerUrl,
+        environment: this.environment,
       });
 
       // IMPORTANT: After deploying Safe, update user profile with Safe address and chainId
@@ -474,16 +476,6 @@ export class ZyfaiSDK {
         );
       }
 
-      // Get Safe address first
-      const walletClient = this.getWalletClient();
-      const chainConfig = getChainConfig(chainId);
-      const safeAddress = await getDeterministicSafeAddress({
-        owner: walletClient,
-        safeOwnerAddress: userAddress as Address,
-        chain: chainConfig.chain,
-        publicClient: chainConfig.publicClient,
-      });
-
       // Fetch personalized session configuration (requires SIWE auth)
       const sessionConfig = await this.httpClient.get<any[]>(
         ENDPOINTS.SESSION_KEYS_CONFIG
@@ -507,16 +499,32 @@ export class ZyfaiSDK {
       );
 
       // Register the session key on the backend so it becomes active immediately
-      const activation = await this.activateSessionKey(
-        signatureResult.signature,
-        signatureResult.sessionNonces
-      );
+      try {
+        const activation = await this.activateSessionKey(
+          signatureResult.signature,
+          signatureResult.sessionNonces
+        );
 
-      return {
-        ...signatureResult,
-        userId: this.authenticatedUserId,
-        sessionActivation: activation,
-      };
+        return {
+          ...signatureResult,
+          userId: this.authenticatedUserId,
+          sessionActivation: activation,
+        };
+      } catch (activationError) {
+        const errorMessage = (activationError as Error).message;
+
+        // Handle case where session key already exists
+        if (errorMessage.includes("already has an active session key")) {
+          return {
+            ...signatureResult,
+            userId: this.authenticatedUserId,
+            message: "Session key already exists and is active",
+            alreadyActive: true,
+          };
+        }
+
+        throw activationError;
+      }
     } catch (error) {
       throw new Error(
         `Failed to create session key: ${(error as Error).message}`
@@ -562,6 +570,14 @@ export class ZyfaiSDK {
         );
       }
 
+      // Get unique chain IDs from sessions and create public clients for each
+      const sessionChainIds = [
+        ...new Set(sessions.map((s) => Number(s.chainId))),
+      ] as SupportedChainId[];
+      const allPublicClients = sessionChainIds
+        .filter(isSupportedChain)
+        .map((id) => getChainConfig(id).publicClient);
+
       // Sign the session key
       const { signature, sessionNonces } = await signSessionKey(
         {
@@ -569,8 +585,10 @@ export class ZyfaiSDK {
           safeOwnerAddress: userAddress as Address,
           chain: chainConfig.chain,
           publicClient: chainConfig.publicClient,
+          environment: this.environment,
         },
-        sessions
+        sessions,
+        allPublicClients
       );
 
       // Get the Safe address
@@ -579,6 +597,7 @@ export class ZyfaiSDK {
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
+        environment: this.environment,
       });
 
       return {
@@ -688,6 +707,7 @@ export class ZyfaiSDK {
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
+        environment: this.environment,
       });
 
       // Check if Safe is deployed
@@ -784,6 +804,7 @@ export class ZyfaiSDK {
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
+        environment: this.environment,
       });
 
       // Check if Safe is deployed
@@ -916,6 +937,7 @@ export class ZyfaiSDK {
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
+        environment: this.environment,
       });
 
       // Use the /data/position endpoint with smart wallet address
@@ -926,7 +948,6 @@ export class ZyfaiSDK {
       return {
         success: true,
         userAddress,
-        totalValueUsd: 0, // API doesn't return this yet
         positions: response ? [response] : [],
       };
     } catch (error) {

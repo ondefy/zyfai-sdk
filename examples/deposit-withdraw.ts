@@ -72,7 +72,7 @@ async function main() {
 
   // Deposit funds
   console.log("Step 4: Depositing funds to Safe...");
-  console.log("Depositing 10 USDC (10000000 units with 6 decimals) to Safe...");
+  console.log("Depositing 0.1 USDC (100000 units with 6 decimals) to Safe...");
 
   try {
     const depositResult = await sdk.depositFunds(

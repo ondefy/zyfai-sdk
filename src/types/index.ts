@@ -90,6 +90,10 @@ export interface SessionKeyResponse {
   sessionNonces?: bigint[];
   userId?: string;
   sessionActivation?: AddSessionKeyResponse;
+  /** Message when session key already exists */
+  message?: string;
+  /** True if a session key was already active for this user */
+  alreadyActive?: boolean;
 }
 
 export interface SmartWalletResponse {
@@ -157,7 +161,6 @@ export interface PositionSlot {
 export interface PositionsResponse {
   success: boolean;
   userAddress: string;
-  totalValueUsd: number;
   positions: Position[];
 }
 

@@ -13,7 +13,6 @@ import {
   type Session,
 } from "@rhinestone/module-sdk";
 import { createSmartAccountClient } from "permissionless";
-import { getAccountNonce } from "permissionless/actions";
 import { erc7579Actions } from "permissionless/actions/erc7579";
 import { createPimlicoClient } from "permissionless/clients/pimlico";
 import { toSafeSmartAccount } from "permissionless/accounts";
@@ -24,17 +23,15 @@ import {
   type Hex,
   type PublicClient,
   type WalletClient,
-  encodeFunctionData,
   fromHex,
-  pad,
   toHex,
 } from "viem";
 import type { Chain } from "viem/chains";
 import {
   type SmartAccount,
   entryPoint07Address,
-  getUserOperationHash,
 } from "viem/account-abstraction";
+import type { Environment } from "../types";
 
 export interface SafeAccountConfig {
   owner: WalletClient; // The wallet that signs for transactions
@@ -42,7 +39,7 @@ export interface SafeAccountConfig {
   chain: Chain;
   publicClient: PublicClient;
   bundlerUrl?: string;
-  accountSalt?: string;
+  environment?: Environment; // Environment to determine default account salt
 }
 
 export interface SafeDeploymentResult {
@@ -54,7 +51,10 @@ export interface SafeDeploymentResult {
 // Constants
 const SAFE_7579_ADDRESS = "0x7579EE8307284F293B1927136486880611F20002";
 const ERC7579_LAUNCHPAD_ADDRESS = "0x7579011aB74c46090561ea277Ba79D510c6C00ff";
-const DEFAULT_ACCOUNT_SALT = "zyfai-staging";
+const ACCOUNT_SALTS: Record<Environment, string> = {
+  staging: "zyfai-staging",
+  production: "zyfai-production",
+};
 
 /**
  * Gets the Safe smart account configuration
@@ -66,27 +66,43 @@ export const getSafeAccount = async (
     owner,
     safeOwnerAddress,
     publicClient,
-    accountSalt = DEFAULT_ACCOUNT_SALT,
+    environment = "production",
   } = config;
+
+  const effectiveSalt = ACCOUNT_SALTS[environment];
 
   if (!owner || !owner.account) {
     throw new Error("Wallet not connected. Please connect your wallet first.");
   }
 
-  // Use safeOwnerAddress if provided, otherwise use the connected wallet
-  const actualOwnerAddress = safeOwnerAddress || owner.account.address;
+  // The validator's owners MUST match the Safe's signing owners
+  // When safeOwnerAddress is provided, we validate that it matches the connected wallet
+  // This ensures the signer can actually authorize transactions
+  const signerAddress = owner.account.address;
+
+  // If safeOwnerAddress is provided, it must match the connected wallet
+  // Otherwise the validator will reject signatures from the connected wallet
+  if (
+    safeOwnerAddress &&
+    safeOwnerAddress.toLowerCase() !== signerAddress.toLowerCase()
+  ) {
+    throw new Error(
+      `Connected wallet address (${signerAddress}) must match the Safe owner address (${safeOwnerAddress}). ` +
+        `Please connect with the correct wallet.`
+    );
+  }
 
   const ownableValidator = getOwnableValidator({
-    owners: [actualOwnerAddress],
+    owners: [signerAddress],
     threshold: 1,
   });
 
   // Convert string salt to hex if needed
-  const saltHex = fromHex(toHex(accountSalt), "bigint");
+  const saltHex = fromHex(toHex(effectiveSalt), "bigint");
 
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
-    owners: [owner.account], // Use connected wallet for signing
+    owners: [owner.account], // Pass the account object with address and signMessage capability
     version: "1.4.1",
     entryPoint: {
       address: entryPoint07Address,
@@ -278,6 +294,7 @@ export const deploySafeAccount = async (
 
 /**
  * Execute transactions via the Safe smart account
+ * Let the smart account client handle signing automatically
  */
 export const executeTransactions = async (
   config: SafeAccountConfig & { bundlerUrl: string },
@@ -290,52 +307,15 @@ export const executeTransactions = async (
   }
 
   const smartAccountClient = await getSmartAccountClient(config);
-  const safeAccount = await getSafeAccount(config);
 
-  const ownableValidator = getOwnableValidator({
-    owners: [owner.account.address],
-    threshold: 1,
-  });
-
-  // Get nonce for the transaction
-  const nonce = await getAccountNonce(config.publicClient, {
-    address: safeAccount.address,
-    entryPointAddress: entryPoint07Address,
-    key: BigInt(
-      pad(ownableValidator.address, {
-        dir: "right",
-        size: 24,
-      }) || 0
-    ),
-  });
-
-  // Prepare user operation with provided calls
-  const userOperation = await smartAccountClient.prepareUserOperation({
-    account: safeAccount as any,
+  // Send user operation - the smart account client handles signing automatically
+  // This uses the Safe's signUserOperation method internally
+  const userOpHash = await smartAccountClient.sendUserOperation({
     calls: calls.map((call) => ({
       ...call,
       value: typeof call.value === "string" ? BigInt(call.value) : call.value,
     })),
-    nonce: nonce,
   });
-
-  // Get hash and sign the user operation
-  const userOpHashToSign = getUserOperationHash({
-    chainId: config.chain.id,
-    entryPointAddress: entryPoint07Address,
-    entryPointVersion: "0.7",
-    userOperation,
-  });
-
-  userOperation.signature = await owner.signMessage({
-    account: owner.account,
-    message: { raw: userOpHashToSign },
-  });
-
-  // Send and wait for the user operation
-  const userOpHash = await smartAccountClient.sendUserOperation(
-    userOperation as any
-  );
 
   try {
     const transaction = await smartAccountClient.waitForUserOperationReceipt({
@@ -354,9 +334,10 @@ export const executeTransactions = async (
  */
 export const signSessionKey = async (
   config: SafeAccountConfig,
-  sessions: Session[]
+  sessions: Session[],
+  allPublicClients?: PublicClient[]
 ): Promise<{ signature: Hex; sessionNonces: bigint[] }> => {
-  const { owner, publicClient, chain } = config;
+  const { owner, publicClient } = config;
 
   if (!owner || !owner.account) {
     throw new Error("Wallet not connected. Please connect your wallet first.");
@@ -371,24 +352,33 @@ export const signSessionKey = async (
     type: "safe",
   });
 
-  // Get session nonces for each session
+  // Use provided public clients or default to the config's public client
+  // Sessions may target multiple chains, so we need clients for all of them
+  const clients = allPublicClients || [publicClient];
+
+  // Get session nonces for each session using the appropriate client
   const sessionNonces = await Promise.all(
-    sessions.map((session) =>
-      getSessionNonce({
-        client: publicClient,
+    sessions.map((session) => {
+      // Find the client for this session's chain
+      const sessionChainId = Number(session.chainId);
+      const client =
+        clients.find((c) => c.chain?.id === sessionChainId) || publicClient;
+
+      return getSessionNonce({
+        client,
         account,
         permissionId: getPermissionId({
           session,
         }),
-      })
-    )
+      });
+    })
   );
 
   // Get session details to sign
   const sessionDetails = await getEnableSessionDetails({
     sessions,
     account,
-    clients: [publicClient],
+    clients,
     permitGenericPolicy: true,
     sessionNonces,
   });
