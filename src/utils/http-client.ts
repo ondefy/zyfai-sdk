@@ -187,6 +187,12 @@ export class HttpClient {
     this.dataClient.interceptors.request.use(
       (config) => {
         config.headers["X-API-Key"] = this.dataApiKey;
+
+        // Forward JWT token if available (required for protected data API endpoints)
+        if (this.authToken) {
+          config.headers["Authorization"] = `Bearer ${this.authToken}`;
+        }
+
         return config;
       },
       (error) => Promise.reject(error)

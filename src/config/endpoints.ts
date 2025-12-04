@@ -77,9 +77,7 @@ export const DATA_ENDPOINTS = {
 
   // Opportunities
   OPPORTUNITIES_SAFE: (chainId?: number) =>
-    chainId
-      ? `/opportunities/safes?chainId=${chainId}`
-      : "/opportunities/safes",
+    chainId ? `/opportunities/safe?chainId=${chainId}` : "/opportunities/safe",
   OPPORTUNITIES_DEGEN: (chainId?: number) =>
     chainId
       ? `/opportunities/degen-strategies?chainId=${chainId}`
