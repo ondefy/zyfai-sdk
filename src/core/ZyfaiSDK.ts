@@ -43,6 +43,7 @@ import {
   createWalletClient,
   custom,
   http,
+  getAddress,
   type WalletClient,
   type PublicClient,
 } from "viem";
@@ -102,7 +103,8 @@ export class ZyfaiSDK {
       }
 
       const walletClient = this.getWalletClient();
-      const userAddress = walletClient.account!.address;
+      // Ensure address is EIP-55 checksummed (required by SIWE)
+      const userAddress = getAddress(walletClient.account!.address);
       const chainId = walletClient.chain?.id || 8453; // Default to Base
 
       // Step 1: Get challenge/nonce
@@ -110,9 +112,25 @@ export class ZyfaiSDK {
         nonce: string;
       }>(ENDPOINTS.AUTH_CHALLENGE, {});
 
-      // Step 2: Create SIWE message object (not string!)
-      const domain = API_ENDPOINTS[this.environment].split("//")[1];
-      const uri = API_ENDPOINTS[this.environment];
+      // Step 2: Create SIWE message object
+      // IMPORTANT: In browser contexts, use the frontend's origin (window.location.origin)
+      // because the browser automatically sets the Origin header to the frontend's origin,
+      // and the API validates that message.uri matches the Origin header.
+      // In Node.js contexts (no window), fall back to API endpoint.
+      let uri: string;
+      let domain: string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const globalWindow =
+        typeof globalThis !== "undefined"
+          ? (globalThis as any).window
+          : undefined;
+      if (globalWindow?.location?.origin) {
+        uri = globalWindow.location.origin;
+        domain = globalWindow.location.host;
+      } else {
+        uri = API_ENDPOINTS[this.environment];
+        domain = API_ENDPOINTS[this.environment].split("//")[1];
+      }
 
       const messageObj = new SiweMessage({
         address: userAddress,
@@ -140,11 +158,6 @@ export class ZyfaiSDK {
         {
           message: messageObj,
           signature,
-        },
-        {
-          headers: {
-            Origin: uri,
-          },
         }
       );
       const authToken = loginResponse.accessToken || loginResponse.token;

@@ -50,7 +50,6 @@ export class HttpClient {
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": this.apiKey,
-        Origin: this.origin,
       },
       timeout: 30000,
     });
@@ -92,7 +91,7 @@ export class HttpClient {
       (config) => {
         // Ensure API key is always present
         config.headers["X-API-Key"] = this.apiKey;
-        config.headers["Origin"] = this.origin;
+        // Note: Do NOT set Origin header - browsers set it automatically and block manual setting
 
         // Add auth token if available
         if (this.authToken) {
