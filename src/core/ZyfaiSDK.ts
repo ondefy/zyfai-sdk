@@ -70,6 +70,7 @@ export class ZyfaiSDK {
   private bundlerApiKey?: string;
   private isAuthenticated: boolean = false;
   private authenticatedUserId: string | null = null; // Stored from login response
+  private hasActiveSessionKey: boolean = false; // Stored from login response
   private environment: Environment; // TODO: The environment should be removed. Having the same key for staging and production is not ideal, but for now it's fine.
 
   constructor(config: SDKConfig | string) {
@@ -166,9 +167,10 @@ export class ZyfaiSDK {
         throw new Error("Authentication response missing access token");
       }
 
-      // Step 6: Store auth token and userId
+      // Step 6: Store auth token, userId, and session key status
       this.httpClient.setAuthToken(authToken);
       this.authenticatedUserId = loginResponse.userId || null;
+      this.hasActiveSessionKey = loginResponse.hasActiveSessionKey || false;
       this.isAuthenticated = true;
     } catch (error) {
       throw new Error(
@@ -479,7 +481,7 @@ export class ZyfaiSDK {
   ): Promise<SessionKeyResponse> {
     try {
       // Authenticate to ensure user exists and JWT token is available
-      // This also stores the userId from the login response
+      // This also stores the userId and hasActiveSessionKey from the login response
       await this.authenticateUser();
 
       // Get userId from authentication (stored during login)
@@ -487,6 +489,17 @@ export class ZyfaiSDK {
         throw new Error(
           "User ID not available. Please ensure authentication completed successfully."
         );
+      }
+
+      // Check if user already has an active session key (from login response)
+      // This avoids unnecessary signing and API calls
+      if (this.hasActiveSessionKey) {
+        return {
+          success: true,
+          userId: this.authenticatedUserId,
+          message: "Session key already exists and is active",
+          alreadyActive: true,
+        };
       }
 
       // Fetch personalized session configuration (requires SIWE auth)
@@ -511,33 +524,25 @@ export class ZyfaiSDK {
         sessions
       );
 
-      // Register the session key on the backend so it becomes active immediately
-      try {
-        const activation = await this.activateSessionKey(
-          signatureResult.signature,
-          signatureResult.sessionNonces
-        );
-
-        return {
-          ...signatureResult,
-          userId: this.authenticatedUserId,
-          sessionActivation: activation,
-        };
-      } catch (activationError) {
-        const errorMessage = (activationError as Error).message;
-
-        // Handle case where session key already exists
-        if (errorMessage.includes("already has an active session key")) {
-          return {
-            ...signatureResult,
-            userId: this.authenticatedUserId,
-            message: "Session key already exists and is active",
-            alreadyActive: true,
-          };
-        }
-
-        throw activationError;
+      // Ensure signature is available (should always be from signSessionKey)
+      if (!signatureResult.signature) {
+        throw new Error("Failed to obtain session key signature");
       }
+
+      // Register the session key on the backend so it becomes active immediately
+      const activation = await this.activateSessionKey(
+        signatureResult.signature,
+        signatureResult.sessionNonces
+      );
+
+      // Update local state to reflect the new session key
+      this.hasActiveSessionKey = true;
+
+      return {
+        ...signatureResult,
+        userId: this.authenticatedUserId,
+        sessionActivation: activation,
+      };
     } catch (error) {
       throw new Error(
         `Failed to create session key: ${(error as Error).message}`

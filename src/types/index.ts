@@ -85,8 +85,10 @@ export interface AddSessionKeyResponse {
 
 export interface SessionKeyResponse {
   success: boolean;
-  sessionKeyAddress: Address;
-  signature: Hex;
+  /** Session key address (not available when alreadyActive is true) */
+  sessionKeyAddress?: Address;
+  /** Signature (not available when alreadyActive is true) */
+  signature?: Hex;
   sessionNonces?: bigint[];
   userId?: string;
   sessionActivation?: AddSessionKeyResponse;

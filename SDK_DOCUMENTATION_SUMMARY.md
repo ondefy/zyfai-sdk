@@ -65,7 +65,10 @@ const positions = await sdk.getPositions("0xUserAddress");
 **Important:**
 
 - **SIWE Authentication**: Session key creation requires SIWE (Sign-In with Ethereum) authentication
+- **Browser vs Node.js**: The SDK automatically detects browser context and uses `window.location.origin` for SIWE domain/uri to match the browser's automatic `Origin` header
+- **Environment-Aware Salt**: Safe addresses use environment-specific salts (`zyfai-staging` for staging, `zyfai-production` for production)
 - **Least Decimal Units**: Deposit and withdrawal amounts use raw token units (e.g., 1 USDC = 1000000)
+- **JWT Token Forwarding**: The SDK automatically forwards JWT tokens to Data API endpoints that require authentication
 - The SDK does not connect to wallets directly. The client handles wallet connection on their frontend and passes the provider.
 
 ### Method to API Mapping
@@ -87,14 +90,16 @@ const positions = await sdk.getPositions("0xUserAddress");
 | `getActiveWallets`         | Execution API | No            |
 | `getSmartWalletsByEOA`     | Execution API | No            |
 | `getRebalanceFrequency`    | Execution API | No            |
-| `getOnchainEarnings`       | **Data API**  | No            |
-| `calculateOnchainEarnings` | **Data API**  | No            |
-| `getDailyEarnings`         | **Data API**  | No            |
-| `getDebankPortfolio`       | **Data API**  | No            |
+| `getOnchainEarnings`       | **Data API**  | Yes (JWT)\*   |
+| `calculateOnchainEarnings` | **Data API**  | Yes (JWT)\*   |
+| `getDailyEarnings`         | **Data API**  | Yes (JWT)\*   |
+| `getDebankPortfolio`       | **Data API**  | Yes (JWT)\*   |
 | `getSafeOpportunities`     | **Data API**  | No            |
 | `getDegenStrategies`       | **Data API**  | No            |
 | `getDailyApyHistory`       | **Data API**  | No            |
 | `getRebalanceInfo`         | **Data API**  | No            |
+
+\* JWT token is automatically forwarded from SIWE authentication
 
 ---
 
@@ -150,7 +155,6 @@ Create a session key with limited permissions for delegated transactions.
 
 **Endpoints auto-invoked by SDK:**
 
-- `GET /api/v1/users/by-smart-wallet?smartWallet={safeAddress}`
 - `GET /api/v1/session-keys/config`
 - `POST /api/v1/session-keys/add`
 
@@ -168,11 +172,11 @@ createSessionKey(
 **Process:**
 
 1. **Authenticates via SIWE** - Creates user record if it doesn't exist
-2. SDK calculates the Safe address for the user
-3. SDK resolves the `userId` by calling `/users/by-smart-wallet?smartWallet={safeAddress}`
-4. SDK calls `/session-keys/config` (SIWE protected) to fetch personalized configuration
-5. SDK signs the session key with the connected wallet
-6. SDK calls `/session-keys/add` to activate the session immediately
+2. **Checks `hasActiveSessionKey`** from login response - Returns early if session key already exists
+3. SDK calls `/session-keys/config` (SIWE protected) to fetch personalized configuration
+4. SDK signs the session key with the connected wallet
+5. SDK calls `/session-keys/add` to activate the session immediately
+6. Updates local state to track active session key
 
 **Requirements:**
 
@@ -181,7 +185,10 @@ createSessionKey(
   - Automatically set by `deploySafe` method
   - Or manually set via `updateUserProfile` method
 
-**Important**: The above endpoints require SIWE authentication. Ensure the user record contains the Safe address (set automatically after `deploySafe` or via `updateUserProfile`). If the user record doesn't exist or is missing these fields, you'll get a "User not found" error. The SDK now registers the session via `/session-keys/add`, so no extra API calls are needed client-side.
+**Important**: 
+- The SDK proactively checks if the user already has an active session key before doing any work
+- If `hasActiveSessionKey` is true (from login response), returns immediately with `alreadyActive: true`
+- When `alreadyActive` is true, `sessionKeyAddress` and `signature` are not available in the response
 
 #### Session Type
 
@@ -228,8 +235,10 @@ type Hex = `0x${string}`;
 ```typescript
 interface SessionKeyResponse {
   success: boolean;
-  sessionKeyAddress: string;
-  signature: string;
+  /** Session key address (not available when alreadyActive is true) */
+  sessionKeyAddress?: string;
+  /** Signature (not available when alreadyActive is true) */
+  signature?: string;
   sessionNonces?: bigint[];
   userId?: string;
   sessionActivation?: {
@@ -242,6 +251,10 @@ interface SessionKeyResponse {
     isActive: boolean;
     isEnabled: boolean;
   };
+  /** Message when session key already exists */
+  message?: string;
+  /** True if a session key was already active for this user */
+  alreadyActive?: boolean;
 }
 ```
 
@@ -250,9 +263,14 @@ interface SessionKeyResponse {
 **Simple (Recommended):**
 
 ```typescript
-// No manual configuration needed
 const result = await sdk.createSessionKey(userAddress, 42161);
-console.log("Signature:", result.signature);
+
+// Check if session key already existed
+if (result.alreadyActive) {
+  console.log("Session key already active:", result.message);
+} else {
+  console.log("New session created:", result.signature);
+}
 ```
 
 ---
@@ -428,7 +446,6 @@ interface Position {
 interface PositionsResponse {
   success: boolean;
   userAddress: string;
-  totalValueUsd: number;
   positions: Position[];
 }
 ```

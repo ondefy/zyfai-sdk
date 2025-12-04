@@ -229,25 +229,31 @@ The SDK automatically fetches optimal session configuration from ZyFAI API:
 ```typescript
 // SDK automatically:
 // 1. Authenticates via SIWE (creates user record if needed)
-// 2. Calculates the deterministic Safe address
-// 3. Resolves the userId via /users/by-smart-wallet
+// 2. Checks if user already has an active session key (returns early if so)
+// 3. Calculates the deterministic Safe address
 // 4. Retrieves personalized config via /session-keys/config
 // 5. Signs the session key
 // 6. Calls /session-keys/add so the session becomes active immediately
 
 const result = await sdk.createSessionKey(userAddress, 42161);
 
-console.log("Session created:", result.signature);
-console.log("Safe address:", result.sessionKeyAddress);
+// Check if session key already existed
+if (result.alreadyActive) {
+  console.log("Session key already active:", result.message);
+} else {
+  console.log("Session created:", result.signature);
+  console.log("Safe address:", result.sessionKeyAddress);
+  console.log("Activation ID:", result.sessionActivation?.id);
+}
 console.log("User ID:", result.userId);
-console.log("Activation ID:", result.sessionActivation?.id);
 ```
 
 **Important**:
 
 - `createSessionKey` requires SIWE authentication (prompts wallet signature on first call)
+- The SDK proactively checks if the user already has an active session key (from login response) and returns early without requiring any signature if one exists
 - The user record must have `smartWallet` and `chainId` set (automatically handled after calling `deploySafe` or `updateUserProfile`)
-- The SDK now auto-calls `/users/by-smart-wallet`, `/session-keys/config`, and `/session-keys/add`, so the returned payload already includes the `userId` and the activation record (`sessionActivation`)—no additional API calls are required on your side.
+- When `alreadyActive` is `true`, `sessionKeyAddress` and `signature` are not available in the response
 
 ### 4. Deposit Funds
 
@@ -712,6 +718,24 @@ Make sure to call `connectAccount()` before calling other methods that require s
 ### "Unsupported chain" Error
 
 Check that the chain ID is in the supported chains list: Arbitrum (42161), Base (8453), or Plasma (9745).
+
+### SIWE Authentication Issues in Browser
+
+The SDK automatically detects browser vs Node.js environments for SIWE authentication:
+- **Browser**: Uses `window.location.origin` for the SIWE message domain/uri to match the browser's automatic `Origin` header
+- **Node.js**: Uses the API endpoint URL
+
+If you encounter SIWE authentication failures in a browser, ensure:
+1. Your frontend origin is allowed by the API's CORS configuration
+2. You're using the correct `environment` setting (`staging` or `production`)
+
+### Session Key Already Exists
+
+If `createSessionKey` returns `{ alreadyActive: true }`, the user already has an active session key. This is not an error - the SDK proactively checks before attempting to create a new one.
+
+### Data API CORS Errors
+
+Some Data API endpoints may require server-side CORS configuration. If you see CORS errors for endpoints like `onchain-earnings`, `calculate-onchain-earnings`, or `opportunities`, contact ZyFAI support to ensure your origin is whitelisted.
 
 ## Contributing
 
