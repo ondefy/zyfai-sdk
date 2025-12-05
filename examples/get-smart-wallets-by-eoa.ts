@@ -36,7 +36,7 @@ async function main() {
   const eoaToQuery = process.env.EOA_ADDRESS || connectedEOA;
 
   console.log(`Fetching smart wallets for EOA: ${eoaToQuery}...`);
-  const response = await sdk.getSmartWalletsByEOA(eoaToQuery);
+  const response = await sdk.getSmartWalletByEOA(eoaToQuery);
 
   console.log("\nSmart Wallets by EOA:");
   console.log("-".repeat(60));

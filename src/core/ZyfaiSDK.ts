@@ -27,7 +27,7 @@ import type {
   TVLResponse,
   VolumeResponse,
   ActiveWalletsResponse,
-  SmartWalletsByEOAResponse,
+  SmartWalletByEOAResponse,
   FirstTopupResponse,
   HistoryResponse,
   OnchainEarningsResponse,
@@ -1168,13 +1168,13 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * const result = await sdk.getSmartWalletsByEOA("0x...");
+   * const result = await sdk.getSmartWalletByEOA("0x...");
    * console.log("Smart wallets:", result.smartWallets);
    * ```
    */
-  async getSmartWalletsByEOA(
+  async getSmartWalletByEOA(
     eoaAddress: string
-  ): Promise<SmartWalletsByEOAResponse> {
+  ): Promise<SmartWalletByEOAResponse> {
     try {
       if (!eoaAddress) {
         throw new Error("EOA address is required");
@@ -1186,16 +1186,13 @@ export class ZyfaiSDK {
 
       // API returns: { agent: "0x...", chains: [...] }
       // Parse smartWallet from different possible field names
-      const smartWallet =
-        response.agent || response.smartWallet || response.smartWallets?.[0];
-      const smartWallets = smartWallet ? [smartWallet] : [];
-      const chains = response.chains || [];
+      const smartWallet: Address | null = (response.agent as Address) || null;
+      const chains: number[] = response.chains || [];
 
       return {
         success: true,
         eoa: eoaAddress,
-        smartWallet: smartWallet || null,
-        smartWallets,
+        smartWallet,
         chains,
       };
     } catch (error) {

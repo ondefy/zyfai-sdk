@@ -44,7 +44,7 @@ export type {
   VolumeResponse,
   ActiveWallet,
   ActiveWalletsResponse,
-  SmartWalletsByEOAResponse,
+  SmartWalletByEOAResponse,
   FirstTopupResponse,
   HistoryPosition,
   HistoryEntry,

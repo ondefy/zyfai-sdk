@@ -377,7 +377,7 @@ console.log("Active wallet count:", wallets.count);
 #### Get Smart Wallets by EOA
 
 ```typescript
-const result = await sdk.getSmartWalletsByEOA("0xYourEOA...");
+const result = await sdk.getSmartWalletByEOA("0xYourEOA...");
 console.log("Smart wallets:", result.smartWallets);
 ```
 

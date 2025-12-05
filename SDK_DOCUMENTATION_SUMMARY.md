@@ -88,7 +88,7 @@ const positions = await sdk.getPositions("0xUserAddress");
 | `getFirstTopup`            | Execution API | No            |
 | `getHistory`               | Execution API | No            |
 | `getActiveWallets`         | Execution API | No            |
-| `getSmartWalletsByEOA`     | Execution API | No            |
+| `getSmartWalletByEOA`      | Execution API | No            |
 | `getRebalanceFrequency`    | Execution API | No            |
 | `getOnchainEarnings`       | **Data API**  | Yes (JWT)\*   |
 | `calculateOnchainEarnings` | **Data API**  | Yes (JWT)\*   |
@@ -201,7 +201,8 @@ createSessionKey(
   - Automatically set by `deploySafe` method
   - Or manually set via `updateUserProfile` method
 
-**Important**: 
+**Important**:
+
 - The SDK proactively checks if the user already has an active session key before doing any work
 - If `hasActiveSessionKey` is true (from login response), returns immediately with `alreadyActive: true`
 - When `alreadyActive` is true, `sessionKeyAddress` and `signature` are not available in the response
@@ -566,7 +567,7 @@ const wallets = await sdk.getActiveWallets(chainId);
 ### 11. Get Smart Wallets by EOA
 
 ```typescript
-const result = await sdk.getSmartWalletsByEOA(eoaAddress);
+const result = await sdk.getSmartWalletByEOA(eoaAddress);
 // Returns: { success, eoa, smartWallets }
 ```
 

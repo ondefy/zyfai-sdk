@@ -241,11 +241,10 @@ export interface ActiveWalletsResponse {
 // Smart Wallets by EOA Types
 // ============================================================================
 
-export interface SmartWalletsByEOAResponse {
+export interface SmartWalletByEOAResponse {
   success: boolean;
   eoa: string;
-  smartWallet: string | null;
-  smartWallets: string[];
+  smartWallet: Address | null;
   chains: number[];
 }
 
