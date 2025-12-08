@@ -53,7 +53,7 @@ const SAFE_7579_ADDRESS = "0x7579EE8307284F293B1927136486880611F20002";
 const ERC7579_LAUNCHPAD_ADDRESS = "0x7579011aB74c46090561ea277Ba79D510c6C00ff";
 const ACCOUNT_SALTS: Record<Environment, string> = {
   staging: "zyfai-staging",
-  production: "zyfai-production",
+  production: "zyfai",
 };
 
 /**
