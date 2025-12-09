@@ -459,7 +459,8 @@ export interface DepositResponse {
 
 export interface WithdrawResponse {
   success: boolean;
-  txHash: string;
+  message: string;
+  txHash?: string;
   type: "full" | "partial";
   amount: string;
   receiver: string;

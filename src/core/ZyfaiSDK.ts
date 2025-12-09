@@ -320,6 +320,30 @@ export class ZyfaiSDK {
   }
 
   /**
+   * Disconnect account and clear authentication state
+   * Resets wallet connection, JWT token, and all authentication-related state
+   *
+   * @example
+   * ```typescript
+   * await sdk.disconnectAccount();
+   * console.log("Account disconnected");
+   * ```
+   */
+  async disconnectAccount(): Promise<void> {
+    // Clear wallet connection
+    this.signer = null;
+    this.walletClient = null;
+
+    // Clear authentication state
+    this.isAuthenticated = false;
+    this.authenticatedUserId = null;
+    this.hasActiveSessionKey = false;
+
+    // Clear JWT token
+    this.httpClient.clearAuthToken();
+  }
+
+  /**
    * Get wallet client (throws if not connected)
    * @private
    */
@@ -806,18 +830,20 @@ export class ZyfaiSDK {
 
   /**
    * Withdraw funds from Safe smart wallet
-   * Triggers a withdrawal request to the ZyFAI API
+   * Initiates a withdrawal request to the ZyFAI API
+   * Note: The withdrawal is processed asynchronously, so txHash may not be immediately available
    *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
    * @param amount - Optional: Amount in least decimal units to withdraw (partial withdrawal). If not specified, withdraws all funds
    * @param receiver - Optional: Receiver address. If not specified, sends to Safe owner
-   * @returns Withdraw response with transaction hash
+   * @returns Withdraw response with message and optional transaction hash (available once processed)
    *
    * @example
    * ```typescript
    * // Full withdrawal
    * const result = await sdk.withdrawFunds("0xUser...", 42161);
+   * console.log(result.message); // "Withdrawal request sent"
    *
    * // Partial withdrawal of 50 USDC (6 decimals)
    * const result = await sdk.withdrawFunds(
@@ -894,12 +920,13 @@ export class ZyfaiSDK {
       }
 
       const success = response?.success ?? true;
+      const message = response?.message || "Withdrawal request sent";
+      const txHash = response?.txHash || response?.transactionHash;
 
       return {
         success,
-        txHash: (response?.txHash ||
-          response?.transactionHash ||
-          "pending") as string,
+        message,
+        txHash,
         type: amount ? "partial" : "full",
         amount: amount || "all",
         receiver: receiver || userAddress,
