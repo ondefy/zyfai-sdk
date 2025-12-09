@@ -50,8 +50,6 @@ async function main() {
   console.log("\nCreating session key...");
   const sessionResult = await sdk.createSessionKey(connectedAddress, chainId);
 
-  console.log("Session key created and registered");
-  console.log(`Safe Address: ${sessionResult.sessionKeyAddress}`);
   console.log(`Signature: ${sessionResult.signature}`);
   console.log(`User ID: ${sessionResult.userId}`);
 

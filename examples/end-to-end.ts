@@ -123,8 +123,6 @@ async function main() {
   try {
     const sessionResult = await sdk.createSessionKey(userAddress, chainId);
     console.log("\nSession key created successfully");
-    console.log(`  Safe Address: ${sessionResult.sessionKeyAddress}`);
-    console.log(`  Signature: ${sessionResult.signature.substring(0, 20)}...`);
     console.log("  Configuration: Auto-fetched from ZyFAI API");
   } catch (error) {
     console.log("\n✗ Session key creation failed:", (error as Error).message);

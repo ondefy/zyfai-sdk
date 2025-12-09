@@ -161,7 +161,7 @@ export class ZyfaiSDK {
           signature,
         }
       );
-      const authToken = loginResponse.accessToken || loginResponse.token;
+      const authToken = loginResponse.accessToken;
 
       if (!authToken) {
         throw new Error("Authentication response missing access token");
@@ -674,7 +674,6 @@ export class ZyfaiSDK {
 
       return {
         success: true,
-        sessionKeyAddress: safeAddress,
         signature,
         sessionNonces,
       };
