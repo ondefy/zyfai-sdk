@@ -251,6 +251,8 @@ export class ZyfaiSDK {
 
     const chainConfig = getChainConfig(chainId);
 
+    let connectedAddress: Address;
+
     // Check if account is a private key (string)
     if (typeof account === "string") {
       let privateKey = account;
@@ -267,51 +269,54 @@ export class ZyfaiSDK {
         transport: http(chainConfig.rpcUrl),
       });
 
-      return this.signer.address;
-    }
+      connectedAddress = this.signer.address;
+    } else {
+      // Otherwise, treat as a wallet provider
+      const provider = account;
 
-    // Otherwise, treat as a wallet provider
-    const provider = account;
-
-    if (!provider) {
-      throw new Error(
-        "Invalid account parameter. Expected private key string or wallet provider."
-      );
-    }
-
-    // Handle modern wallet providers (EIP-1193 providers)
-    if (provider.request) {
-      const accounts = await provider.request({
-        method: "eth_requestAccounts",
-      });
-
-      if (!accounts || accounts.length === 0) {
-        throw new Error("No accounts found in wallet provider");
+      if (!provider) {
+        throw new Error(
+          "Invalid account parameter. Expected private key string or wallet provider."
+        );
       }
 
-      this.walletClient = createWalletClient({
-        account: accounts[0],
-        chain: chainConfig.chain,
-        transport: custom(provider),
-      });
+      // Handle modern wallet providers (EIP-1193 providers)
+      if (provider.request) {
+        const accounts = await provider.request({
+          method: "eth_requestAccounts",
+        });
 
-      return accounts[0];
+        if (!accounts || accounts.length === 0) {
+          throw new Error("No accounts found in wallet provider");
+        }
+
+        this.walletClient = createWalletClient({
+          account: accounts[0],
+          chain: chainConfig.chain,
+          transport: custom(provider),
+        });
+
+        connectedAddress = accounts[0];
+      } else if (provider.account && provider.transport) {
+        // Handle viem WalletClient or similar objects
+        this.walletClient = createWalletClient({
+          account: provider.account,
+          chain: chainConfig.chain,
+          transport: provider.transport,
+        });
+
+        connectedAddress = provider.account.address;
+      } else {
+        throw new Error(
+          "Invalid wallet provider. Expected EIP-1193 provider or viem WalletClient."
+        );
+      }
     }
 
-    // Handle viem WalletClient or similar objects
-    if (provider.account && provider.transport) {
-      this.walletClient = createWalletClient({
-        account: provider.account,
-        chain: chainConfig.chain,
-        transport: provider.transport,
-      });
+    // Authenticate user after successful connection
+    await this.authenticateUser();
 
-      return provider.account.address;
-    }
-
-    throw new Error(
-      "Invalid wallet provider. Expected EIP-1193 provider or viem WalletClient."
-    );
+    return connectedAddress;
   }
 
   /**
