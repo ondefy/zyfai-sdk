@@ -102,7 +102,7 @@ export const getSafeAccount = async (
 
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
-    owners: [owner.account], // Pass the account object with address and signMessage capability
+    owners: [owner], // Pass the owner object with address and signMessage capability
     version: "1.4.1",
     entryPoint: {
       address: entryPoint07Address,
@@ -207,7 +207,7 @@ export const getAccountType = async (
 export const getSmartAccountClient = async (
   config: SafeAccountConfig & { bundlerUrl: string }
 ) => {
-  const { publicClient, chain, bundlerUrl } = config;
+  const { chain, bundlerUrl } = config;
   const safeAccount = await getSafeAccount(config);
 
   const bundlerClient = createPimlicoClient({

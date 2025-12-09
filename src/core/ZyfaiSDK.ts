@@ -161,7 +161,7 @@ export class ZyfaiSDK {
           signature,
         }
       );
-      const authToken = loginResponse.accessToken || loginResponse.token;
+      const authToken = loginResponse.accessToken;
 
       if (!authToken) {
         throw new Error("Authentication response missing access token");
@@ -251,6 +251,8 @@ export class ZyfaiSDK {
 
     const chainConfig = getChainConfig(chainId);
 
+    let connectedAddress: Address;
+
     // Check if account is a private key (string)
     if (typeof account === "string") {
       let privateKey = account;
@@ -267,51 +269,78 @@ export class ZyfaiSDK {
         transport: http(chainConfig.rpcUrl),
       });
 
-      return this.signer.address;
-    }
+      connectedAddress = this.signer.address;
+    } else {
+      // Otherwise, treat as a wallet provider
+      const provider = account;
 
-    // Otherwise, treat as a wallet provider
-    const provider = account;
-
-    if (!provider) {
-      throw new Error(
-        "Invalid account parameter. Expected private key string or wallet provider."
-      );
-    }
-
-    // Handle modern wallet providers (EIP-1193 providers)
-    if (provider.request) {
-      const accounts = await provider.request({
-        method: "eth_requestAccounts",
-      });
-
-      if (!accounts || accounts.length === 0) {
-        throw new Error("No accounts found in wallet provider");
+      if (!provider) {
+        throw new Error(
+          "Invalid account parameter. Expected private key string or wallet provider."
+        );
       }
 
-      this.walletClient = createWalletClient({
-        account: accounts[0],
-        chain: chainConfig.chain,
-        transport: custom(provider),
-      });
+      // Handle modern wallet providers (EIP-1193 providers)
+      if (provider.request) {
+        const accounts = await provider.request({
+          method: "eth_requestAccounts",
+        });
 
-      return accounts[0];
+        if (!accounts || accounts.length === 0) {
+          throw new Error("No accounts found in wallet provider");
+        }
+
+        this.walletClient = createWalletClient({
+          account: accounts[0],
+          chain: chainConfig.chain,
+          transport: custom(provider),
+        });
+
+        connectedAddress = accounts[0];
+      } else if (provider.account && provider.transport) {
+        // Handle viem WalletClient or similar objects
+        this.walletClient = createWalletClient({
+          account: provider.account,
+          chain: chainConfig.chain,
+          transport: provider.transport,
+        });
+
+        connectedAddress = provider.account.address;
+      } else {
+        throw new Error(
+          "Invalid wallet provider. Expected EIP-1193 provider or viem WalletClient."
+        );
+      }
     }
 
-    // Handle viem WalletClient or similar objects
-    if (provider.account && provider.transport) {
-      this.walletClient = createWalletClient({
-        account: provider.account,
-        chain: chainConfig.chain,
-        transport: provider.transport,
-      });
+    // Authenticate user after successful connection
+    await this.authenticateUser();
 
-      return provider.account.address;
-    }
+    return connectedAddress;
+  }
 
-    throw new Error(
-      "Invalid wallet provider. Expected EIP-1193 provider or viem WalletClient."
-    );
+  /**
+   * Disconnect account and clear authentication state
+   * Resets wallet connection, JWT token, and all authentication-related state
+   *
+   * @example
+   * ```typescript
+   * await sdk.disconnectAccount();
+   * console.log("Account disconnected");
+   * ```
+   */
+  async disconnectAccount(): Promise<void> {
+    // Clear wallet connection
+    this.signer = null;
+    this.walletClient = null;
+
+    // Clear authentication state
+    this.isAuthenticated = false;
+    this.authenticatedUserId = null;
+    this.hasActiveSessionKey = false;
+
+    // Clear JWT token
+    this.httpClient.clearAuthToken();
   }
 
   /**
@@ -645,7 +674,6 @@ export class ZyfaiSDK {
 
       return {
         success: true,
-        sessionKeyAddress: safeAddress,
         signature,
         sessionNonces,
       };
@@ -801,18 +829,20 @@ export class ZyfaiSDK {
 
   /**
    * Withdraw funds from Safe smart wallet
-   * Triggers a withdrawal request to the ZyFAI API
+   * Initiates a withdrawal request to the ZyFAI API
+   * Note: The withdrawal is processed asynchronously, so txHash may not be immediately available
    *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
    * @param amount - Optional: Amount in least decimal units to withdraw (partial withdrawal). If not specified, withdraws all funds
    * @param receiver - Optional: Receiver address. If not specified, sends to Safe owner
-   * @returns Withdraw response with transaction hash
+   * @returns Withdraw response with message and optional transaction hash (available once processed)
    *
    * @example
    * ```typescript
    * // Full withdrawal
    * const result = await sdk.withdrawFunds("0xUser...", 42161);
+   * console.log(result.message); // "Withdrawal request sent"
    *
    * // Partial withdrawal of 50 USDC (6 decimals)
    * const result = await sdk.withdrawFunds(
@@ -889,12 +919,13 @@ export class ZyfaiSDK {
       }
 
       const success = response?.success ?? true;
+      const message = response?.message || "Withdrawal request sent";
+      const txHash = response?.txHash || response?.transactionHash;
 
       return {
         success,
-        txHash: (response?.txHash ||
-          response?.transactionHash ||
-          "pending") as string,
+        message,
+        txHash,
         type: amount ? "partial" : "full",
         amount: amount || "all",
         receiver: receiver || userAddress,

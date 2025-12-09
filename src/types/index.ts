@@ -51,17 +51,10 @@ export interface UpdateUserProfileResponse {
 export interface LoginResponse {
   userId: string;
   accessToken?: string;
-  token?: string;
   refreshToken?: string;
   tokenExpires?: number;
   hasActiveSessionKey?: boolean;
   smartWallet?: string | null;
-}
-
-/** @internal */
-export interface UserIdResponse {
-  userId: string;
-  smartWallet: Address;
 }
 
 /** @internal */
@@ -87,8 +80,6 @@ export interface AddSessionKeyResponse {
 
 export interface SessionKeyResponse {
   success: boolean;
-  /** Session key address (not available when alreadyActive is true) */
-  sessionKeyAddress?: Address;
   /** Signature (not available when alreadyActive is true) */
   signature?: Hex;
   sessionNonces?: bigint[];
@@ -459,7 +450,8 @@ export interface DepositResponse {
 
 export interface WithdrawResponse {
   success: boolean;
-  txHash: string;
+  message: string;
+  txHash?: string;
   type: "full" | "partial";
   amount: string;
   receiver: string;
