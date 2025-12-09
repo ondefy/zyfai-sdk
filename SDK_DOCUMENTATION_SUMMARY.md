@@ -32,18 +32,21 @@ const sdk = new ZyfaiSDK({
   environment: "production", // or 'staging'
 });
 
-// 2. Connect account (separate step)
+// 2. Connect account and authenticate (happens automatically)
 // Option A: With private key (chainId required)
-await sdk.connectAccount("0x...", 42161);
+await sdk.connectAccount("0x...", 42161); // Automatically authenticates via SIWE
 
 // Option B: With wallet provider (chainId defaults to 42161)
-await sdk.connectAccount(walletProvider, 42161);
+await sdk.connectAccount(walletProvider, 42161); // Automatically authenticates via SIWE
 
 // 3. Call functions with explicit parameters
 // The connected account is used only for signing, not for determining which user's data to fetch
 await sdk.deploySafe("0xUserAddress", chainId);
 await sdk.createSessionKey("0xUserAddress", chainId);
 const positions = await sdk.getPositions("0xUserAddress");
+
+// 4. Disconnect when done (optional)
+await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 ```
 
 ### Configuration Options
@@ -64,11 +67,12 @@ const positions = await sdk.getPositions("0xUserAddress");
 
 **Important:**
 
-- **SIWE Authentication**: Session key creation requires SIWE (Sign-In with Ethereum) authentication
+- **Automatic Authentication**: `connectAccount()` automatically performs SIWE (Sign-In with Ethereum) authentication and stores the JWT token
 - **Browser vs Node.js**: The SDK automatically detects browser context and uses `window.location.origin` for SIWE domain/uri to match the browser's automatic `Origin` header
-- **Environment-Aware Salt**: Safe addresses use environment-specific salts (`zyfai-staging` for staging, `zyfai-production` for production)
+- **Environment-Aware Salt**: Safe addresses use environment-specific salts (`zyfai-staging` for staging, `zyfai` for production)
 - **Least Decimal Units**: Deposit and withdrawal amounts use raw token units (e.g., 1 USDC = 1000000)
 - **JWT Token Forwarding**: The SDK automatically forwards JWT tokens to Data API endpoints that require authentication
+- **Async Withdrawals**: Withdrawals are processed asynchronously - the `txHash` may not be immediately available in the response
 - The SDK does not connect to wallets directly. The client handles wallet connection on their frontend and passes the provider.
 
 ### Method to API Mapping
@@ -187,19 +191,18 @@ createSessionKey(
 
 **Process:**
 
-1. **Authenticates via SIWE** - Creates user record if it doesn't exist
+1. **Uses existing SIWE authentication** - Already done via `connectAccount()`
 2. **Checks `hasActiveSessionKey`** from login response - Returns early if session key already exists
-3. SDK calls `/session-keys/config` (SIWE protected) to fetch personalized configuration
+3. SDK calls `/session-keys/config` (JWT protected) to fetch personalized configuration
 4. SDK signs the session key with the connected wallet
 5. SDK calls `/session-keys/add` to activate the session immediately
 6. Updates local state to track active session key
 
 **Requirements:**
 
-- **SIWE Authentication**: User must sign a message to authenticate (handled automatically)
+- **Authentication**: User must be connected via `connectAccount()` (which automatically authenticates)
 - **User Profile**: User record must have `smartWallet` and `chainId` fields populated
   - Automatically set by `deploySafe` method
-  - Or manually set via `updateUserProfile` method
 
 **Important**:
 
@@ -473,7 +476,7 @@ interface PositionsResponse {
 
 ### 7. Withdraw Funds
 
-Execute a full or partial withdrawal from active positions to user's EOA.
+Initiate a full or partial withdrawal from active positions to user's EOA. **Note: Withdrawals are processed asynchronously by the backend.**
 
 #### Function Signature
 
@@ -482,6 +485,7 @@ withdrawFunds(
   userAddress: string,
   chainId: number,
   amount?: string,
+  receiver?: string
 ): Promise<WithdrawResponse>
 ```
 
@@ -499,7 +503,8 @@ withdrawFunds(
 ```typescript
 interface WithdrawResponse {
   success: boolean;
-  txHash: string;
+  message: string; // e.g., "Withdrawal request sent"
+  txHash?: string; // May not be immediately available (async processing)
   type: "full" | "partial";
   amount: string;
   receiver: string;
@@ -507,7 +512,13 @@ interface WithdrawResponse {
 }
 ```
 
-**Authentication:** `withdrawFunds` automatically performs SIWE authentication before calling `/users/withdraw` (full) or `/users/partial-withdraw` (partial), so no manual token handling is required.
+**Important Notes:**
+
+- `withdrawFunds` uses existing JWT token (from `connectAccount()`)
+- Calls `/users/withdraw` (full) or `/users/partial-withdraw` (partial)
+- Withdrawals are processed asynchronously - `txHash` may be `undefined` initially
+- Check the `message` field for status information
+- Use `getHistory()` to track the withdrawal transaction once processed
 
 ---
 
@@ -691,12 +702,16 @@ const portfolio = await sdk.getDebankPortfolio(walletAddress);
 
 ```typescript
 const sdk = new ZyfaiSDK(API_KEY);
-await sdk.connectAccount(PRIVATE_KEY);
+// Connect and authenticate automatically
+await sdk.connectAccount(PRIVATE_KEY, 8453);
 
 const userAddress = "0xUser...";
 await sdk.deploySafe(userAddress, 8453);
 const wallet = await sdk.getSmartWalletAddress(userAddress, 8453);
 console.log("Deposit to:", wallet.address);
+
+// Disconnect when done
+await sdk.disconnectAccount();
 ```
 
 ### Example 2: With Wallet Provider (Client Integration)
@@ -706,10 +721,14 @@ console.log("Deposit to:", wallet.address);
 const provider = await connector.getProvider(); // from wagmi, web3-react, etc.
 
 const sdk = new ZyfaiSDK(API_KEY);
+// Connect and authenticate automatically
 await sdk.connectAccount(provider, 42161);
 
 const userAddress = "0xUser...";
 await sdk.deploySafe(userAddress, 42161);
+
+// Disconnect when done
+await sdk.disconnectAccount();
 ```
 
 ### Example 3: Complete Deposit & Yield Flow
@@ -721,7 +740,7 @@ const sdk = new ZyfaiSDK({
   environment: "production",
 });
 
-// Connect wallet
+// Connect wallet (automatically authenticates via SIWE)
 await sdk.connectAccount(privateKey, 42161);
 
 const userAddress = "0xUser...";
@@ -734,7 +753,7 @@ if (!wallet.isDeployed) {
   await sdk.deploySafe(userAddress, chainId);
 }
 
-// 2. Create session key (automatic SIWE authentication)
+// 2. Create session key (uses existing authentication)
 await sdk.createSessionKey(userAddress, chainId);
 
 // 3. Deposit funds - 100 USDC (least decimal units: 100 * 10^6)
@@ -755,13 +774,25 @@ const withdrawResult = await sdk.withdrawFunds(
   chainId,
   "50000000" // 50 USDC with 6 decimals
 );
+
+if (withdrawResult.success) {
+  console.log("Withdrawal initiated:", withdrawResult.message);
+  if (withdrawResult.txHash) {
+    console.log("Transaction hash:", withdrawResult.txHash);
+  }
+}
+
+// 6. Disconnect when done
+await sdk.disconnectAccount();
 ```
 
 **Notes:**
 
 - All amounts must be in least decimal units (e.g., USDC: 1 token = 1000000)
-- Session key creation requires SIWE signature on first call
-- SDK reuses authentication token for subsequent calls
+- `connectAccount()` automatically authenticates via SIWE
+- SDK reuses authentication token for all subsequent calls
+- Withdrawals are async - `txHash` may not be immediately available
+- Use `disconnectAccount()` to clear wallet connection and JWT token
 
 ### Example 4: Service Pattern
 
@@ -777,7 +808,13 @@ class YieldService {
   }
 
   async connectAccount(account: string | any, chainId: number = 42161) {
+    // Automatically authenticates via SIWE
     await this.sdk.connectAccount(account, chainId);
+  }
+
+  async disconnectAccount() {
+    // Clear wallet connection and JWT token
+    await this.sdk.disconnectAccount();
   }
 
   async onboardUser(userAddress: string, chainId: number) {
@@ -799,6 +836,21 @@ class YieldService {
   async getUserStats(userAddress: string) {
     const positions = await this.sdk.getPositions(userAddress);
     return { positions };
+  }
+
+  async withdrawFunds(
+    userAddress: string,
+    chainId: number,
+    amount?: string,
+    receiver?: string
+  ) {
+    const result = await this.sdk.withdrawFunds(userAddress, chainId, amount, receiver);
+    // Handle async withdrawal
+    if (!result.txHash) {
+      console.log("Withdrawal initiated:", result.message);
+      // Could poll getHistory() to track transaction
+    }
+    return result;
   }
 }
 ```

@@ -65,7 +65,7 @@ const sdk = new ZyfaiSDK({
 
 ### Connect Account
 
-The SDK accepts either a private key or a modern wallet provider:
+The SDK accepts either a private key or a modern wallet provider. **The SDK automatically authenticates the user via SIWE (Sign-In with Ethereum) when connecting.**
 
 ```typescript
 // Option 1: With private key (chainId required)
@@ -84,7 +84,25 @@ const userAddress = "0xUser...";
 await sdk.deploySafe(userAddress, 42161);
 ```
 
-**Note:** When using a wallet provider, the SDK automatically detects the chain from the provider. You can optionally specify `chainId` to override.
+**Note:**
+- When using a wallet provider, the SDK automatically detects the chain from the provider. You can optionally specify `chainId` to override.
+- The SDK automatically performs SIWE authentication when connecting, so you don't need to call any additional authentication methods.
+
+### Disconnect Account
+
+Disconnect the current account and clear all authentication state:
+
+```typescript
+// Disconnect account and clear JWT token
+await sdk.disconnectAccount();
+console.log("Account disconnected and authentication cleared");
+```
+
+This method:
+- Clears the wallet connection
+- Resets authentication state
+- Clears the JWT token
+- Resets session key tracking
 
 ## Core Features
 
@@ -164,7 +182,7 @@ new ZyfaiSDK(config: SDKConfig | string)
 
 ##### `connectAccount(account: string | any, chainId?: SupportedChainId): Promise<Address>`
 
-Connect account for signing transactions. Accepts either a private key string or a modern wallet provider.
+Connect account for signing transactions and authenticate via SIWE. Accepts either a private key string or a modern wallet provider.
 
 **Parameters:**
 
@@ -176,6 +194,11 @@ Connect account for signing transactions. Accepts either a private key string or
 
 **Returns:** Connected wallet address
 
+**Automatic Actions:**
+- Connects the wallet
+- Authenticates via SIWE (Sign-In with Ethereum)
+- Stores JWT token for authenticated endpoints
+
 **Examples:**
 
 ```typescript
@@ -185,6 +208,25 @@ await sdk.connectAccount("0x...", 42161);
 // With wallet provider (chainId optional)
 const provider = await connector.getProvider();
 await sdk.connectAccount(provider); // Uses provider's current chain
+```
+
+##### `disconnectAccount(): Promise<void>`
+
+Disconnect account and clear all authentication state.
+
+**Returns:** Promise that resolves when disconnection is complete
+
+**Actions:**
+- Clears wallet connection
+- Resets authentication state
+- Clears JWT token
+- Resets session key tracking
+
+**Example:**
+
+```typescript
+await sdk.disconnectAccount();
+console.log("Disconnected and cleared");
 ```
 
 ##### `getSmartWalletAddress(userAddress: string, chainId: SupportedChainId): Promise<SmartWalletResponse>`
@@ -235,7 +277,7 @@ The SDK automatically fetches optimal session configuration from ZyFAI API:
 
 ```typescript
 // SDK automatically:
-// 1. Authenticates via SIWE (creates user record if needed)
+// 1. Uses existing SIWE authentication (from connectAccount)
 // 2. Checks if user already has an active session key (returns early if so)
 // 3. Calculates the deterministic Safe address
 // 4. Retrieves personalized config via /session-keys/config
@@ -257,9 +299,9 @@ console.log("User ID:", result.userId);
 
 **Important**:
 
-- `createSessionKey` requires SIWE authentication (prompts wallet signature on first call)
-- The SDK proactively checks if the user already has an active session key (from login response) and returns early without requiring any signature if one exists
-- The user record must have `smartWallet` and `chainId` set (automatically handled after calling `deploySafe` or `updateUserProfile`)
+- User must be authenticated (automatically done via `connectAccount()`)
+- The SDK proactively checks if the user already has an active session key and returns early without requiring any signature if one exists
+- The user record must have `smartWallet` and `chainId` set (automatically handled after calling `deploySafe`)
 - When `alreadyActive` is `true`, `sessionKeyAddress` and `signature` are not available in the response
 
 ### 4. Deposit Funds
@@ -286,7 +328,7 @@ The SDK automatically authenticates via SIWE before logging the deposit with ZyF
 
 ### 5. Withdraw Funds
 
-Withdraw funds from your Safe:
+Initiate a withdrawal from your Safe. **Note: Withdrawals are processed asynchronously by the backend.**
 
 ```typescript
 // Full withdrawal
@@ -301,13 +343,22 @@ const result = await sdk.withdrawFunds(
 );
 
 if (result.success) {
-  console.log("Withdrawal successful!");
-  console.log("Transaction Hash:", result.txHash);
+  console.log("Withdrawal initiated!");
+  console.log("Message:", result.message); // e.g., "Withdrawal request sent"
+  if (result.txHash) {
+    console.log("Transaction Hash:", result.txHash);
+  } else {
+    console.log("Transaction will be processed asynchronously");
+  }
 }
 ```
 
-**Note:** Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
-The SDK authenticates via SIWE before calling the withdrawal endpoints (`/users/withdraw` or `/users/partial-withdraw`) so you don't need to manage tokens manually.
+**Important Notes:**
+- Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
+- The SDK authenticates via SIWE before calling the withdrawal endpoints
+- Withdrawals are processed asynchronously - the `txHash` may not be immediately available
+- Check the `message` field for the withdrawal status
+- Use `getHistory()` to track the withdrawal transaction once it's processed
 
 ### 6. Get Available Protocols
 
@@ -549,7 +600,7 @@ async function main() {
     bundlerApiKey: process.env.BUNDLER_API_KEY!,
   });
 
-  // Connect account (for signing)
+  // Connect account (automatically authenticates via SIWE)
   await sdk.connectAccount(process.env.PRIVATE_KEY!, 42161);
 
   const userAddress = "0xUser..."; // User's EOA address
@@ -598,9 +649,10 @@ function SafeDeployment() {
     try {
       // Client passes the wallet provider from their frontend
       // e.g., from wagmi: const provider = await connector.getProvider();
+      // connectAccount automatically authenticates via SIWE
       const address = await sdk.connectAccount(walletProvider); // chainId auto-detected
       setUserAddress(address);
-      console.log("Connected:", address);
+      console.log("Connected and authenticated:", address);
 
       // Get Safe address for this user
       const walletInfo = await sdk.getSmartWalletAddress(address, 42161);
@@ -720,7 +772,7 @@ CHAIN_ID=8453
 
 ### "No account connected" Error
 
-Make sure to call `connectAccount()` before calling other methods that require signing.
+Make sure to call `connectAccount()` before calling other methods that require signing. Note that `connectAccount()` automatically authenticates the user via SIWE.
 
 ### "Unsupported chain" Error
 
@@ -728,17 +780,25 @@ Check that the chain ID is in the supported chains list: Arbitrum (42161), Base 
 
 ### SIWE Authentication Issues in Browser
 
-The SDK automatically detects browser vs Node.js environments for SIWE authentication:
+The SDK automatically performs SIWE authentication when you call `connectAccount()`. The SDK automatically detects browser vs Node.js environments:
 - **Browser**: Uses `window.location.origin` for the SIWE message domain/uri to match the browser's automatic `Origin` header
 - **Node.js**: Uses the API endpoint URL
 
 If you encounter SIWE authentication failures in a browser, ensure:
 1. Your frontend origin is allowed by the API's CORS configuration
 2. You're using the correct `environment` setting (`staging` or `production`)
+3. The user approves the SIWE signature request in their wallet
 
 ### Session Key Already Exists
 
 If `createSessionKey` returns `{ alreadyActive: true }`, the user already has an active session key. This is not an error - the SDK proactively checks before attempting to create a new one.
+
+### Withdrawal Transaction Hash Not Available
+
+If `withdrawFunds` returns without a `txHash`, the withdrawal is being processed asynchronously by the backend. You can:
+1. Check the `message` field for status information
+2. Use `getHistory()` to track when the withdrawal transaction is processed
+3. The transaction will appear in the history once it's been executed
 
 ### Data API CORS Errors
 
