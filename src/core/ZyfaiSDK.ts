@@ -68,10 +68,10 @@ export class ZyfaiSDK {
   private signer: PrivateKeyAccount | null = null;
   private walletClient: WalletClient | null = null;
   private bundlerApiKey?: string;
-  private isAuthenticated: boolean = false;
-  private authenticatedUserId: string | null = null; // Stored from login response
+  private authenticatedUserId: string | null = null; // If non-null, user is authenticated
   private hasActiveSessionKey: boolean = false; // Stored from login response
   private environment: Environment; // TODO: The environment should be removed. Having the same key for staging and production is not ideal, but for now it's fine.
+  private currentProvider: any = null; // Store reference to current provider for event handling
 
   constructor(config: SDKConfig | string) {
     // Support both object and string initialization
@@ -99,7 +99,7 @@ export class ZyfaiSDK {
   private async authenticateUser(): Promise<void> {
     try {
       // Skip if already authenticated
-      if (this.isAuthenticated) {
+      if (this.authenticatedUserId !== null) {
         return;
       }
 
@@ -171,7 +171,6 @@ export class ZyfaiSDK {
       this.httpClient.setAuthToken(authToken);
       this.authenticatedUserId = loginResponse.userId || null;
       this.hasActiveSessionKey = loginResponse.hasActiveSessionKey || false;
-      this.isAuthenticated = true;
     } catch (error) {
       throw new Error(
         `Failed to authenticate user: ${(error as Error).message}`
@@ -221,6 +220,58 @@ export class ZyfaiSDK {
   }
 
   /**
+   * Handle account changes from wallet provider
+   * Resets authentication state when wallet is switched
+   * @private
+   */
+  private async handleAccountsChanged(accounts: string[]): Promise<void> {
+    if (!accounts || accounts.length === 0) {
+      // No accounts available - disconnect
+      await this.disconnectAccount();
+      return;
+    }
+
+    const newAddress = accounts[0];
+    const currentAddress = this.walletClient?.account?.address;
+
+    // Check if the account actually changed
+    if (
+      currentAddress &&
+      newAddress.toLowerCase() === currentAddress.toLowerCase()
+    ) {
+      return; // Same account, no action needed
+    }
+
+    // Account changed - reset authentication
+    this.authenticatedUserId = null;
+    this.hasActiveSessionKey = false;
+    this.httpClient.clearAuthToken();
+
+    // Update wallet client with new account
+    if (this.walletClient && this.currentProvider) {
+      const chainConfig = getChainConfig(
+        (this.walletClient.chain?.id as SupportedChainId) || 42161
+      );
+
+      this.walletClient = createWalletClient({
+        account: newAddress as Address,
+        chain: chainConfig.chain,
+        transport: custom(this.currentProvider),
+      });
+
+      // Re-authenticate with new account
+      try {
+        await this.authenticateUser();
+      } catch (error) {
+        console.warn(
+          "Failed to authenticate after wallet switch:",
+          (error as Error).message
+        );
+      }
+    }
+  }
+
+  /**
    * Connect account for signing transactions
    * Accepts either a private key string or a modern wallet provider
    *
@@ -246,8 +297,17 @@ export class ZyfaiSDK {
     }
 
     // Reset authentication when connecting a new account
-    this.isAuthenticated = false;
+    this.authenticatedUserId = null;
     this.httpClient.clearAuthToken();
+
+    // Remove existing event listeners if any
+    if (this.currentProvider?.removeAllListeners) {
+      try {
+        this.currentProvider.removeAllListeners("accountsChanged");
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+    }
 
     const chainConfig = getChainConfig(chainId);
 
@@ -270,6 +330,7 @@ export class ZyfaiSDK {
       });
 
       connectedAddress = this.signer.address;
+      this.currentProvider = null; // No provider for private key
     } else {
       // Otherwise, treat as a wallet provider
       const provider = account;
@@ -297,6 +358,12 @@ export class ZyfaiSDK {
         });
 
         connectedAddress = accounts[0];
+        this.currentProvider = provider;
+
+        // Set up event listener for account changes
+        if (provider.on) {
+          provider.on("accountsChanged", this.handleAccountsChanged.bind(this));
+        }
       } else if (provider.account && provider.transport) {
         // Handle viem WalletClient or similar objects
         this.walletClient = createWalletClient({
@@ -306,6 +373,7 @@ export class ZyfaiSDK {
         });
 
         connectedAddress = provider.account.address;
+        this.currentProvider = null; // No event support for viem clients
       } else {
         throw new Error(
           "Invalid wallet provider. Expected EIP-1193 provider or viem WalletClient."
@@ -330,12 +398,21 @@ export class ZyfaiSDK {
    * ```
    */
   async disconnectAccount(): Promise<void> {
+    // Remove event listeners if any
+    if (this.currentProvider?.removeAllListeners) {
+      try {
+        this.currentProvider.removeAllListeners("accountsChanged");
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+    }
+
     // Clear wallet connection
     this.signer = null;
     this.walletClient = null;
+    this.currentProvider = null;
 
     // Clear authentication state
-    this.isAuthenticated = false;
     this.authenticatedUserId = null;
     this.hasActiveSessionKey = false;
 
