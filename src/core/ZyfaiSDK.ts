@@ -19,6 +19,7 @@ import type {
   PositionsResponse,
   UpdateUserProfileRequest,
   UpdateUserProfileResponse,
+  InitializeUserResponse,
   LoginResponse,
   AddSessionKeyRequest,
   AddSessionKeyResponse,
@@ -215,6 +216,51 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(
         `Failed to update user profile: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Initialize user after Safe deployment
+   * This method is automatically called after deploySafe to initialize user state
+   *
+   * @param smartWallet - Safe smart wallet address
+   * @param chainId - Target chain ID
+   * @returns Initialization response
+   *
+   * @example
+   * ```typescript
+   * await sdk.initializeUser("0x1396730...", 8453);
+   * ```
+   * @internal
+   */
+  private async initializeUser(
+    smartWallet: string,
+    chainId: number
+  ): Promise<InitializeUserResponse> {
+    try {
+      // Ensure authentication is present
+      await this.authenticateUser();
+
+      // Initialize user via API
+      const response = await this.httpClient.post<any>(
+        ENDPOINTS.USER_INITIALIZE,
+        {
+          smartWallet,
+          chainId,
+        }
+      );
+
+      return {
+        success: true,
+        userId: response.userId || response.id,
+        smartWallet: response.smartWallet,
+        chainId: response.chainId,
+        message: response.message,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to initialize user: ${(error as Error).message}`
       );
     }
   }
@@ -579,6 +625,17 @@ export class ZyfaiSDK {
         );
       }
 
+      // Initialize user after Safe deployment
+      try {
+        await this.initializeUser(deploymentResult.safeAddress, chainId);
+      } catch (initError) {
+        // Log the error but don't fail deployment
+        console.warn(
+          "Failed to initialize user after Safe deployment:",
+          (initError as Error).message
+        );
+      }
+
       return {
         success: true,
         safeAddress: deploymentResult.safeAddress,
@@ -659,6 +716,9 @@ export class ZyfaiSDK {
       if (!signatureResult.signature) {
         throw new Error("Failed to obtain session key signature");
       }
+
+      // Update user protocols before activating session key
+      await this.updateUserProtocols(chainId);
 
       // Register the session key on the backend so it becomes active immediately
       const activation = await this.activateSessionKey(
@@ -757,6 +817,38 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(
         `Failed to sign session key: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Update user protocols with available protocols from the chain
+   * This method is automatically called before activating session key
+   *
+   * @param chainId - Target chain ID
+   * @internal
+   */
+  private async updateUserProtocols(chainId: SupportedChainId): Promise<void> {
+    try {
+      // Fetch available protocols for the chain
+      const protocolsResponse = await this.getAvailableProtocols(chainId);
+
+      if (!protocolsResponse.protocols || protocolsResponse.protocols.length === 0) {
+        console.warn(`No protocols available for chain ${chainId}`);
+        return;
+      }
+
+      // Extract protocol IDs
+      const protocolIds = protocolsResponse.protocols.map(p => p.id);
+
+      // Update user profile with protocols
+      await this.updateUserProfile({
+        protocols: protocolIds,
+      });
+    } catch (error) {
+      // Log error but don't fail session key creation
+      console.warn(
+        `Failed to update user protocols: ${(error as Error).message}`
       );
     }
   }

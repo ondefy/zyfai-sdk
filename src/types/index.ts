@@ -48,6 +48,15 @@ export interface UpdateUserProfileResponse {
 }
 
 /** @internal */
+export interface InitializeUserResponse {
+  success: boolean;
+  userId: string;
+  smartWallet?: Address;
+  chainId?: number;
+  message?: string;
+}
+
+/** @internal */
 export interface LoginResponse {
   userId: string;
   accessToken?: string;

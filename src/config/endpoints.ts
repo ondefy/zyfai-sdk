@@ -28,6 +28,7 @@ export const ENDPOINTS = {
 
   // User
   USER_ME: "/users/me",
+  USER_INITIALIZE: "/users/initialize",
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
 
