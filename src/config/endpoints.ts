@@ -30,7 +30,6 @@ export const ENDPOINTS = {
   USER_ME: "/users/me",
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
-  USER_ADD_WALLET_TO_SDK: "/users/add-wallet-to-sdk",
 
   // Session Keys
   SESSION_KEYS_CONFIG: "/session-keys/config",
