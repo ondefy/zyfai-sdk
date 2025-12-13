@@ -38,6 +38,7 @@ import type {
   DailyApyHistoryResponse,
   RebalanceInfoResponse,
   RebalanceFrequencyResponse,
+  AddWalletToSdkResponse,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -259,9 +260,7 @@ export class ZyfaiSDK {
         message: response.message,
       };
     } catch (error) {
-      throw new Error(
-        `Failed to initialize user: ${(error as Error).message}`
-      );
+      throw new Error(`Failed to initialize user: ${(error as Error).message}`);
     }
   }
 
@@ -506,11 +505,29 @@ export class ZyfaiSDK {
       throw new Error(`Unsupported chain ID: ${chainId}`);
     }
 
-    const walletClient = this.getWalletClient();
     const chainConfig = getChainConfig(chainId);
 
-    // For EOA, get the deterministic Safe address
-    // Note: Safe will be owned by userAddress, not the connected wallet
+    // Try to get smart wallet address from API first (if already registered)
+    try {
+      const smartWalletInfo = await this.getSmartWalletByEOA(userAddress);
+      if (smartWalletInfo.smartWallet) {
+        // Check if Safe is deployed
+        const isDeployed = await isSafeDeployed(
+          smartWalletInfo.smartWallet,
+          chainConfig.publicClient
+        );
+        return {
+          address: smartWalletInfo.smartWallet,
+          isDeployed,
+        };
+      }
+    } catch {
+      // API call failed or no smart wallet found - fall through to deterministic calculation
+    }
+
+    // If not found in API, calculate deterministic Safe address
+    // This requires wallet client for address calculation
+    const walletClient = this.getWalletClient(chainId);
     const safeAddress = await getDeterministicSafeAddress({
       owner: walletClient,
       safeOwnerAddress: userAddress as Address,
@@ -833,13 +850,16 @@ export class ZyfaiSDK {
       // Fetch available protocols for the chain
       const protocolsResponse = await this.getAvailableProtocols(chainId);
 
-      if (!protocolsResponse.protocols || protocolsResponse.protocols.length === 0) {
+      if (
+        !protocolsResponse.protocols ||
+        protocolsResponse.protocols.length === 0
+      ) {
         console.warn(`No protocols available for chain ${chainId}`);
         return;
       }
 
       // Extract protocol IDs
-      const protocolIds = protocolsResponse.protocols.map(p => p.id);
+      const protocolIds = protocolsResponse.protocols.map((p) => p.id);
 
       // Update user profile with protocols
       await this.updateUserProfile({
@@ -1037,17 +1057,36 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      const walletClient = this.getWalletClient();
       const chainConfig = getChainConfig(chainId);
 
-      // Get Safe address
-      const safeAddress = await getDeterministicSafeAddress({
-        owner: walletClient,
-        safeOwnerAddress: userAddress as Address,
-        chain: chainConfig.chain,
-        publicClient: chainConfig.publicClient,
-        environment: this.environment,
-      });
+      // Try to get smart wallet address from API first
+      let safeAddress: Address;
+      try {
+        const smartWalletInfo = await this.getSmartWalletByEOA(userAddress);
+        if (smartWalletInfo.smartWallet) {
+          safeAddress = smartWalletInfo.smartWallet;
+        } else {
+          // No smart wallet found in API, calculate deterministically
+          const walletClient = this.getWalletClient();
+          safeAddress = await getDeterministicSafeAddress({
+            owner: walletClient,
+            safeOwnerAddress: userAddress as Address,
+            chain: chainConfig.chain,
+            publicClient: chainConfig.publicClient,
+            environment: this.environment,
+          });
+        }
+      } catch {
+        // API call failed, calculate deterministically
+        const walletClient = this.getWalletClient();
+        safeAddress = await getDeterministicSafeAddress({
+          owner: walletClient,
+          safeOwnerAddress: userAddress as Address,
+          chain: chainConfig.chain,
+          publicClient: chainConfig.publicClient,
+          environment: this.environment,
+        });
+      }
 
       // Check if Safe is deployed
       const isDeployed = await isSafeDeployed(
@@ -1172,20 +1211,20 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      const walletClient = this.getWalletClient(chainId);
-      const chainConfig = getChainConfig(chainId ?? 8453);
-      // Translate EOA into deterministic Safe address
-      const safeAddress = await getDeterministicSafeAddress({
-        owner: walletClient,
-        safeOwnerAddress: userAddress as Address,
-        chain: chainConfig.chain,
-        publicClient: chainConfig.publicClient,
-        environment: this.environment,
-      });
+      const smartWalletInfo = await this.getSmartWalletByEOA(userAddress);
+
+      // If no smart wallet exists, return empty positions
+      if (!smartWalletInfo.smartWallet) {
+        return {
+          success: true,
+          userAddress,
+          positions: [],
+        };
+      }
 
       // Use the /data/position endpoint with smart wallet address
       const response = await this.httpClient.get<any>(
-        ENDPOINTS.DATA_POSITION(safeAddress)
+        ENDPOINTS.DATA_POSITION(smartWalletInfo.smartWallet)
       );
 
       return {
@@ -1921,6 +1960,55 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(
         `Failed to get rebalance frequency: ${(error as Error).message}`
+      );
+    }
+  }
+
+  // ============================================================================
+  // SDK API Key Management
+  // ============================================================================
+
+  /**
+   * Add wallet to SDK API key allowedWallets list
+   * Adds a wallet address to the SDK API key's allowedWallets list.
+   * This endpoint requires SDK API key authentication (API key starting with "zyfai_").
+   *
+   * @param walletAddress - Wallet address to add to the allowed list
+   * @returns Response indicating success and status message
+   *
+   * @example
+   * ```typescript
+   * const result = await sdk.addWalletToSdk("0x1234...");
+   * console.log(result.message); // "Wallet successfully added to allowed list"
+   * ```
+   */
+  async addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse> {
+    try {
+      if (!walletAddress) {
+        throw new Error("Wallet address is required");
+      }
+
+      // Validate address format
+      try {
+        getAddress(walletAddress);
+      } catch {
+        throw new Error("Invalid wallet address format");
+      }
+
+      const response = await this.httpClient.post<AddWalletToSdkResponse>(
+        ENDPOINTS.USER_ADD_WALLET_TO_SDK,
+        {
+          walletAddress,
+        }
+      );
+
+      return {
+        success: response.success ?? true,
+        message: response.message || "Wallet added successfully",
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to add wallet to SDK: ${(error as Error).message}`
       );
     }
   }

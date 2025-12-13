@@ -85,6 +85,7 @@ await sdk.deploySafe(userAddress, 42161);
 ```
 
 **Note:**
+
 - When using a wallet provider, the SDK automatically detects the chain from the provider. You can optionally specify `chainId` to override.
 - The SDK automatically performs SIWE authentication when connecting, so you don't need to call any additional authentication methods.
 
@@ -99,6 +100,7 @@ console.log("Account disconnected and authentication cleared");
 ```
 
 This method:
+
 - Clears the wallet connection
 - Resets authentication state
 - Clears the JWT token
@@ -124,7 +126,7 @@ const result = await sdk.deploySafe(userAddress, 42161);
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
   console.log("Status:", result.status); // 'deployed' | 'failed'
-  
+
   if (result.alreadyDeployed) {
     console.log("Safe was already deployed - no action needed");
   } else {
@@ -195,6 +197,7 @@ Connect account for signing transactions and authenticate via SIWE. Accepts eith
 **Returns:** Connected wallet address
 
 **Automatic Actions:**
+
 - Connects the wallet
 - Authenticates via SIWE (Sign-In with Ethereum)
 - Stores JWT token for authenticated endpoints
@@ -217,6 +220,7 @@ Disconnect account and clear all authentication state.
 **Returns:** Promise that resolves when disconnection is complete
 
 **Actions:**
+
 - Clears wallet connection
 - Resets authentication state
 - Clears JWT token
@@ -266,6 +270,25 @@ Deploy a Safe smart wallet for a user.
   status: "deployed" | "failed";
 }
 ```
+
+##### `addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>`
+
+Add a wallet address to the SDK API key's allowedWallets list. This endpoint requires SDK API key authentication (API key starting with "zyfai\_").
+
+**Parameters:**
+
+- `walletAddress`: Wallet address to add to the allowed list
+
+**Returns:**
+
+```typescript
+{
+  success: boolean;
+  message: string; // Status message
+}
+```
+
+**Note**: This method is only available when using an SDK API key (starts with "zyfai\_"). Regular API keys cannot use this endpoint.
 
 ### 3. Session Keys
 
@@ -354,6 +377,7 @@ if (result.success) {
 ```
 
 **Important Notes:**
+
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
 - The SDK authenticates via SIWE before calling the withdrawal endpoints
 - Withdrawals are processed asynchronously - the `txHash` may not be immediately available
@@ -519,7 +543,20 @@ console.log("Tier:", frequency.tier);
 console.log("Max rebalances/day:", frequency.frequency);
 ```
 
-### 12. Portfolio (Premium)
+### 12. SDK API Key Management
+
+#### Add Wallet to SDK API Key
+
+Add a wallet address to the SDK API key's allowedWallets list. This endpoint requires SDK API key authentication (API key starting with "zyfai\_").
+
+```typescript
+const result = await sdk.addWalletToSdk("0x1234...");
+console.log(result.message); // "Wallet successfully added to allowed list"
+```
+
+**Note**: This method is only available when using an SDK API key (starts with "zyfai\_"). Regular API keys cannot use this endpoint.
+
+### 13. Portfolio (Premium)
 
 #### Get Debank Portfolio (Multi-chain)
 
@@ -781,10 +818,12 @@ Check that the chain ID is in the supported chains list: Arbitrum (42161), Base 
 ### SIWE Authentication Issues in Browser
 
 The SDK automatically performs SIWE authentication when you call `connectAccount()`. The SDK automatically detects browser vs Node.js environments:
+
 - **Browser**: Uses `window.location.origin` for the SIWE message domain/uri to match the browser's automatic `Origin` header
 - **Node.js**: Uses the API endpoint URL
 
 If you encounter SIWE authentication failures in a browser, ensure:
+
 1. Your frontend origin is allowed by the API's CORS configuration
 2. You're using the correct `environment` setting (`staging` or `production`)
 3. The user approves the SIWE signature request in their wallet
@@ -796,6 +835,7 @@ If `createSessionKey` returns `{ alreadyActive: true }`, the user already has an
 ### Withdrawal Transaction Hash Not Available
 
 If `withdrawFunds` returns without a `txHash`, the withdrawal is being processed asynchronously by the backend. You can:
+
 1. Check the `message` field for status information
 2. Use `getHistory()` to track when the withdrawal transaction is processed
 3. The transaction will appear in the history once it's been executed

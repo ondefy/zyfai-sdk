@@ -467,6 +467,11 @@ export interface WithdrawResponse {
   status: "pending" | "confirmed" | "failed";
 }
 
+export interface AddWalletToSdkResponse {
+  success: boolean;
+  message: string;
+}
+
 // Session Types
 
 export interface PolicyData {

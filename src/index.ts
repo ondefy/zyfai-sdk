@@ -34,6 +34,7 @@ export type {
   PositionsResponse,
   DepositResponse,
   WithdrawResponse,
+  AddWalletToSdkResponse,
 
   // User Types
   UserDetails,
