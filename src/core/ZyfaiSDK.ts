@@ -243,21 +243,24 @@ export class ZyfaiSDK {
       // Ensure authentication is present
       await this.authenticateUser();
 
-      // Initialize user via API
-      const response = await this.httpClient.post<any>(
-        ENDPOINTS.USER_INITIALIZE,
+      // Initialize user via Data API (v2)
+      // Note: The defi-api endpoint only requires walletAddress
+      const response = await this.httpClient.dataPost<any>(
+        DATA_ENDPOINTS.USER_INITIALIZE,
         {
-          smartWallet,
-          chainId,
+          walletAddress: smartWallet,
         }
       );
 
       return {
-        success: true,
+        success: response.status === "success" || true,
         userId: response.userId || response.id,
-        smartWallet: response.smartWallet,
-        chainId: response.chainId,
-        message: response.message,
+        smartWallet: response.smartWallet || smartWallet,
+        chainId: response.chainId || chainId,
+        message:
+          response.message ||
+          response.status ||
+          "User initialized successfully",
       };
     } catch (error) {
       throw new Error(`Failed to initialize user: ${(error as Error).message}`);
