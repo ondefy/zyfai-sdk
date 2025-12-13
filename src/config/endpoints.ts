@@ -57,7 +57,7 @@ export const ENDPOINTS = {
 // Data API Endpoints (v2)
 export const DATA_ENDPOINTS = {
   // User Initialization
-  USER_INITIALIZE: "/earnings/initialize",
+  USER_INITIALIZE: "/api/earnings/initialize",
 
   // Earnings
   ONCHAIN_EARNINGS: (walletAddress: string) =>

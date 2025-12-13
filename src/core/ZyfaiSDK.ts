@@ -3,7 +3,11 @@
  */
 
 import { HttpClient } from "../utils/http-client";
-import { ENDPOINTS, DATA_ENDPOINTS } from "../config/endpoints";
+import {
+  ENDPOINTS,
+  DATA_ENDPOINTS,
+  DATA_API_ENDPOINTS,
+} from "../config/endpoints";
 import { ERC20_ABI } from "../config/abis";
 import type {
   SDKConfig,
@@ -243,9 +247,10 @@ export class ZyfaiSDK {
       // Ensure authentication is present
       await this.authenticateUser();
 
-      // Initialize user via Data API (v2)
-      // Note: The defi-api endpoint only requires walletAddress
-      const response = await this.httpClient.dataPost<any>(
+      // Initialize user via Data API
+      // Note: This endpoint uses /api/earnings/initialize (without /v2)
+      // Use dataPostCustom to bypass the /v2 prefix
+      const responseData = await this.httpClient.dataPostCustom<any>(
         DATA_ENDPOINTS.USER_INITIALIZE,
         {
           walletAddress: smartWallet,
@@ -253,13 +258,13 @@ export class ZyfaiSDK {
       );
 
       return {
-        success: response.status === "success" || true,
-        userId: response.userId || response.id,
-        smartWallet: response.smartWallet || smartWallet,
-        chainId: response.chainId || chainId,
+        success: responseData.status === "success" || true,
+        userId: responseData.userId || responseData.id,
+        smartWallet: responseData.smartWallet || smartWallet,
+        chainId: responseData.chainId || chainId,
         message:
-          response.message ||
-          response.status ||
+          responseData.message ||
+          responseData.status ||
           "User initialized successfully",
       };
     } catch (error) {
