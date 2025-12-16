@@ -328,6 +328,11 @@ export const executeTransactions = async (
   }
 };
 
+export interface SigningParams {
+  permitGenericPolicy: boolean;
+  ignoreSecurityAttestations: boolean;
+}
+
 /**
  * Sign session key for delegated transactions
  * Creates a signature that allows the session key to execute transactions on behalf of the Safe
@@ -335,7 +340,8 @@ export const executeTransactions = async (
 export const signSessionKey = async (
   config: SafeAccountConfig,
   sessions: Session[],
-  allPublicClients?: PublicClient[]
+  allPublicClients?: PublicClient[],
+  signingParams?: SigningParams
 ): Promise<{ signature: Hex; sessionNonces: bigint[] }> => {
   const { owner, publicClient } = config;
 
@@ -379,8 +385,11 @@ export const signSessionKey = async (
     sessions,
     account,
     clients,
-    permitGenericPolicy: true,
+    permitGenericPolicy: signingParams?.permitGenericPolicy ?? true,
     sessionNonces,
+    ...(signingParams?.ignoreSecurityAttestations && {
+      ignoreSecurityAttestations: signingParams.ignoreSecurityAttestations,
+    }),
   });
 
   // Sign the permission enable hash with the owner

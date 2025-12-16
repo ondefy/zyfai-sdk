@@ -24,7 +24,7 @@ async function main() {
   const tokenAddress =
     process.env.TOKEN_ADDRESS ?? DEFAULT_USDC[chainId] ?? undefined;
   const amount =
-    process.env.DEPOSIT_AMOUNT ?? (chainId === 8453 ? "100000" : "100000"); // 0.1 USDC default
+    process.env.DEPOSIT_AMOUNT ?? (chainId === 8453 ? "1500000" : "1500000"); // 1.5 USDC default
 
   if (!tokenAddress) {
     throw new Error(

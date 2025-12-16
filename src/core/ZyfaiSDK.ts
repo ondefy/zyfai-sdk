@@ -59,6 +59,7 @@ import {
   getAccountType,
   isSafeDeployed,
   signSessionKey,
+  type SigningParams,
 } from "../utils/safe-account";
 import { SiweMessage } from "siwe";
 import { API_ENDPOINTS } from "../config/endpoints";
@@ -557,9 +558,14 @@ export class ZyfaiSDK {
       }
 
       // Fetch personalized session configuration (requires SIWE auth)
-      const sessionConfig = await this.httpClient.get<any[]>(
+      const sessionConfigResponse = await this.httpClient.get<any>(
         ENDPOINTS.SESSION_KEYS_CONFIG
       );
+
+      // Handle both array format and wrapped object format
+      const sessionConfig = Array.isArray(sessionConfigResponse)
+        ? sessionConfigResponse
+        : sessionConfigResponse.sessions;
 
       if (!sessionConfig || sessionConfig.length === 0) {
         throw new Error("No session configuration available from API");
@@ -571,11 +577,35 @@ export class ZyfaiSDK {
         chainId: BigInt(session.chainId),
       }));
 
-      // Sign the session key
+      // Detect executorProxy from session config by checking action targets
+      // When executorProxy is enabled, sessions target the executor proxy address
+      const EXECUTOR_PROXY_ADDRESS =
+        "0xF659d30D4EB88B06A909F20839D8959Bd77d8790".toLowerCase();
+      const hasExecutorProxy = sessionConfig.some((session: any) =>
+        session.actions?.some(
+          (action: any) =>
+            action.actionTarget?.toLowerCase() === EXECUTOR_PROXY_ADDRESS
+        )
+      );
+
+      // Determine account type for ignoreSecurityAttestations
+      const chainConfig = getChainConfig(chainId);
+      const accountType = await getAccountType(
+        userAddress as Address,
+        chainConfig.publicClient
+      );
+
+      const signingParams: SigningParams = {
+        permitGenericPolicy: !hasExecutorProxy,
+        ignoreSecurityAttestations: accountType === "Safe",
+      };
+
+      // Sign the session key with derived signing params
       const signatureResult = await this.signSessionKey(
         userAddress,
         chainId,
-        sessions
+        sessions,
+        signingParams
       );
 
       // Ensure signature is available (should always be from signSessionKey)
@@ -611,7 +641,8 @@ export class ZyfaiSDK {
   private async signSessionKey(
     userAddress: string,
     chainId: SupportedChainId,
-    sessions: Session[]
+    sessions: Session[],
+    signingParams?: SigningParams
   ): Promise<SessionKeyResponse> {
     try {
       // Validate inputs
@@ -660,7 +691,8 @@ export class ZyfaiSDK {
           environment: this.environment,
         },
         sessions,
-        allPublicClients
+        allPublicClients,
+        signingParams
       );
 
       // Get the Safe address
