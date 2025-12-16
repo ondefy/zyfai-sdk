@@ -12,7 +12,6 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
-  const dataApiKey = process.env.ZYFAI_DATA_API_KEY; // Optional: separate Data API key
   const bundlerApiKey = process.env.BUNDLER_API_KEY;
   const privateKey = process.env.PRIVATE_KEY;
 
@@ -26,7 +25,6 @@ async function main() {
 
   const sdk = new ZyfaiSDK({
     apiKey,
-    dataApiKey, // Uses apiKey if not provided
     bundlerApiKey,
     environment: "staging",
   });

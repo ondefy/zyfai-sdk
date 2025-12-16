@@ -40,8 +40,7 @@ pnpm add @zyfai/sdk viem
 import { ZyfaiSDK } from "@zyfai/sdk";
 
 const sdk = new ZyfaiSDK({
-  apiKey: "your-execution-api-key", // Execution API (transactions, Safe deployment)
-  dataApiKey: "your-data-api-key", // Data API (analytics, earnings, opportunities)
+  apiKey: "your-api-key", // API key for both Execution API and Data API
   bundlerApiKey: "your-bundler-api-key", // Required for Safe deployment
   environment: "production", // or 'staging' (default: 'production')
 });
@@ -49,12 +48,11 @@ const sdk = new ZyfaiSDK({
 
 **Configuration Options:**
 
-| Option          | Required | Description                                                                                     |
-| --------------- | -------- | ----------------------------------------------------------------------------------------------- |
-| `apiKey`        | Yes      | API key for Execution API (Safe deployment, transactions, session keys)                         |
-| `dataApiKey`    | No       | API key for Data API (earnings, opportunities, analytics). Defaults to `apiKey` if not provided |
-| `bundlerApiKey` | No\*     | Pimlico API key for Safe deployment (\*required for `deploySafe`)                               |
-| `environment`   | No       | `"production"` or `"staging"` (default: `"production"`)                                         |
+| Option          | Required | Description                                                                                          |
+| --------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `apiKey`        | Yes      | API key for both Execution API and Data API (Safe deployment, transactions, session keys, analytics) |
+| `bundlerApiKey` | No\*     | Pimlico API key for Safe deployment (\*required for `deploySafe`)                                    |
+| `environment`   | No       | `"production"` or `"staging"` (default: `"production"`)                                              |
 
 **API Endpoints by Environment:**
 
@@ -85,6 +83,7 @@ await sdk.deploySafe(userAddress, 42161);
 ```
 
 **Note:**
+
 - When using a wallet provider, the SDK automatically detects the chain from the provider. You can optionally specify `chainId` to override.
 - The SDK automatically performs SIWE authentication when connecting, so you don't need to call any additional authentication methods.
 
@@ -99,6 +98,7 @@ console.log("Account disconnected and authentication cleared");
 ```
 
 This method:
+
 - Clears the wallet connection
 - Resets authentication state
 - Clears the JWT token
@@ -124,7 +124,7 @@ const result = await sdk.deploySafe(userAddress, 42161);
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
   console.log("Status:", result.status); // 'deployed' | 'failed'
-  
+
   if (result.alreadyDeployed) {
     console.log("Safe was already deployed - no action needed");
   } else {
@@ -195,6 +195,7 @@ Connect account for signing transactions and authenticate via SIWE. Accepts eith
 **Returns:** Connected wallet address
 
 **Automatic Actions:**
+
 - Connects the wallet
 - Authenticates via SIWE (Sign-In with Ethereum)
 - Stores JWT token for authenticated endpoints
@@ -217,6 +218,7 @@ Disconnect account and clear all authentication state.
 **Returns:** Promise that resolves when disconnection is complete
 
 **Actions:**
+
 - Clears wallet connection
 - Resets authentication state
 - Clears JWT token
@@ -354,6 +356,7 @@ if (result.success) {
 ```
 
 **Important Notes:**
+
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
 - The SDK authenticates via SIWE before calling the withdrawal endpoints
 - Withdrawals are processed asynchronously - the `txHash` may not be immediately available
@@ -749,12 +752,8 @@ try {
 For running the examples, set up the following environment variables:
 
 ```bash
-# Required: Execution API key (Safe deployment, transactions, session keys)
-ZYFAI_API_KEY=your-execution-api-key
-
-# Optional: Data API key (earnings, opportunities, analytics)
-# Falls back to ZYFAI_API_KEY if not provided
-ZYFAI_DATA_API_KEY=your-data-api-key
+# Required: API key for both Execution API and Data API
+ZYFAI_API_KEY=your-api-key
 
 # Required for Safe deployment: Bundler API key (e.g., Pimlico)
 BUNDLER_API_KEY=your-pimlico-api-key
@@ -781,10 +780,12 @@ Check that the chain ID is in the supported chains list: Arbitrum (42161), Base 
 ### SIWE Authentication Issues in Browser
 
 The SDK automatically performs SIWE authentication when you call `connectAccount()`. The SDK automatically detects browser vs Node.js environments:
+
 - **Browser**: Uses `window.location.origin` for the SIWE message domain/uri to match the browser's automatic `Origin` header
 - **Node.js**: Uses the API endpoint URL
 
 If you encounter SIWE authentication failures in a browser, ensure:
+
 1. Your frontend origin is allowed by the API's CORS configuration
 2. You're using the correct `environment` setting (`staging` or `production`)
 3. The user approves the SIWE signature request in their wallet
@@ -796,6 +797,7 @@ If `createSessionKey` returns `{ alreadyActive: true }`, the user already has an
 ### Withdrawal Transaction Hash Not Available
 
 If `withdrawFunds` returns without a `txHash`, the withdrawal is being processed asynchronously by the backend. You can:
+
 1. Check the `message` field for status information
 2. Use `getHistory()` to track when the withdrawal transaction is processed
 3. The transaction will appear in the history once it's been executed

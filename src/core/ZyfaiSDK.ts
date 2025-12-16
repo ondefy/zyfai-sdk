@@ -79,14 +79,14 @@ export class ZyfaiSDK {
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, dataApiKey, environment, bundlerApiKey } = sdkConfig;
+    const { apiKey, environment, bundlerApiKey } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
     }
 
     this.environment = environment || "production";
-    this.httpClient = new HttpClient(apiKey, this.environment, dataApiKey);
+    this.httpClient = new HttpClient(apiKey, this.environment);
     this.bundlerApiKey = bundlerApiKey;
   }
 

@@ -12,7 +12,6 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
-  const dataApiKey = process.env.ZYFAI_DATA_API_KEY; // Optional: separate Data API key
   const bundlerApiKey = process.env.BUNDLER_API_KEY;
   const privateKey = process.env.PRIVATE_KEY;
 
@@ -26,7 +25,6 @@ async function main() {
 
   const sdk = new ZyfaiSDK({
     apiKey,
-    dataApiKey, // Uses apiKey if not provided
     bundlerApiKey,
     environment: "staging",
   });
@@ -48,19 +46,27 @@ async function main() {
 
   console.log(`Fetching daily earnings from ${startDate} to ${endDate}...`);
   try {
-    const response = await sdk.getDailyEarnings(smartWallet, startDate, endDate);
+    const response = await sdk.getDailyEarnings(
+      smartWallet,
+      startDate,
+      endDate
+    );
 
     console.log("\nDaily Earnings:");
     console.log("-".repeat(80));
     console.log(`  Wallet: ${response.walletAddress}`);
-    console.log(`  Date Range: ${response.filters.startDate} to ${response.filters.endDate}`);
+    console.log(
+      `  Date Range: ${response.filters.startDate} to ${response.filters.endDate}`
+    );
     console.log(`  Total Days: ${response.count}\n`);
 
     if (response.data.length === 0) {
       console.log("  No daily earnings data found.");
     } else {
       let totalDelta = 0;
-      console.log("  Date       | Total Earnings | Daily Delta  | Lifetime     | Unrealized");
+      console.log(
+        "  Date       | Total Earnings | Daily Delta  | Lifetime     | Unrealized"
+      );
       console.log("  " + "-".repeat(72));
 
       response.data.forEach((day: any) => {
@@ -68,9 +74,15 @@ async function main() {
         const date = day.snapshot_date || "n/a";
         const total = (day.total_earnings || 0).toFixed(4).padStart(10);
         const delta = (day.daily_total_delta || 0).toFixed(4).padStart(10);
-        const lifetime = (day.total_lifetime_earnings || 0).toFixed(4).padStart(10);
-        const unrealized = (day.total_unrealized_earnings || 0).toFixed(4).padStart(10);
-        console.log(`  ${date} | $${total} | $${delta} | $${lifetime} | $${unrealized}`);
+        const lifetime = (day.total_lifetime_earnings || 0)
+          .toFixed(4)
+          .padStart(10);
+        const unrealized = (day.total_unrealized_earnings || 0)
+          .toFixed(4)
+          .padStart(10);
+        console.log(
+          `  ${date} | $${total} | $${delta} | $${lifetime} | $${unrealized}`
+        );
       });
 
       console.log("  " + "-".repeat(72));
@@ -85,4 +97,3 @@ main().catch((error) => {
   console.error("Script failed:", error);
   process.exit(1);
 });
-

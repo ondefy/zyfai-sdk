@@ -12,7 +12,6 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
-  const dataApiKey = process.env.ZYFAI_DATA_API_KEY; // Optional: separate Data API key
   const bundlerApiKey = process.env.BUNDLER_API_KEY;
   const privateKey = process.env.PRIVATE_KEY;
 
@@ -26,7 +25,6 @@ async function main() {
 
   const sdk = new ZyfaiSDK({
     apiKey,
-    dataApiKey, // Uses apiKey if not provided
     bundlerApiKey,
     environment: "staging",
   });
@@ -72,13 +70,18 @@ async function main() {
       console.log("  Recent rebalances (last 5):");
       sameChain.data.slice(0, 5).forEach((r, index) => {
         console.log(`\n  ${index + 1}. ${r.timestamp}`);
-        console.log(`     From: ${r.fromProtocol || "n/a"} / ${r.fromPool || "n/a"}`);
+        console.log(
+          `     From: ${r.fromProtocol || "n/a"} / ${r.fromPool || "n/a"}`
+        );
         console.log(`     To: ${r.toProtocol || "n/a"} / ${r.toPool || "n/a"}`);
         if (r.amount) console.log(`     Amount: ${r.amount}`);
       });
     }
   } catch (error) {
-    console.log("Failed to get same-chain rebalances:", (error as Error).message);
+    console.log(
+      "Failed to get same-chain rebalances:",
+      (error as Error).message
+    );
   }
 
   // Get cross-chain rebalance info
@@ -98,12 +101,17 @@ async function main() {
         console.log(`\n  ${index + 1}. ${r.timestamp}`);
         console.log(`     From Chain: ${r.fromChainId || "n/a"}`);
         console.log(`     To Chain: ${r.toChainId || "n/a"}`);
-        console.log(`     From: ${r.fromProtocol || "n/a"} / ${r.fromPool || "n/a"}`);
+        console.log(
+          `     From: ${r.fromProtocol || "n/a"} / ${r.fromPool || "n/a"}`
+        );
         console.log(`     To: ${r.toProtocol || "n/a"} / ${r.toPool || "n/a"}`);
       });
     }
   } catch (error) {
-    console.log("Failed to get cross-chain rebalances:", (error as Error).message);
+    console.log(
+      "Failed to get cross-chain rebalances:",
+      (error as Error).message
+    );
   }
 }
 
@@ -111,4 +119,3 @@ main().catch((error) => {
   console.error("Script failed:", error);
   process.exit(1);
 });
-
