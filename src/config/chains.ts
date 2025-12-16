@@ -18,7 +18,7 @@ export const plasma = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ["https://rpc.plasma.io"],
+      http: ["https://rpc.plasma.to"],
     },
   },
   blockExplorers: {
@@ -44,7 +44,7 @@ export interface ChainConfig {
 const DEFAULT_RPC_URLS: Record<SupportedChainId, string> = {
   8453: "https://mainnet.base.org",
   42161: "https://arb1.arbitrum.io/rpc",
-  9745: "https://rpc.plasma.io",
+  9745: "https://rpc.plasma.to",
 };
 
 /**
