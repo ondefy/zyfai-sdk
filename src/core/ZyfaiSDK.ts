@@ -206,7 +206,7 @@ export class ZyfaiSDK {
    * ```typescript
    * await sdk.updateUserProfile({
    *   smartWallet: "0x1396730...",
-   *   chains: [8453, 42161],
+   *   chains: [8453],
    * });
    * ```
    */
@@ -314,7 +314,7 @@ export class ZyfaiSDK {
     // Update wallet client with new account
     if (this.walletClient && this.currentProvider) {
       const chainConfig = getChainConfig(
-        (this.walletClient.chain?.id as SupportedChainId) || 42161
+        (this.walletClient.chain?.id as SupportedChainId) || 8453
       );
 
       this.walletClient = createWalletClient({
@@ -344,7 +344,7 @@ export class ZyfaiSDK {
    * Accepts either a private key string or a modern wallet provider
    *
    * @param account - Private key string or wallet provider object
-   * @param chainId - Target chain ID (default: 42161 - Arbitrum)
+   * @param chainId - Target chain ID (default: 8453 - Base)
    * @returns The connected EOA address
    *
    * @example
@@ -358,7 +358,7 @@ export class ZyfaiSDK {
    */
   async connectAccount(
     account: string | any,
-    chainId: SupportedChainId = 42161 as SupportedChainId
+    chainId: SupportedChainId = 8453 as SupportedChainId
   ): Promise<Address> {
     if (!isSupportedChain(chainId)) {
       throw new Error(`Unsupported chain ID: ${chainId}`);
@@ -958,10 +958,10 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * // Deposit 100 USDC (6 decimals) to Safe on Arbitrum
+   * // Deposit 100 USDC (6 decimals) to Safe on Base
    * const result = await sdk.depositFunds(
    *   "0xUser...",
-   *   42161,
+   *   8453,
    *   "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // USDC
    *   "100000000" // 100 USDC = 100 * 10^6
    * );
@@ -1062,13 +1062,13 @@ export class ZyfaiSDK {
    * @example
    * ```typescript
    * // Full withdrawal
-   * const result = await sdk.withdrawFunds("0xUser...", 42161);
+   * const result = await sdk.withdrawFunds("0xUser...", 8453);
    * console.log(result.message); // "Withdrawal request sent"
    *
    * // Partial withdrawal of 50 USDC (6 decimals)
    * const result = await sdk.withdrawFunds(
    *   "0xUser...",
-   *   42161,
+   *   8453,
    *   "50000000", // 50 USDC = 50 * 10^6
    *   "0xReceiver..."
    * );
@@ -1184,7 +1184,7 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * const protocols = await sdk.getAvailableProtocols(42161);
+   * const protocols = await sdk.getAvailableProtocols(8453);
    * protocols.forEach(protocol => {
    *   console.log(`${protocol.name}: ${protocol.minApy}% - ${protocol.maxApy}% APY`);
    * });
@@ -1227,7 +1227,7 @@ export class ZyfaiSDK {
    * const positions = await sdk.getPositions(userAddress);
    *
    * // Get positions on a specific chain
-   * const arbPositions = await sdk.getPositions(userAddress, 42161);
+   * const basePositions = await sdk.getPositions(userAddress, 8453);
    * ```
    */
   async getPositions(
