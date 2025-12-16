@@ -48,6 +48,15 @@ export interface UpdateUserProfileResponse {
 }
 
 /** @internal */
+export interface InitializeUserResponse {
+  success: boolean;
+  userId: string;
+  smartWallet?: Address;
+  chainId?: number;
+  message?: string;
+}
+
+/** @internal */
 export interface LoginResponse {
   userId: string;
   accessToken?: string;
@@ -456,6 +465,11 @@ export interface WithdrawResponse {
   amount: string;
   receiver: string;
   status: "pending" | "confirmed" | "failed";
+}
+
+export interface AddWalletToSdkResponse {
+  success: boolean;
+  message: string;
 }
 
 // Session Types

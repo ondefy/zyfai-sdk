@@ -163,7 +163,7 @@ Only support these chains:
 - **Base** (8453)
 - **Plasma** (9745)
 
-Default chain: **Arbitrum (42161)**
+Default chain: **Base (8453)**
 
 ### Dependencies
 

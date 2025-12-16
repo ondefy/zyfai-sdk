@@ -34,10 +34,10 @@ const sdk = new ZyfaiSDK({
 
 // 2. Connect account and authenticate (happens automatically)
 // Option A: With private key (chainId required)
-await sdk.connectAccount("0x...", 42161); // Automatically authenticates via SIWE
+await sdk.connectAccount("0x...", 8453); // Automatically authenticates via SIWE
 
-// Option B: With wallet provider (chainId defaults to 42161)
-await sdk.connectAccount(walletProvider, 42161); // Automatically authenticates via SIWE
+// Option B: With wallet provider (chainId defaults to 8453)
+await sdk.connectAccount(walletProvider, 8453); // Automatically authenticates via SIWE
 
 // 3. Call functions with explicit parameters
 // The connected account is used only for signing, not for determining which user's data to fetch
@@ -94,6 +94,7 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 | `getActiveWallets`         | Execution API | No            |
 | `getSmartWalletByEOA`      | Execution API | No            |
 | `getRebalanceFrequency`    | Execution API | No            |
+| `addWalletToSdk`           | Execution API | Yes (SDK Key) |
 | `getOnchainEarnings`       | **Data API**  | Yes (JWT)\*   |
 | `calculateOnchainEarnings` | **Data API**  | Yes (JWT)\*   |
 | `getDailyEarnings`         | **Data API**  | Yes (JWT)\*   |
@@ -283,7 +284,7 @@ interface SessionKeyResponse {
 **Simple (Recommended):**
 
 ```typescript
-const result = await sdk.createSessionKey(userAddress, 42161);
+const result = await sdk.createSessionKey(userAddress, 8453);
 
 // Check if session key already existed
 if (result.alreadyActive) {
@@ -685,7 +686,43 @@ const frequency = await sdk.getRebalanceFrequency(walletAddress);
 
 ---
 
-### 22. Get Debank Portfolio (Premium)
+### 22. Add Wallet to SDK API Key
+
+Add a wallet address to the SDK API key's allowedWallets list. This endpoint requires SDK API key authentication (API key starting with "zyfai\_").
+
+#### Function Signature
+
+```typescript
+addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>
+```
+
+#### Request Parameters
+
+| Parameter       | Type   | Required | Description                               |
+| --------------- | ------ | -------- | ----------------------------------------- |
+| `walletAddress` | string | ✅       | Wallet address to add to the allowed list |
+
+#### Response Type
+
+```typescript
+interface AddWalletToSdkResponse {
+  success: boolean;
+  message: string; // Status message
+}
+```
+
+#### Usage Examples
+
+```typescript
+const result = await sdk.addWalletToSdk("0x1234...");
+console.log(result.message); // "Wallet successfully added to allowed list"
+```
+
+**Note:** This method is only available when using an SDK API key (starts with "zyfai\_"). Regular API keys cannot use this endpoint.
+
+---
+
+### 23. Get Debank Portfolio (Premium)
 
 ```typescript
 const portfolio = await sdk.getDebankPortfolio(walletAddress);
@@ -722,10 +759,10 @@ const provider = await connector.getProvider(); // from wagmi, web3-react, etc.
 
 const sdk = new ZyfaiSDK(API_KEY);
 // Connect and authenticate automatically
-await sdk.connectAccount(provider, 42161);
+await sdk.connectAccount(provider, 8453);
 
 const userAddress = "0xUser...";
-await sdk.deploySafe(userAddress, 42161);
+await sdk.deploySafe(userAddress, 8453);
 
 // Disconnect when done
 await sdk.disconnectAccount();
@@ -741,11 +778,11 @@ const sdk = new ZyfaiSDK({
 });
 
 // Connect wallet (automatically authenticates via SIWE)
-await sdk.connectAccount(privateKey, 42161);
+await sdk.connectAccount(privateKey, 8453);
 
 const userAddress = "0xUser...";
-const chainId = 42161; // Arbitrum
-const USDC = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
+const chainId = 8453; // Base
+const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 // 1. Deploy Safe
 const wallet = await sdk.getSmartWalletAddress(userAddress, chainId);
@@ -807,7 +844,7 @@ class YieldService {
     });
   }
 
-  async connectAccount(account: string | any, chainId: number = 42161) {
+  async connectAccount(account: string | any, chainId: number = 8453) {
     // Automatically authenticates via SIWE
     await this.sdk.connectAccount(account, chainId);
   }
@@ -844,7 +881,12 @@ class YieldService {
     amount?: string,
     receiver?: string
   ) {
-    const result = await this.sdk.withdrawFunds(userAddress, chainId, amount, receiver);
+    const result = await this.sdk.withdrawFunds(
+      userAddress,
+      chainId,
+      amount,
+      receiver
+    );
     // Handle async withdrawal
     if (!result.txHash) {
       console.log("Withdrawal initiated:", result.message);
