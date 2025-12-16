@@ -78,6 +78,7 @@ export class ZyfaiSDK {
   private hasActiveSessionKey: boolean = false; // Stored from login response
   private environment: Environment; // TODO: The environment should be removed. Having the same key for staging and production is not ideal, but for now it's fine.
   private currentProvider: any = null; // Store reference to current provider for event handling
+  private currentChainId: SupportedChainId | null = null; // Store current chain ID for private key connections
 
   constructor(config: SDKConfig | string) {
     // Support both object and string initialization
@@ -112,7 +113,8 @@ export class ZyfaiSDK {
       const walletClient = this.getWalletClient();
       // Ensure address is EIP-55 checksummed (required by SIWE)
       const userAddress = getAddress(walletClient.account!.address);
-      const chainId = walletClient.chain?.id || 8453; // Default to Base
+      // Use stored chain ID if available (for private key connections), otherwise use wallet client's chain or default
+      const chainId = this.currentChainId || walletClient.chain?.id || 8453; // Default to Base
 
       // Step 1: Get challenge/nonce
       const challengeResponse = await this.httpClient.post<{
@@ -131,6 +133,7 @@ export class ZyfaiSDK {
         typeof globalThis !== "undefined"
           ? (globalThis as any).window
           : undefined;
+      const isNodeJs = !globalWindow?.location?.origin;
       if (globalWindow?.location?.origin) {
         uri = globalWindow.location.origin;
         domain = globalWindow.location.host;
@@ -165,7 +168,15 @@ export class ZyfaiSDK {
         {
           message: messageObj,
           signature,
-        }
+        },
+        // Set Origin header in Node.js to match message.uri (required by backend validation)
+        isNodeJs
+          ? {
+              headers: {
+                Origin: uri,
+              },
+            }
+          : undefined
       );
       const authToken = loginResponse.accessToken;
 
@@ -312,6 +323,10 @@ export class ZyfaiSDK {
         transport: custom(this.currentProvider),
       });
 
+      // Update stored chain ID
+      this.currentChainId =
+        (this.walletClient.chain?.id as SupportedChainId) || null;
+
       // Re-authenticate with new account
       try {
         await this.authenticateUser();
@@ -351,6 +366,7 @@ export class ZyfaiSDK {
 
     // Reset authentication when connecting a new account
     this.authenticatedUserId = null;
+    this.currentChainId = null;
     this.httpClient.clearAuthToken();
 
     // Remove existing event listeners if any
@@ -374,6 +390,9 @@ export class ZyfaiSDK {
       }
 
       this.signer = privateKeyToAccount(privateKey as Hex);
+
+      // Store chain ID for private key connections (needed for authentication)
+      this.currentChainId = chainId;
 
       // Create wallet client for the signer
       this.walletClient = createWalletClient({
@@ -412,6 +431,7 @@ export class ZyfaiSDK {
 
         connectedAddress = accounts[0];
         this.currentProvider = provider;
+        this.currentChainId = chainId; // Store chain ID for consistency
 
         // Set up event listener for account changes
         if (provider.on) {
@@ -427,6 +447,7 @@ export class ZyfaiSDK {
 
         connectedAddress = provider.account.address;
         this.currentProvider = null; // No event support for viem clients
+        this.currentChainId = chainId; // Store chain ID for consistency
       } else {
         throw new Error(
           "Invalid wallet provider. Expected EIP-1193 provider or viem WalletClient."
@@ -464,6 +485,7 @@ export class ZyfaiSDK {
     this.signer = null;
     this.walletClient = null;
     this.currentProvider = null;
+    this.currentChainId = null;
 
     // Clear authentication state
     this.authenticatedUserId = null;
@@ -479,10 +501,12 @@ export class ZyfaiSDK {
    */
   private getWalletClient(chainId?: SupportedChainId): WalletClient {
     if (this.signer) {
+      // Use provided chainId, stored chainId, or default to Base
+      const targetChainId = chainId || this.currentChainId || 8453;
       return createWalletClient({
         account: this.signer,
-        chain: getChainConfig(chainId || 8453).chain,
-        transport: http(getChainConfig(chainId || 8453).rpcUrl),
+        chain: getChainConfig(targetChainId).chain,
+        transport: http(getChainConfig(targetChainId).rpcUrl),
       });
     } else {
       if (!this.walletClient) {
