@@ -760,14 +760,17 @@ export class ZyfaiSDK {
         chainId: BigInt(session.chainId),
       }));
 
-      // Detect executorProxy from session config by checking action targets
-      // When executorProxy is enabled, sessions target the executor proxy address
-      const EXECUTOR_PROXY_ADDRESS =
-        "0xF659d30D4EB88B06A909F20839D8959Bd77d8790".toLowerCase();
-      const hasExecutorProxy = sessionConfig.some((session: any) =>
+      // Detect permitGenericPolicy by checking for DEFAULT action target
+      // This matches the frontend logic exactly (rhinestone.utils.ts lines 468-474)
+      const DEFAULT_ACTION_TARGET =
+        "0x0000000000000000000000000000000000000001";
+      const DEFAULT_ACTION_SELECTOR = "0x00000001";
+
+      const permitGenericPolicy = sessionConfig.some((session: any) =>
         session.actions?.some(
           (action: any) =>
-            action.actionTarget?.toLowerCase() === EXECUTOR_PROXY_ADDRESS
+            action.actionTarget === DEFAULT_ACTION_TARGET &&
+            action.actionTargetSelector === DEFAULT_ACTION_SELECTOR
         )
       );
 
@@ -779,7 +782,7 @@ export class ZyfaiSDK {
       );
 
       const signingParams: SigningParams = {
-        permitGenericPolicy: !hasExecutorProxy,
+        permitGenericPolicy,
         ignoreSecurityAttestations: accountType === "Safe",
       };
 
@@ -799,8 +802,11 @@ export class ZyfaiSDK {
       // Update user protocols before activating session key
       await this.updateUserProtocols(chainId);
 
+      const signer = sessions[0].sessionValidator as Address;
+      console.log("Session validator:", signer);
       // Register the session key on the backend so it becomes active immediately
       const activation = await this.activateSessionKey(
+        signer,
         signatureResult.signature,
         signatureResult.sessionNonces
       );
@@ -941,12 +947,14 @@ export class ZyfaiSDK {
    * Activate session key via ZyFAI API
    */
   private async activateSessionKey(
+    signer: Address,
     signature: Hex,
     sessionNonces?: bigint[]
   ): Promise<AddSessionKeyResponse> {
     const nonces = this.normalizeSessionNonces(sessionNonces);
 
     const payload: AddSessionKeyRequest = {
+      signer,
       hash: signature,
       nonces,
     };

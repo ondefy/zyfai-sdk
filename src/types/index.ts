@@ -66,6 +66,7 @@ export interface LoginResponse {
 
 /** @internal */
 export interface AddSessionKeyRequest {
+  signer: Address;
   hash: Hex;
   nonces: number[];
 }

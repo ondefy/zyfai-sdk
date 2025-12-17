@@ -432,9 +432,8 @@ export const signSessionKey = async (
     clients,
     permitGenericPolicy: signingParams?.permitGenericPolicy ?? true,
     sessionNonces,
-    ...(signingParams?.ignoreSecurityAttestations && {
-      ignoreSecurityAttestations: signingParams.ignoreSecurityAttestations,
-    }),
+    ignoreSecurityAttestations:
+      signingParams?.ignoreSecurityAttestations ?? false,
   });
 
   // Sign the permission enable hash with the owner
