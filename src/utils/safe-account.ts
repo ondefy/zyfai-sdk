@@ -80,8 +80,6 @@ export const getSafeAccount = async (
   // When safeOwnerAddress is provided, we validate that it matches the connected wallet
   // This ensures the signer can actually authorize transactions
   const signerAddress = owner.account.address;
-  console.log("signerAddress", signerAddress);
-  console.log("safeOwnerAddress", safeOwnerAddress);
 
   if (!signerAddress) {
     throw new Error("Owner account address is required");
@@ -103,13 +101,17 @@ export const getSafeAccount = async (
   // If safeOwnerAddress is provided and different from signer, this is likely a read-only operation
   // (e.g., calculating address for API calls). We allow this for address calculation,
   // but the signer won't be able to sign transactions for this Safe.
-  const isReadOnly = safeOwnerAddress && 
+  const isReadOnly =
+    safeOwnerAddress &&
     safeOwnerAddress.toLowerCase() !== signerAddress.toLowerCase();
 
   // Only validate address matching for non-read-only operations
   // (When we actually need to sign transactions)
-  if (!isReadOnly && safeOwnerAddress && 
-      safeOwnerAddress.toLowerCase() !== signerAddress.toLowerCase()) {
+  if (
+    !isReadOnly &&
+    safeOwnerAddress &&
+    safeOwnerAddress.toLowerCase() !== signerAddress.toLowerCase()
+  ) {
     throw new Error(
       `Connected wallet address (${signerAddress}) must match the Safe owner address (${safeOwnerAddress}). ` +
         `Please connect with the correct wallet.`
@@ -124,11 +126,28 @@ export const getSafeAccount = async (
   // Convert string salt to hex if needed
   const saltHex = fromHex(toHex(effectiveSalt), "bigint");
 
-  // Add the condition if its a private key account then set the owner.account to have address of the private key as toSafeSmartAccount expects an account object
-  console.log("owner", owner);
+  const signer = {
+    ...owner.account,
+    address: signerAddress as Address, // Override with the signer address at top level
+    signMessage: async (message: { raw: Hex } | string): Promise<Hex> => {
+      if (typeof message === "string") {
+        return await owner.signMessage({
+          account: owner.account!,
+          message,
+        });
+      } else {
+        return await owner.signMessage({
+          account: owner.account!,
+          message: {
+            raw: message.raw,
+          },
+        });
+      }
+    },
+  } as any;
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
-    owners: [owner], // Pass the owner object with address and signMessage capability
+    owners: [signer], // Pass the signer object with address at top level and signMessage capability
     version: "1.4.1",
     entryPoint: {
       address: entryPoint07Address,
@@ -146,7 +165,7 @@ export const getSafeAccount = async (
     ],
     saltNonce: saltHex,
   });
-  console.log("safeAccount", safeAccount);
+
   return safeAccount;
 };
 
