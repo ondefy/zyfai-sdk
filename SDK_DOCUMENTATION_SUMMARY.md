@@ -26,8 +26,7 @@ The SDK connects to two separate backends:
 ```typescript
 // 1. Initialize SDK with configuration
 const sdk = new ZyfaiSDK({
-  apiKey: "YOUR_EXECUTION_API_KEY", // Execution API
-  dataApiKey: "YOUR_DATA_API_KEY", // Data API (optional, defaults to apiKey)
+  apiKey: "YOUR_API_KEY", // API key for both Execution API and Data API
   bundlerApiKey: "YOUR_BUNDLER_API_KEY", // Required for Safe deployment
   environment: "production", // or 'staging'
 });
@@ -53,8 +52,7 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 
 | Option          | Required | Description                                             |
 | --------------- | -------- | ------------------------------------------------------- |
-| `apiKey`        | Yes      | API key for Execution API                               |
-| `dataApiKey`    | No       | API key for Data API (defaults to `apiKey`)             |
+| `apiKey`        | Yes      | API key for both Execution API and Data API             |
 | `bundlerApiKey` | No\*     | Pimlico API key (\*required for `deploySafe`)           |
 | `environment`   | No       | `"production"` or `"staging"` (default: `"production"`) |
 

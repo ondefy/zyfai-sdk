@@ -12,7 +12,6 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
-  const dataApiKey = process.env.ZYFAI_DATA_API_KEY; // Optional: separate Data API key
   const bundlerApiKey = process.env.BUNDLER_API_KEY;
   const privateKey = process.env.PRIVATE_KEY;
 
@@ -26,7 +25,6 @@ async function main() {
 
   const sdk = new ZyfaiSDK({
     apiKey,
-    dataApiKey, // Uses apiKey if not provided
     bundlerApiKey,
     environment: "staging",
   });
@@ -54,14 +52,19 @@ async function main() {
       console.log(`  Requested Days: ${response.requestedDays || period}`);
       console.log(`  Actual Days: ${response.totalDays}`);
       console.log(
-        `  Average Weighted APY: ${response.averageWeightedApy?.toFixed(4) || "n/a"}%`
+        `  Average Weighted APY: ${
+          response.averageWeightedApy?.toFixed(4) || "n/a"
+        }%`
       );
 
       const historyEntries = Object.entries(response.history || {});
       if (historyEntries.length > 0) {
         console.log(`\n  Daily Breakdown (last 5 days):`);
         historyEntries.slice(-5).forEach(([date, entry]) => {
-          const apy = typeof entry === "object" && entry.apy ? entry.apy.toFixed(2) : "n/a";
+          const apy =
+            typeof entry === "object" && entry.apy
+              ? entry.apy.toFixed(2)
+              : "n/a";
           const weighted =
             typeof entry === "object" && entry.weightedApy
               ? entry.weightedApy.toFixed(2)
@@ -81,4 +84,3 @@ main().catch((error) => {
   console.error("Script failed:", error);
   process.exit(1);
 });
-

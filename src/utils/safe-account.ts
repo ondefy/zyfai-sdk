@@ -101,13 +101,17 @@ export const getSafeAccount = async (
   // If safeOwnerAddress is provided and different from signer, this is likely a read-only operation
   // (e.g., calculating address for API calls). We allow this for address calculation,
   // but the signer won't be able to sign transactions for this Safe.
-  const isReadOnly = safeOwnerAddress && 
+  const isReadOnly =
+    safeOwnerAddress &&
     safeOwnerAddress.toLowerCase() !== signerAddress.toLowerCase();
 
   // Only validate address matching for non-read-only operations
   // (When we actually need to sign transactions)
-  if (!isReadOnly && safeOwnerAddress && 
-      safeOwnerAddress.toLowerCase() !== signerAddress.toLowerCase()) {
+  if (
+    !isReadOnly &&
+    safeOwnerAddress &&
+    safeOwnerAddress.toLowerCase() !== signerAddress.toLowerCase()
+  ) {
     throw new Error(
       `Connected wallet address (${signerAddress}) must match the Safe owner address (${safeOwnerAddress}). ` +
         `Please connect with the correct wallet.`
@@ -122,9 +126,29 @@ export const getSafeAccount = async (
   // Convert string salt to hex if needed
   const saltHex = fromHex(toHex(effectiveSalt), "bigint");
 
+  const signer = {
+    ...owner,
+    address: signerAddress as Address, // Override with the signer address at top level
+    signMessage: async (message: { raw: Hex } | string): Promise<Hex> => {
+      if (typeof message === "string") {
+        return await owner.signMessage({
+          account: owner.account!,
+          message,
+        });
+      } else {
+        return await owner.signMessage({
+          account: owner.account!,
+          message: {
+            raw: message.raw,
+          },
+        });
+      }
+    },
+  } as any;
+
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
-    owners: [owner], // Pass the owner object with address and signMessage capability
+    owners: [signer], // Pass the owner object with address and signMessage capability
     version: "1.4.1",
     entryPoint: {
       address: entryPoint07Address,
@@ -350,6 +374,11 @@ export const executeTransactions = async (
   }
 };
 
+export interface SigningParams {
+  permitGenericPolicy: boolean;
+  ignoreSecurityAttestations: boolean;
+}
+
 /**
  * Sign session key for delegated transactions
  * Creates a signature that allows the session key to execute transactions on behalf of the Safe
@@ -357,7 +386,8 @@ export const executeTransactions = async (
 export const signSessionKey = async (
   config: SafeAccountConfig,
   sessions: Session[],
-  allPublicClients?: PublicClient[]
+  allPublicClients?: PublicClient[],
+  signingParams?: SigningParams
 ): Promise<{ signature: Hex; sessionNonces: bigint[] }> => {
   const { owner, publicClient } = config;
 
@@ -401,8 +431,10 @@ export const signSessionKey = async (
     sessions,
     account,
     clients,
-    permitGenericPolicy: true,
+    permitGenericPolicy: signingParams?.permitGenericPolicy ?? true,
     sessionNonces,
+    ignoreSecurityAttestations:
+      signingParams?.ignoreSecurityAttestations ?? false,
   });
 
   // Sign the permission enable hash with the owner

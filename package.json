@@ -1,6 +1,6 @@
 {
   "name": "@zyfai/sdk",
-  "version": "0.1.14",
+  "version": "0.1.17",
   "description": "TypeScript SDK for ZyFAI Yield Optimization Engine - Deploy Safe smart wallets, manage session keys, and interact with DeFi protocols",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

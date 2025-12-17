@@ -40,8 +40,7 @@ pnpm add @zyfai/sdk viem
 import { ZyfaiSDK } from "@zyfai/sdk";
 
 const sdk = new ZyfaiSDK({
-  apiKey: "your-execution-api-key", // Execution API (transactions, Safe deployment)
-  dataApiKey: "your-data-api-key", // Data API (analytics, earnings, opportunities)
+  apiKey: "your-api-key", // API key for both Execution API and Data API
   bundlerApiKey: "your-bundler-api-key", // Required for Safe deployment
   environment: "production", // or 'staging' (default: 'production')
 });
@@ -49,12 +48,11 @@ const sdk = new ZyfaiSDK({
 
 **Configuration Options:**
 
-| Option          | Required | Description                                                                                     |
-| --------------- | -------- | ----------------------------------------------------------------------------------------------- |
-| `apiKey`        | Yes      | API key for Execution API (Safe deployment, transactions, session keys)                         |
-| `dataApiKey`    | No       | API key for Data API (earnings, opportunities, analytics). Defaults to `apiKey` if not provided |
-| `bundlerApiKey` | No\*     | Pimlico API key for Safe deployment (\*required for `deploySafe`)                               |
-| `environment`   | No       | `"production"` or `"staging"` (default: `"production"`)                                         |
+| Option          | Required | Description                                                                                          |
+| --------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `apiKey`        | Yes      | API key for both Execution API and Data API (Safe deployment, transactions, session keys, analytics) |
+| `bundlerApiKey` | No\*     | Pimlico API key for Safe deployment (\*required for `deploySafe`)                                    |
+| `environment`   | No       | `"production"` or `"staging"` (default: `"production"`)                                              |
 
 **API Endpoints by Environment:**
 
@@ -786,12 +784,8 @@ try {
 For running the examples, set up the following environment variables:
 
 ```bash
-# Required: Execution API key (Safe deployment, transactions, session keys)
-ZYFAI_API_KEY=your-execution-api-key
-
-# Optional: Data API key (earnings, opportunities, analytics)
-# Falls back to ZYFAI_API_KEY if not provided
-ZYFAI_DATA_API_KEY=your-data-api-key
+# Required: API key for both Execution API and Data API
+ZYFAI_API_KEY=your-api-key
 
 # Required for Safe deployment: Bundler API key (e.g., Pimlico)
 BUNDLER_API_KEY=your-pimlico-api-key

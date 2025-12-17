@@ -8,10 +8,8 @@ export type Hex = `0x${string}`;
 export type Environment = "staging" | "production";
 
 export interface SDKConfig {
-  /** API key for the Execution API */
+  /** API key for both Execution API and Data API */
   apiKey: string;
-  /** API key for the Data API - defaults to apiKey if not provided */
-  dataApiKey?: string;
   /** Environment: 'staging' or 'production' (default: 'production') */
   environment?: Environment;
   /** Bundler API key for Safe deployment (e.g., Pimlico) */
@@ -68,6 +66,7 @@ export interface LoginResponse {
 
 /** @internal */
 export interface AddSessionKeyRequest {
+  signer: Address;
   hash: Hex;
   nonces: number[];
 }

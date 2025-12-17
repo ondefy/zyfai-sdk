@@ -19,7 +19,6 @@ export class HttpClient {
   private client: AxiosInstance;
   private dataClient: AxiosInstance;
   private apiKey: string;
-  private dataApiKey: string;
   private authToken: string | null = null;
   private origin: string;
   private host: string;
@@ -28,17 +27,11 @@ export class HttpClient {
   /**
    * Create HTTP client for both Execution API and Data API
    *
-   * @param apiKey - API key for Execution API
+   * @param apiKey - API key for both Execution API and Data API
    * @param environment - 'staging' or 'production'
-   * @param dataApiKey - API key for Data API - defaults to apiKey
    */
-  constructor(
-    apiKey: string,
-    environment: Environment = "production",
-    dataApiKey?: string
-  ) {
+  constructor(apiKey: string, environment: Environment = "production") {
     this.apiKey = apiKey;
-    this.dataApiKey = dataApiKey || apiKey; // Fall back to main API key if not provided
     this.environment = environment;
 
     // Execution API (v1)
@@ -62,7 +55,7 @@ export class HttpClient {
       baseURL: `${dataEndpoint}${DATA_API_VERSION}`,
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": this.dataApiKey,
+        "X-API-Key": this.apiKey,
       },
       timeout: 30000,
     });
@@ -202,7 +195,7 @@ export class HttpClient {
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      "X-API-Key": this.dataApiKey,
+      "X-API-Key": this.apiKey,
       ...(config?.headers as Record<string, string>),
     };
 
@@ -223,7 +216,7 @@ export class HttpClient {
     // Request interceptor for data API
     this.dataClient.interceptors.request.use(
       (config) => {
-        config.headers["X-API-Key"] = this.dataApiKey;
+        config.headers["X-API-Key"] = this.apiKey;
 
         // Forward JWT token if available (required for protected data API endpoints)
         if (this.authToken) {

@@ -65,6 +65,7 @@ import {
   getAccountType,
   isSafeDeployed,
   signSessionKey,
+  type SigningParams,
 } from "../utils/safe-account";
 import { SiweMessage } from "siwe";
 import { API_ENDPOINTS } from "../config/endpoints";
@@ -85,14 +86,14 @@ export class ZyfaiSDK {
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, dataApiKey, environment, bundlerApiKey } = sdkConfig;
+    const { apiKey, environment, bundlerApiKey } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
     }
 
     this.environment = environment || "production";
-    this.httpClient = new HttpClient(apiKey, this.environment, dataApiKey);
+    this.httpClient = new HttpClient(apiKey, this.environment);
     this.bundlerApiKey = bundlerApiKey;
   }
 
@@ -740,9 +741,14 @@ export class ZyfaiSDK {
       }
 
       // Fetch personalized session configuration (requires SIWE auth)
-      const sessionConfig = await this.httpClient.get<any[]>(
+      const sessionConfigResponse = await this.httpClient.get<any>(
         ENDPOINTS.SESSION_KEYS_CONFIG
       );
+
+      // Handle both array format and wrapped object format
+      const sessionConfig = Array.isArray(sessionConfigResponse)
+        ? sessionConfigResponse
+        : sessionConfigResponse.sessions;
 
       if (!sessionConfig || sessionConfig.length === 0) {
         throw new Error("No session configuration available from API");
@@ -754,11 +760,38 @@ export class ZyfaiSDK {
         chainId: BigInt(session.chainId),
       }));
 
-      // Sign the session key
+      // Detect permitGenericPolicy by checking for DEFAULT action target
+      // This matches the frontend logic exactly (rhinestone.utils.ts lines 468-474)
+      const DEFAULT_ACTION_TARGET =
+        "0x0000000000000000000000000000000000000001";
+      const DEFAULT_ACTION_SELECTOR = "0x00000001";
+
+      const permitGenericPolicy = sessionConfig.some((session: any) =>
+        session.actions?.some(
+          (action: any) =>
+            action.actionTarget === DEFAULT_ACTION_TARGET &&
+            action.actionTargetSelector === DEFAULT_ACTION_SELECTOR
+        )
+      );
+
+      // Determine account type for ignoreSecurityAttestations
+      const chainConfig = getChainConfig(chainId);
+      const accountType = await getAccountType(
+        userAddress as Address,
+        chainConfig.publicClient
+      );
+
+      const signingParams: SigningParams = {
+        permitGenericPolicy,
+        ignoreSecurityAttestations: accountType === "Safe",
+      };
+
+      // Sign the session key with derived signing params
       const signatureResult = await this.signSessionKey(
         userAddress,
         chainId,
-        sessions
+        sessions,
+        signingParams
       );
 
       // Ensure signature is available (should always be from signSessionKey)
@@ -769,8 +802,11 @@ export class ZyfaiSDK {
       // Update user protocols before activating session key
       await this.updateUserProtocols(chainId);
 
+      const signer = sessions[0].sessionValidator as Address;
+      console.log("Session validator:", signer);
       // Register the session key on the backend so it becomes active immediately
       const activation = await this.activateSessionKey(
+        signer as Address,
         signatureResult.signature,
         signatureResult.sessionNonces
       );
@@ -797,7 +833,8 @@ export class ZyfaiSDK {
   private async signSessionKey(
     userAddress: string,
     chainId: SupportedChainId,
-    sessions: Session[]
+    sessions: Session[],
+    signingParams?: SigningParams
   ): Promise<SessionKeyResponse> {
     try {
       // Validate inputs
@@ -846,7 +883,8 @@ export class ZyfaiSDK {
           environment: this.environment,
         },
         sessions,
-        allPublicClients
+        allPublicClients,
+        signingParams
       );
 
       // Get the Safe address
@@ -909,12 +947,14 @@ export class ZyfaiSDK {
    * Activate session key via ZyFAI API
    */
   private async activateSessionKey(
+    signer: Address,
     signature: Hex,
     sessionNonces?: bigint[]
   ): Promise<AddSessionKeyResponse> {
     const nonces = this.normalizeSessionNonces(sessionNonces);
 
     const payload: AddSessionKeyRequest = {
+      signer,
       hash: signature,
       nonces,
     };
