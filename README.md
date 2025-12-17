@@ -25,25 +25,30 @@ pnpm add @zyfai/sdk viem
 
 ## Prerequisites
 
-1. **Execution API Key**: API key for the Execution API (Safe deployment, transactions, session keys)
-2. **Data API Key** (optional): API key for the Data API (earnings, opportunities, analytics). If not provided, uses the Execution API key.
-3. **Bundler API Key**: Required for Safe deployment. Get it from:
+1. **API Key**: Single API key for both Execution API (Safe deployment, transactions, session keys) and Data API (earnings, opportunities, analytics)
+2. **Bundler API Key**: Required for Safe deployment. Get it from:
    - [Pimlico](https://www.pimlico.io/) (Recommended)
 
-**Get your API keys from [ZyFAI Dashboard](https://app.zyf.ai)**
+**Get your API key from [ZyFAI Dashboard](https://app.zyf.ai)**
 
 ## Quick Start
 
 ### Initialize the SDK
 
+The SDK can be initialized with either a configuration object or just the API key string:
+
 ```typescript
 import { ZyfaiSDK } from "@zyfai/sdk";
 
+// Option 1: Full configuration object
 const sdk = new ZyfaiSDK({
   apiKey: "your-api-key", // API key for both Execution API and Data API
   bundlerApiKey: "your-bundler-api-key", // Required for Safe deployment
   environment: "production", // or 'staging' (default: 'production')
 });
+
+// Option 2: Simple string initialization (API key only)
+const sdk = new ZyfaiSDK("your-api-key");
 ```
 
 **Configuration Options:**
@@ -55,6 +60,8 @@ const sdk = new ZyfaiSDK({
 | `environment`   | No       | `"production"` or `"staging"` (default: `"production"`)                                              |
 
 **API Endpoints by Environment:**
+
+The SDK uses a single API key for both Execution API and Data API:
 
 | Environment  | Execution API                | Data API                         |
 | ------------ | ---------------------------- | -------------------------------- |
@@ -174,9 +181,25 @@ new ZyfaiSDK(config: SDKConfig | string)
 **Parameters:**
 
 - `config`: Configuration object or API key string
-  - `apiKey` (string): Your ZyFAI API key
-  - `environment` ('production' | 'staging', optional): API environment (default: 'production')
-  - `bundlerApiKey` (string, optional): Bundler API key for Safe deployment (required for deploySafe)
+  - If a string is provided, it's treated as the `apiKey`
+  - If an object is provided:
+    - `apiKey` (string): Your ZyFAI API key (required)
+    - `environment` ('production' | 'staging', optional): API environment (default: 'production')
+    - `bundlerApiKey` (string, optional): Bundler API key for Safe deployment (required for deploySafe)
+
+**Examples:**
+
+```typescript
+// Option 1: String initialization (API key only)
+const sdk = new ZyfaiSDK("your-api-key");
+
+// Option 2: Object initialization (full configuration)
+const sdk = new ZyfaiSDK({
+  apiKey: "your-api-key",
+  bundlerApiKey: "your-bundler-api-key",
+  environment: "production",
+});
+```
 
 #### Methods
 
@@ -266,6 +289,7 @@ Deploy a Safe smart wallet for a user.
   safeAddress: Address;
   txHash: string;
   status: "deployed" | "failed";
+  alreadyDeployed?: boolean; // True if the Safe was already deployed (no new deployment needed)
 }
 ```
 
@@ -449,10 +473,50 @@ console.log("Active wallet count:", wallets.count);
 
 #### Get Smart Wallets by EOA
 
+Get the smart wallet address associated with an EOA address:
+
 ```typescript
 const result = await sdk.getSmartWalletByEOA("0xYourEOA...");
-console.log("Smart wallets:", result.smartWallets);
+console.log("Smart Wallet:", result.smartWallet);
+console.log("Chains:", result.chains);
+console.log("EOA:", result.eoa);
 ```
+
+**Returns:**
+
+```typescript
+{
+  success: boolean;
+  eoa: string;
+  smartWallet: Address | null;
+  chains: number[];
+}
+```
+
+#### Get First Topup
+
+Get information about the first deposit/topup for a wallet:
+
+```typescript
+const firstTopup = await sdk.getFirstTopup(walletAddress, 8453);
+console.log("First Topup Date:", firstTopup.date);
+console.log("First Topup Amount:", firstTopup.amount);
+console.log("Chain ID:", firstTopup.chainId);
+```
+
+**Returns:**
+
+```typescript
+{
+  success: boolean;
+  walletAddress: string;
+  date: string;
+  amount?: string;
+  chainId?: number;
+}
+```
+
+**Note**: Returns an error if the wallet has no deposits yet.
 
 #### Get Transaction History
 
@@ -784,7 +848,7 @@ try {
 For running the examples, set up the following environment variables:
 
 ```bash
-# Required: API key for both Execution API and Data API
+# Required: API key (used for both Execution API and Data API)
 ZYFAI_API_KEY=your-api-key
 
 # Required for Safe deployment: Bundler API key (e.g., Pimlico)

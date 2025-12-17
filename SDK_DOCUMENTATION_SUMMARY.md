@@ -23,13 +23,18 @@ The SDK connects to two separate backends:
 
 ### Initialization
 
+The SDK can be initialized with either a configuration object or just the API key string:
+
 ```typescript
-// 1. Initialize SDK with configuration
+// Option 1: Full configuration object
 const sdk = new ZyfaiSDK({
   apiKey: "YOUR_API_KEY", // API key for both Execution API and Data API
   bundlerApiKey: "YOUR_BUNDLER_API_KEY", // Required for Safe deployment
   environment: "production", // or 'staging'
 });
+
+// Option 2: Simple string initialization (API key only)
+const sdk = new ZyfaiSDK("YOUR_API_KEY");
 
 // 2. Connect account and authenticate (happens automatically)
 // Option A: With private key (chainId required)
@@ -576,9 +581,13 @@ const wallets = await sdk.getActiveWallets(chainId);
 
 ### 11. Get Smart Wallets by EOA
 
+Get the smart wallet address associated with an EOA address.
+
 ```typescript
 const result = await sdk.getSmartWalletByEOA(eoaAddress);
-// Returns: { success, eoa, smartWallets }
+// Returns: { success, eoa, smartWallet, chains }
+// smartWallet: Address | null
+// chains: number[]
 ```
 
 ---
