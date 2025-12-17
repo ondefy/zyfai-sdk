@@ -79,6 +79,8 @@ export const getSafeAccount = async (
   // When safeOwnerAddress is provided, we validate that it matches the connected wallet
   // This ensures the signer can actually authorize transactions
   const signerAddress = owner.account.address;
+  console.log("signerAddress", signerAddress);
+  console.log("safeOwnerAddress", safeOwnerAddress);
 
   // If safeOwnerAddress is provided, it must match the connected wallet
   // Otherwise the validator will reject signatures from the connected wallet
@@ -100,6 +102,8 @@ export const getSafeAccount = async (
   // Convert string salt to hex if needed
   const saltHex = fromHex(toHex(effectiveSalt), "bigint");
 
+  // Add the condition if its a private key account then set the owner.account to have address of the private key as toSafeSmartAccount expects an account object
+  console.log("owner", owner);
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
     owners: [owner], // Pass the owner object with address and signMessage capability
@@ -120,7 +124,7 @@ export const getSafeAccount = async (
     ],
     saltNonce: saltHex,
   });
-
+  console.log("safeAccount", safeAccount);
   return safeAccount;
 };
 
