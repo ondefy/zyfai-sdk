@@ -806,7 +806,7 @@ export class ZyfaiSDK {
       console.log("Session validator:", signer);
       // Register the session key on the backend so it becomes active immediately
       const activation = await this.activateSessionKey(
-        signer,
+        signer as Address,
         signatureResult.signature,
         signatureResult.sessionNonces
       );
