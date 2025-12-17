@@ -1,0 +1,39 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "out": "docs/api",
+  "plugin": ["typedoc-plugin-markdown"],
+  "readme": "README.md",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "categorizeByGroup": true,
+  "searchInComments": true,
+  "sort": ["source-order"],
+  "kindSortOrder": [
+    "Class",
+    "Constructor",
+    "Property",
+    "Method",
+    "Function",
+    "TypeAlias",
+    "Interface"
+  ],
+  "name": "ZyFAI SDK",
+  "navigationLinks": {
+    "GitHub": "https://github.com/ondefy/zyfai-sdk",
+    "NPM": "https://www.npmjs.com/package/@zyfai/sdk"
+  },
+  "sidebarLinks": {
+    "Website": "https://zyf.ai",
+    "Dashboard": "https://app.zyf.ai"
+  },
+  "hideGenerator": false,
+  "visibilityFilters": {
+    "protected": false,
+    "private": false,
+    "inherited": true,
+    "external": false
+  }
+}

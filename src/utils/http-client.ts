@@ -22,6 +22,7 @@ export class HttpClient {
   private authToken: string | null = null;
   private origin: string;
   private host: string;
+  private environment: Environment;
 
   /**
    * Create HTTP client for both Execution API and Data API
@@ -31,6 +32,7 @@ export class HttpClient {
    */
   constructor(apiKey: string, environment: Environment = "production") {
     this.apiKey = apiKey;
+    this.environment = environment;
 
     // Execution API (v1)
     const endpoint = API_ENDPOINTS[environment];
@@ -172,6 +174,41 @@ export class HttpClient {
     config?: AxiosRequestConfig
   ): Promise<T> {
     const response = await this.dataClient.post<T>(url, data, config);
+    return response.data;
+  }
+
+  /**
+   * Make a POST request to Data API with a custom path (bypasses /api/v2 baseURL)
+   * Useful for endpoints that don't follow the /api/v2 pattern
+   *
+   * @param path - API path (e.g., "/api/earnings/initialize")
+   * @param data - Request body
+   * @param config - Additional axios config
+   */
+  async dataPostCustom<T>(
+    path: string,
+    data?: any,
+    config?: AxiosRequestConfig
+  ): Promise<T> {
+    // Construct full URL using data API endpoint base URL
+    const fullUrl = `${DATA_API_ENDPOINTS[this.environment]}${path}`;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-API-Key": this.apiKey,
+      ...(config?.headers as Record<string, string>),
+    };
+
+    if (this.authToken) {
+      headers["Authorization"] = `Bearer ${this.authToken}`;
+    }
+
+    const response = await axios.post<T>(fullUrl, data, {
+      ...config,
+      headers,
+      timeout: config?.timeout || 30000,
+    });
+
     return response.data;
   }
 

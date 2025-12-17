@@ -67,7 +67,7 @@ The SDK accepts either a private key or a modern wallet provider. **The SDK auto
 
 ```typescript
 // Option 1: With private key (chainId required)
-await sdk.connectAccount("0x...", 42161);
+await sdk.connectAccount("0x...", 8453);
 
 // Option 2: With wallet provider (chainId optional - uses provider's chain)
 const provider = await connector.getProvider();
@@ -79,7 +79,7 @@ await sdk.connectAccount(provider); // Automatically uses provider's current cha
 
 // Now call methods with explicit user addresses
 const userAddress = "0xUser...";
-await sdk.deploySafe(userAddress, 42161);
+await sdk.deploySafe(userAddress, 8453);
 ```
 
 **Note:**
@@ -114,12 +114,12 @@ Deploy a Safe smart wallet:
 const userAddress = "0xUser..."; // User's EOA address
 
 // Get the deterministic Safe address (before deployment)
-const walletInfo = await sdk.getSmartWalletAddress(userAddress, 42161);
+const walletInfo = await sdk.getSmartWalletAddress(userAddress, 8453);
 console.log("Safe Address:", walletInfo.address);
 console.log("Is Deployed:", walletInfo.isDeployed);
 
 // Deploy the Safe (automatically checks if already deployed)
-const result = await sdk.deploySafe(userAddress, 42161);
+const result = await sdk.deploySafe(userAddress, 8453);
 
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
@@ -155,9 +155,9 @@ const chains = getSupportedChainIds();
 console.log("Supported chains:", chains);
 
 // Check if a chain is supported
-if (isSupportedChain(42161)) {
+if (isSupportedChain(8453)) {
   const userAddress = "0xUser...";
-  const result = await sdk.deploySafe(userAddress, 42161); // Arbitrum
+  const result = await sdk.deploySafe(userAddress, 8453); // Base
 }
 ```
 
@@ -190,7 +190,7 @@ Connect account for signing transactions and authenticate via SIWE. Accepts eith
 - `chainId`: Target chain ID
   - **Required** for private key
   - **Optional** for wallet providers (auto-detects from provider)
-  - Default: 42161 (Arbitrum)
+  - Default: 8453 (Base)
 
 **Returns:** Connected wallet address
 
@@ -204,7 +204,7 @@ Connect account for signing transactions and authenticate via SIWE. Accepts eith
 
 ```typescript
 // With private key (chainId required)
-await sdk.connectAccount("0x...", 42161);
+await sdk.connectAccount("0x...", 8453);
 
 // With wallet provider (chainId optional)
 const provider = await connector.getProvider();
@@ -269,6 +269,25 @@ Deploy a Safe smart wallet for a user.
 }
 ```
 
+##### `addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>`
+
+Add a wallet address to the SDK API key's allowedWallets list. This endpoint requires SDK API key authentication (API key starting with "zyfai\_").
+
+**Parameters:**
+
+- `walletAddress`: Wallet address to add to the allowed list
+
+**Returns:**
+
+```typescript
+{
+  success: boolean;
+  message: string; // Status message
+}
+```
+
+**Note**: This method is only available when using an SDK API key (starts with "zyfai\_"). Regular API keys cannot use this endpoint.
+
 ### 3. Session Keys
 
 Session keys enable delegated transaction execution without exposing the main private key.
@@ -286,7 +305,7 @@ The SDK automatically fetches optimal session configuration from ZyFAI API:
 // 5. Signs the session key
 // 6. Calls /session-keys/add so the session becomes active immediately
 
-const result = await sdk.createSessionKey(userAddress, 42161);
+const result = await sdk.createSessionKey(userAddress, 8453);
 
 // Check if session key already existed
 if (result.alreadyActive) {
@@ -311,11 +330,11 @@ console.log("User ID:", result.userId);
 Transfer tokens to your Safe smart wallet:
 
 ```typescript
-// Deposit 100 USDC (6 decimals) to Safe on Arbitrum
+// Deposit 100 USDC (6 decimals) to Safe on Base
 const result = await sdk.depositFunds(
   userAddress,
-  42161, // Chain ID
-  "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // USDC on Arbitrum
+  8453, // Chain ID
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
   "100000000" // Amount: 100 USDC = 100 * 10^6
 );
 
@@ -334,12 +353,12 @@ Initiate a withdrawal from your Safe. **Note: Withdrawals are processed asynchro
 
 ```typescript
 // Full withdrawal
-const result = await sdk.withdrawFunds(userAddress, 42161);
+const result = await sdk.withdrawFunds(userAddress, 8453);
 
 // Partial withdrawal of 50 USDC (6 decimals)
 const result = await sdk.withdrawFunds(
   userAddress,
-  42161,
+  8453,
   "50000000", // Amount: 50 USDC = 50 * 10^6
   "0xReceiverAddress" // Optional: receiver address
 );
@@ -368,7 +387,7 @@ if (result.success) {
 Retrieve all available DeFi protocols and pools for a specific chain:
 
 ```typescript
-const protocols = await sdk.getAvailableProtocols(42161);
+const protocols = await sdk.getAvailableProtocols(8453);
 
 console.log(`Found ${protocols.protocols.length} protocols`);
 protocols.protocols.forEach((protocol) => {
@@ -522,7 +541,20 @@ console.log("Tier:", frequency.tier);
 console.log("Max rebalances/day:", frequency.frequency);
 ```
 
-### 12. Portfolio (Premium)
+### 12. SDK API Key Management
+
+#### Add Wallet to SDK API Key
+
+Add a wallet address to the SDK API key's allowedWallets list. This endpoint requires SDK API key authentication (API key starting with "zyfai\_").
+
+```typescript
+const result = await sdk.addWalletToSdk("0x1234...");
+console.log(result.message); // "Wallet successfully added to allowed list"
+```
+
+**Note**: This method is only available when using an SDK API key (starts with "zyfai\_"). Regular API keys cannot use this endpoint.
+
+### 13. Portfolio (Premium)
 
 #### Get Debank Portfolio (Multi-chain)
 
@@ -592,7 +624,7 @@ pnpm tsx examples/end-to-end.ts
 
 ## Complete Examples
 
-### Example 1: Deploy Safe on Arbitrum
+### Example 1: Deploy Safe on Base
 
 ```typescript
 import { ZyfaiSDK } from "@zyfai/sdk";
@@ -604,12 +636,12 @@ async function main() {
   });
 
   // Connect account (automatically authenticates via SIWE)
-  await sdk.connectAccount(process.env.PRIVATE_KEY!, 42161);
+  await sdk.connectAccount(process.env.PRIVATE_KEY!, 8453);
 
   const userAddress = "0xUser..."; // User's EOA address
 
   // Check if Safe already exists
-  const walletInfo = await sdk.getSmartWalletAddress(userAddress, 42161);
+  const walletInfo = await sdk.getSmartWalletAddress(userAddress, 8453);
 
   if (walletInfo.isDeployed) {
     console.log("Safe already deployed at:", walletInfo.address);
@@ -617,7 +649,7 @@ async function main() {
   }
 
   // Deploy Safe
-  const result = await sdk.deploySafe(userAddress, 42161);
+  const result = await sdk.deploySafe(userAddress, 8453);
 
   if (result.success) {
     console.log("✅ Successfully deployed Safe");
@@ -658,7 +690,7 @@ function SafeDeployment() {
       console.log("Connected and authenticated:", address);
 
       // Get Safe address for this user
-      const walletInfo = await sdk.getSmartWalletAddress(address, 42161);
+      const walletInfo = await sdk.getSmartWalletAddress(address, 8453);
       setSafeAddress(walletInfo.address);
     } catch (error) {
       console.error("Connection failed:", error);
@@ -670,7 +702,7 @@ function SafeDeployment() {
 
     setIsDeploying(true);
     try {
-      const result = await sdk.deploySafe(userAddress, 42161);
+      const result = await sdk.deploySafe(userAddress, 8453);
       if (result.success) {
         alert(`Safe deployed at ${result.safeAddress}`);
       }
@@ -727,7 +759,7 @@ The SDK is built on top of:
 ```typescript
 try {
   const userAddress = "0xUser...";
-  const result = await sdk.deploySafe(userAddress, 42161);
+  const result = await sdk.deploySafe(userAddress, 8453);
   if (!result.success) {
     console.error("Deployment failed:", result.status);
   }
