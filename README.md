@@ -59,15 +59,6 @@ const sdk = new ZyfaiSDK("your-api-key");
 | `bundlerApiKey` | No\*     | Pimlico API key for Safe deployment (\*required for `deploySafe`)                                    |
 | `environment`   | No       | `"production"` or `"staging"` (default: `"production"`)                                              |
 
-**API Endpoints by Environment:**
-
-The SDK uses a single API key for both Execution API and Data API:
-
-| Environment  | Execution API                | Data API                         |
-| ------------ | ---------------------------- | -------------------------------- |
-| `production` | `https://api.zyf.ai`         | `https://defiapi.zyf.ai`         |
-| `staging`    | `https://staging-api.zyf.ai` | `https://staging-defiapi.zyf.ai` |
-
 ### Connect Account
 
 The SDK accepts either a private key or a modern wallet provider. **The SDK automatically authenticates the user via SIWE (Sign-In with Ethereum) when connecting.**

@@ -61,13 +61,6 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 | `bundlerApiKey` | No\*     | Pimlico API key (\*required for `deploySafe`)           |
 | `environment`   | No       | `"production"` or `"staging"` (default: `"production"`) |
 
-### API Endpoints
-
-| Environment  | Execution API                | Data API                         |
-| ------------ | ---------------------------- | -------------------------------- |
-| `production` | `https://api.zyf.ai`         | `https://defiapi.zyf.ai`         |
-| `staging`    | `https://staging-api.zyf.ai` | `https://staging-defiapi.zyf.ai` |
-
 **Important:**
 
 - **Automatic Authentication**: `connectAccount()` automatically performs SIWE (Sign-In with Ethereum) authentication and stores the JWT token
