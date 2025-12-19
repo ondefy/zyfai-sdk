@@ -3,11 +3,7 @@
  */
 
 import { HttpClient } from "../utils/http-client";
-import {
-  ENDPOINTS,
-  DATA_ENDPOINTS,
-  DATA_API_ENDPOINTS,
-} from "../config/endpoints";
+import { ENDPOINTS, DATA_ENDPOINTS } from "../config/endpoints";
 import { ERC20_ABI } from "../config/abis";
 import type {
   SDKConfig,
@@ -658,6 +654,7 @@ export class ZyfaiSDK {
         publicClient: chainConfig.publicClient,
         bundlerUrl,
         environment: this.environment,
+        chainId,
       });
 
       // IMPORTANT: After deploying Safe, update user profile with Safe address and chainId

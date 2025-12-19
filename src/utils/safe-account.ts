@@ -10,7 +10,12 @@ import {
   getEnableSessionDetails,
   getPermissionId,
   getSessionNonce,
+  getSmartSessionsValidator,
+  getAccountLockerHook,
+  getAccountLockerSourceExecutor,
+  getAccountLockerTargetExecutor,
   type Session,
+  type Module,
 } from "@rhinestone/module-sdk";
 import { createSmartAccountClient } from "permissionless";
 import { erc7579Actions } from "permissionless/actions/erc7579";
@@ -19,6 +24,7 @@ import { toSafeSmartAccount } from "permissionless/accounts";
 import {
   http,
   getAddress,
+  encodeFunctionData,
   type Address,
   type Hash,
   type Hex,
@@ -26,13 +32,18 @@ import {
   type WalletClient,
   fromHex,
   toHex,
+  encodeAbiParameters,
+  pad,
 } from "viem";
 import type { Chain } from "viem/chains";
 import {
   type SmartAccount,
   entryPoint07Address,
 } from "viem/account-abstraction";
+import { getAccountNonce } from "permissionless/actions";
+import { getUserOperationHash } from "viem/account-abstraction";
 import type { Environment } from "../types";
+import type { SupportedChainId } from "../config/chains";
 
 export interface SafeAccountConfig {
   owner: WalletClient; // The wallet that signs for transactions
@@ -55,6 +66,107 @@ const ERC7579_LAUNCHPAD_ADDRESS = "0x7579011aB74c46090561ea277Ba79D510c6C00ff";
 const ACCOUNT_SALTS: Record<Environment, string> = {
   staging: "zyfai-staging",
   production: "zyfai",
+};
+
+// Module type IDs for ERC-7579
+const MODULE_TYPE_IDS = {
+  validator: 1n,
+  executor: 2n,
+  fallback: 3n,
+  hook: 4n,
+} as const;
+
+// Module addresses and configurations
+// Note: Module type from @rhinestone/module-sdk may have optional fields
+// We match the frontend structure exactly
+const SMART_SESSIONS_FALLBACK = {
+  module: "0x12cae64c42f362e7d5a847c2d33388373f629177" as Address,
+  address: "0x12cae64c42f362e7d5a847c2d33388373f629177" as Address,
+  type: "fallback" as const,
+  selector: encodeAbiParameters(
+    [{ name: "functionSignature", type: "bytes4" }],
+    ["0x84b0196e"]
+  ),
+  initData:
+    "0x84b0196e00000000000000000000000000000000000000000000000000000000fe0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000",
+} as unknown as Module;
+
+const INTENT_EXECUTOR = {
+  address: "0x00000000005aD9ce1f5035FD62CA96CEf16AdAAF" as Address,
+  type: "executor" as const,
+  initData: "0x",
+} as unknown as Module;
+
+const PROXY_EXECUTOR = {
+  address: "0xF659d30D4EB88B06A909F20839D8959Bd77d8790" as Address,
+  type: "executor" as const,
+  initData: "0x",
+} as unknown as Module;
+
+// Get modules to install based on chain ID
+const getModulesToInstall = (chainId: SupportedChainId): Module[] => {
+  const smartSessions = getSmartSessionsValidator({});
+  const accountLockerHook = getAccountLockerHook({ isOmniMode: true });
+  const accountLockerSourceExecutor = getAccountLockerSourceExecutor();
+  const accountLockerTargetExecutor = getAccountLockerTargetExecutor();
+
+  // Plasma uses V1_MODULES
+  if (chainId === 9745) {
+    return [
+      smartSessions,
+      SMART_SESSIONS_FALLBACK,
+      INTENT_EXECUTOR,
+      PROXY_EXECUTOR,
+    ];
+  }
+
+  // Base and Arbitrum use DEFAULT_MODULES
+  return [
+    smartSessions,
+    {
+      ...accountLockerHook,
+      type: "executor" as const,
+    },
+    accountLockerSourceExecutor,
+    accountLockerTargetExecutor,
+    SMART_SESSIONS_FALLBACK,
+    INTENT_EXECUTOR,
+    PROXY_EXECUTOR,
+  ];
+};
+
+// Generate install module call data
+const getInstallModuleCallData = (module: Module): Hex => {
+  return encodeFunctionData({
+    abi: [
+      {
+        type: "function",
+        name: "installModule",
+        inputs: [
+          {
+            type: "uint256",
+            name: "moduleTypeId",
+          },
+          {
+            type: "address",
+            name: "module",
+          },
+          {
+            type: "bytes",
+            name: "initData",
+          },
+        ],
+        outputs: [],
+        stateMutability: "nonpayable",
+      },
+    ],
+    functionName: "installModule",
+    args: [
+      MODULE_TYPE_IDS[module.type],
+      module.address,
+      module.initData || "0x",
+    ],
+  });
 };
 
 /**
@@ -281,12 +393,13 @@ export const getSmartAccountClient = async (
 
 /**
  * Deploys a Safe smart account with required modules
+ * This matches the frontend behavior by installing modules during deployment
  */
 export const deploySafeAccount = async (
-  config: SafeAccountConfig & { bundlerUrl: string }
+  config: SafeAccountConfig & { bundlerUrl: string; chainId: SupportedChainId }
 ): Promise<SafeDeploymentResult> => {
   try {
-    const { owner, publicClient } = config;
+    const { owner, publicClient, chainId } = config;
 
     if (!owner || !owner.account) {
       throw new Error(
@@ -306,31 +419,80 @@ export const deploySafeAccount = async (
       };
     }
 
+    // Get modules to install (matches frontend logic)
+    const modulesToInstall = getModulesToInstall(chainId);
+
+    // Create install calls for each module
+    const installCalls = modulesToInstall.map((module) => ({
+      to: safeAddress,
+      data: getInstallModuleCallData(module),
+    }));
+
     // Create smart account client
     const smartAccountClient = await getSmartAccountClient(config);
 
-    // Deploy by sending a simple user operation
-    // The Safe will be deployed automatically when the first transaction is sent
-    const userOpHash = await smartAccountClient.sendUserOperation({
-      calls: [
-        {
-          to: safeAddress,
-          value: BigInt(0),
-          data: "0x",
-        },
-      ],
+    // Get the Safe account for nonce calculation
+    const safeAccount = await getSafeAccount(config);
+    const ownableValidator = getOwnableValidator({
+      owners: [owner.account.address],
+      threshold: 1,
     });
 
-    // Wait for the transaction to be mined
-    const receipt = await smartAccountClient.waitForUserOperationReceipt({
-      hash: userOpHash,
+    // Get nonce for the transaction (matches frontend logic)
+    const nonce = await getAccountNonce(publicClient, {
+      address: safeAddress,
+      entryPointAddress: entryPoint07Address,
+      key: BigInt(
+        pad(ownableValidator.address as `0x${string}`, {
+          dir: "right",
+          size: 24,
+        }) || 0
+      ),
     });
 
-    return {
-      safeAddress,
-      txHash: receipt.receipt.transactionHash,
-      isDeployed: true,
-    };
+    // Prepare user operation with module installation calls
+    const userOperation = await smartAccountClient.prepareUserOperation({
+      account: safeAccount as any,
+      calls: installCalls,
+      nonce: nonce,
+    });
+
+    // Get hash and sign the user operation (matches frontend logic)
+    const userOpHashToSign = getUserOperationHash({
+      chainId: chainId,
+      entryPointAddress: entryPoint07Address,
+      entryPointVersion: "0.7",
+      userOperation,
+    });
+
+    // Sign the user operation hash
+    // Note: WalletClient.signMessage requires account parameter
+    if (!owner.account) {
+      throw new Error("Owner account is required for signing");
+    }
+    userOperation.signature = await owner.signMessage({
+      account: owner.account,
+      message: { raw: userOpHashToSign },
+    });
+
+    // Send and wait for the user operation
+    const userOpHash = await smartAccountClient.sendUserOperation(
+      userOperation as any
+    );
+
+    try {
+      const transaction = await smartAccountClient.waitForUserOperationReceipt({
+        hash: userOpHash,
+      });
+      return {
+        safeAddress,
+        txHash: transaction.receipt.transactionHash,
+        isDeployed: true,
+      };
+    } catch (error) {
+      console.error("Transaction failed:", error);
+      throw new Error("Failed to execute transaction");
+    }
   } catch (error) {
     throw new Error(
       `Failed to deploy Safe account: ${(error as Error).message}`
