@@ -344,19 +344,24 @@ Transfer tokens from user's EOA to their Smart Wallet and log the deposit.
 depositFunds(
   userAddress: string,
   chainId: number,
-  tokenAddress: string,
   amount: string
 ): Promise<DepositResponse>
 ```
 
+**Token Selection:**
+
+Token address is automatically selected based on chain:
+
+- **Base (8453) and Arbitrum (42161)**: USDC
+- **Plasma (9745)**: USDT
+
 #### Request Parameters
 
-| Parameter      | Type   | Required | Description                                                                    |
-| -------------- | ------ | -------- | ------------------------------------------------------------------------------ |
-| `userAddress`  | string | ✅       | User's EOA address                                                             |
-| `chainId`      | number | ✅       | Chain to deposit on                                                            |
-| `tokenAddress` | string | ✅       | Token contract address                                                         |
-| `amount`       | string | ✅       | Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals) |
+| Parameter     | Type   | Required | Description                                                                    |
+| ------------- | ------ | -------- | ------------------------------------------------------------------------------ |
+| `userAddress` | string | ✅       | User's EOA address                                                             |
+| `chainId`     | number | ✅       | Chain to deposit on                                                            |
+| `amount`      | string | ✅       | Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals) |
 
 #### Response Type
 
@@ -782,7 +787,6 @@ await sdk.connectAccount(privateKey, 8453);
 
 const userAddress = "0xUser...";
 const chainId = 8453; // Base
-const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 // 1. Deploy Safe
 const wallet = await sdk.getSmartWalletAddress(userAddress, chainId);
@@ -794,10 +798,10 @@ if (!wallet.isDeployed) {
 await sdk.createSessionKey(userAddress, chainId);
 
 // 3. Deposit funds - 100 USDC (least decimal units: 100 * 10^6)
+// Token address is automatically selected (USDC for Base/Arbitrum, USDT for Plasma)
 const depositResult = await sdk.depositFunds(
   userAddress,
   chainId,
-  USDC,
   "100000000" // 100 USDC with 6 decimals
 );
 
@@ -863,10 +867,10 @@ class YieldService {
   async depositAndMonitor(
     userAddress: string,
     chainId: number,
-    tokenAddress: string,
     amount: string
   ) {
-    await this.sdk.depositFunds(userAddress, chainId, tokenAddress, amount);
+    // Token address is automatically selected based on chain
+    await this.sdk.depositFunds(userAddress, chainId, amount);
     return await this.sdk.getPositions(userAddress, chainId);
   }
 

@@ -37,6 +37,22 @@ export interface ChainConfig {
   publicClient: PublicClient;
 }
 
+export const DEFAULT_TOKEN_ADDRESSES: Record<SupportedChainId, string> = {
+  8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
+  42161: "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // USDC on Arbitrum
+  9745: "0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb", // USDT on Plasma
+};
+
+export const getDefaultTokenAddress = (chainId: SupportedChainId): string => {
+  const address = DEFAULT_TOKEN_ADDRESSES[chainId];
+  if (!address || address === "0x0000000000000000000000000000000000000000") {
+    throw new Error(
+      `Default token address not configured for chain ${chainId}. Please provide tokenAddress explicitly.`
+    );
+  }
+  return address;
+};
+
 /**
  * Default RPC URLs for each chain
  * You can override these with your own RPC providers
