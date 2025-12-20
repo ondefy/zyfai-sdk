@@ -51,7 +51,6 @@ async function main() {
   console.log("Deposit submitted:");
   console.log(`  Transaction: ${response.txHash}`);
   console.log(`  Smart Wallet: ${response.smartWallet}`);
-  console.log(`  Status: ${response.status}`);
 }
 
 main().catch((error) => {

@@ -371,7 +371,6 @@ interface DepositResponse {
   txHash: string;
   smartWallet: string;
   amount: string;
-  status: "pending" | "confirmed" | "failed";
 }
 ```
 
@@ -479,6 +478,7 @@ interface PositionsResponse {
 ### 7. Withdraw Funds
 
 Initiate a full or partial withdrawal from active positions to user's EOA. **Note: Withdrawals are processed asynchronously by the backend.**
+Funds are always withdrawn to the Safe owner's address (userAddress).
 
 #### Function Signature
 
@@ -486,8 +486,7 @@ Initiate a full or partial withdrawal from active positions to user's EOA. **Not
 withdrawFunds(
   userAddress: string,
   chainId: number,
-  amount?: string,
-  receiver?: string
+  amount?: string
 ): Promise<WithdrawResponse>
 ```
 
@@ -498,7 +497,6 @@ withdrawFunds(
 | `userAddress` | string | ✅       | User's EOA address                                                   |
 | `chainId`     | number | ✅       | Chain to withdraw from                                               |
 | `amount`      | string | ❌       | Amount in least decimal units to withdraw (omit for full withdrawal) |
-| `receiver`    | string | ❌       | Receiver address (defaults to user's EOA)                            |
 
 #### Response Type
 
@@ -509,8 +507,6 @@ interface WithdrawResponse {
   txHash?: string; // May not be immediately available (async processing)
   type: "full" | "partial";
   amount: string;
-  receiver: string;
-  status: "pending" | "confirmed" | "failed";
 }
 ```
 
@@ -879,18 +875,9 @@ class YieldService {
     return { positions };
   }
 
-  async withdrawFunds(
-    userAddress: string,
-    chainId: number,
-    amount?: string,
-    receiver?: string
-  ) {
-    const result = await this.sdk.withdrawFunds(
-      userAddress,
-      chainId,
-      amount,
-      receiver
-    );
+  async withdrawFunds(userAddress: string, chainId: number, amount?: string) {
+    // Funds are always withdrawn to the Safe owner's address (userAddress)
+    const result = await this.sdk.withdrawFunds(userAddress, chainId, amount);
     // Handle async withdrawal
     if (!result.txHash) {
       console.log("Withdrawal initiated:", result.message);

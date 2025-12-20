@@ -370,6 +370,7 @@ if (result.success) {
 ### 5. Withdraw Funds
 
 Initiate a withdrawal from your Safe. **Note: Withdrawals are processed asynchronously by the backend.**
+Funds are always withdrawn to the Safe owner's address (userAddress).
 
 ```typescript
 // Full withdrawal
@@ -379,8 +380,7 @@ const result = await sdk.withdrawFunds(userAddress, 8453);
 const result = await sdk.withdrawFunds(
   userAddress,
   8453,
-  "50000000", // Amount: 50 USDC = 50 * 10^6
-  "0xReceiverAddress" // Optional: receiver address
+  "50000000" // Amount: 50 USDC = 50 * 10^6
 );
 
 if (result.success) {

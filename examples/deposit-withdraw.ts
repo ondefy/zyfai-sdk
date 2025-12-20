@@ -101,17 +101,16 @@ async function main() {
   );
 
   try {
+    // Funds are always withdrawn to the Safe owner's address (userAddress)
     const withdrawResult = await sdk.withdrawFunds(
       userAddress,
       chainId,
-      "100000", // Withdraw 0.1 USDC = 100000 (6 decimals)
-      userAddress // Receive back to connected wallet
+      "100000" // Withdraw 0.1 USDC = 100000 (6 decimals)
     );
 
     console.log("\nWithdrawal requested!");
     console.log(`Transaction Hash: ${withdrawResult.txHash}`);
     console.log(`Amount: ${withdrawResult.amount}`);
-    console.log(`Receiver: ${withdrawResult.receiver}`);
     console.log(`Success: ${withdrawResult.success}\n`);
 
     console.log("Note: Withdrawals may take some time to process");

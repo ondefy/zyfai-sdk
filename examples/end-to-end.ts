@@ -180,7 +180,6 @@ async function main() {
     console.log(`  Transaction: ${depositResult.txHash}`);
     console.log(`  Amount: ${depositResult.amount}`);
     console.log(`  Smart Wallet: ${depositResult.smartWallet}`);
-    console.log(`  Status: ${depositResult.status}`);
   } catch (error) {
     console.log("\n✗ Deposit failed:", (error as Error).message);
   }
@@ -258,19 +257,17 @@ async function main() {
   /* UNCOMMENT TO ENABLE WITHDRAWALS
   try {
     console.log("  Requesting partial withdrawal of 5 USDC...");
+    // Funds are always withdrawn to the Safe owner's address (userAddress)
     const withdrawResult = await sdk.withdrawFunds(
       userAddress,
       chainId,
-      "5000000", // 5 USDC = 5 * 10^6 (6 decimals)
-      userAddress // Receive back to connected wallet
+      "5000000" // 5 USDC = 5 * 10^6 (6 decimals)
     );
 
     console.log("\nWithdrawal requested successfully");
     console.log(`  Transaction: ${withdrawResult.txHash}`);
     console.log(`  Type: ${withdrawResult.type}`);
     console.log(`  Amount: ${withdrawResult.amount}`);
-    console.log(`  Receiver: ${withdrawResult.receiver}`);
-    console.log(`  Status: ${withdrawResult.status}`);
     console.log("\n  Note: Withdrawals may take some time to process");
   } catch (error) {
     console.log("\n✗ Withdrawal failed:", (error as Error).message);

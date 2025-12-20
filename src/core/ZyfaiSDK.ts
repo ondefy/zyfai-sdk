@@ -1079,7 +1079,6 @@ export class ZyfaiSDK {
         txHash,
         smartWallet: safeAddress,
         amount: amountBigInt.toString(),
-        status: "confirmed",
       };
     } catch (error) {
       throw new Error(`Deposit failed: ${(error as Error).message}`);
@@ -1090,11 +1089,11 @@ export class ZyfaiSDK {
    * Withdraw funds from Safe smart wallet
    * Initiates a withdrawal request to the ZyFAI API
    * Note: The withdrawal is processed asynchronously, so txHash may not be immediately available
+   * Funds are always withdrawn to the Safe owner's address (userAddress)
    *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
    * @param amount - Optional: Amount in least decimal units to withdraw (partial withdrawal). If not specified, withdraws all funds
-   * @param receiver - Optional: Receiver address. If not specified, sends to Safe owner
    * @returns Withdraw response with message and optional transaction hash (available once processed)
    *
    * @example
@@ -1107,16 +1106,14 @@ export class ZyfaiSDK {
    * const result = await sdk.withdrawFunds(
    *   "0xUser...",
    *   8453,
-   *   "50000000", // 50 USDC = 50 * 10^6
-   *   "0xReceiver..."
+   *   "50000000" // 50 USDC = 50 * 10^6
    * );
    * ```
    */
   async withdrawFunds(
     userAddress: string,
     chainId: SupportedChainId,
-    amount?: string,
-    receiver?: string
+    amount?: string
   ): Promise<WithdrawResponse> {
     try {
       if (!userAddress) {
@@ -1187,7 +1184,6 @@ export class ZyfaiSDK {
         response = await this.httpClient.post(ENDPOINTS.PARTIAL_WITHDRAW, {
           chainId,
           amount,
-          receiver: receiver || userAddress,
         });
       } else {
         // Full withdrawal - ask backend to trigger automatic withdrawal flow
@@ -1206,8 +1202,6 @@ export class ZyfaiSDK {
         txHash,
         type: amount ? "partial" : "full",
         amount: amount || "all",
-        receiver: receiver || userAddress,
-        status: success ? "pending" : "failed",
       };
     } catch (error) {
       throw new Error(`Withdrawal failed: ${(error as Error).message}`);
