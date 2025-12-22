@@ -177,6 +177,10 @@ new ZyfaiSDK(config: SDKConfig | string)
     - `apiKey` (string): Your ZyFAI API key (required)
     - `environment` ('production' | 'staging', optional): API environment (default: 'production')
     - `bundlerApiKey` (string, optional): Bundler API key for Safe deployment (required for deploySafe)
+    - `rpcUrls` (object, optional): Custom RPC URLs per chain to avoid rate limiting
+      - `8453` (string, optional): Base Mainnet RPC URL
+      - `42161` (string, optional): Arbitrum One RPC URL
+      - `9745` (string, optional): Plasma Mainnet RPC URL
 
 **Examples:**
 
@@ -189,6 +193,18 @@ const sdk = new ZyfaiSDK({
   apiKey: "your-api-key",
   bundlerApiKey: "your-bundler-api-key",
   environment: "production",
+});
+
+// Option 3: With custom RPC URLs (recommended to avoid rate limiting)
+const sdk = new ZyfaiSDK({
+  apiKey: "your-api-key",
+  bundlerApiKey: "your-bundler-api-key",
+  environment: "production",
+  rpcUrls: {
+    8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY", // Base
+    42161: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY", // Arbitrum
+    9745: "https://your-plasma-rpc-provider.com", // Plasma
+  },
 });
 ```
 
