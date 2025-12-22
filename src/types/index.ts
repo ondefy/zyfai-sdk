@@ -7,13 +7,17 @@ export type Hex = `0x${string}`;
 
 export type Environment = "staging" | "production";
 
+export interface RpcUrlsConfig {
+  8453?: string;
+  42161?: string;
+  9745?: string;
+}
+
 export interface SDKConfig {
-  /** API key for both Execution API and Data API */
   apiKey: string;
-  /** Environment: 'staging' or 'production' (default: 'production') */
   environment?: Environment;
-  /** Bundler API key for Safe deployment (e.g., Pimlico) */
   bundlerApiKey?: string;
+  rpcUrls?: RpcUrlsConfig;
 }
 
 // Response Types

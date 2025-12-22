@@ -39,6 +39,7 @@ import type {
   RebalanceInfoResponse,
   RebalanceFrequencyResponse,
   AddWalletToSdkResponse,
+  RpcUrlsConfig,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -74,16 +75,17 @@ export class ZyfaiSDK {
   private bundlerApiKey?: string;
   private authenticatedUserId: string | null = null; // If non-null, user is authenticated
   private hasActiveSessionKey: boolean = false; // Stored from login response
-  private environment: Environment; // TODO: The environment should be removed. Having the same key for staging and production is not ideal, but for now it's fine.
+  private environment: Environment;
   private currentProvider: any = null; // Store reference to current provider for event handling
   private currentChainId: SupportedChainId | null = null; // Store current chain ID for private key connections
+  private rpcUrls?: RpcUrlsConfig; // Optional custom RPC URLs per chain
 
   constructor(config: SDKConfig | string) {
     // Support both object and string initialization
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, environment, bundlerApiKey } = sdkConfig;
+    const { apiKey, environment, bundlerApiKey, rpcUrls } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
@@ -92,6 +94,7 @@ export class ZyfaiSDK {
     this.environment = environment || "production";
     this.httpClient = new HttpClient(apiKey, this.environment);
     this.bundlerApiKey = bundlerApiKey;
+    this.rpcUrls = rpcUrls;
   }
 
   /**
@@ -312,7 +315,8 @@ export class ZyfaiSDK {
     // Update wallet client with new account
     if (this.walletClient && this.currentProvider) {
       const chainConfig = getChainConfig(
-        (this.walletClient.chain?.id as SupportedChainId) || 8453
+        (this.walletClient.chain?.id as SupportedChainId) || 8453,
+        this.rpcUrls
       );
 
       this.walletClient = createWalletClient({
@@ -376,7 +380,7 @@ export class ZyfaiSDK {
       }
     }
 
-    const chainConfig = getChainConfig(chainId);
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
     let connectedAddress: Address;
 
@@ -501,10 +505,14 @@ export class ZyfaiSDK {
     if (this.signer) {
       // Use provided chainId, stored chainId, or default to Base
       const targetChainId = chainId || this.currentChainId || 8453;
+      const targetChainConfig = getChainConfig(
+        targetChainId as SupportedChainId,
+        this.rpcUrls
+      );
       return createWalletClient({
         account: this.signer,
-        chain: getChainConfig(targetChainId).chain,
-        transport: http(getChainConfig(targetChainId).rpcUrl),
+        chain: targetChainConfig.chain,
+        transport: http(targetChainConfig.rpcUrl),
       });
     } else {
       if (!this.walletClient) {
@@ -535,7 +543,7 @@ export class ZyfaiSDK {
       throw new Error(`Unsupported chain ID: ${chainId}`);
     }
 
-    const chainConfig = getChainConfig(chainId);
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
     // Try to get smart wallet address from API first (if already registered)
     try {
@@ -605,7 +613,7 @@ export class ZyfaiSDK {
       }
 
       const walletClient = this.getWalletClient(chainId);
-      const chainConfig = getChainConfig(chainId);
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
       // Check if Safe is already deployed before attempting deployment
       const safeAddress = await getDeterministicSafeAddress({
@@ -773,7 +781,7 @@ export class ZyfaiSDK {
       );
 
       // Determine account type for ignoreSecurityAttestations
-      const chainConfig = getChainConfig(chainId);
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
       const accountType = await getAccountType(
         userAddress as Address,
         chainConfig.publicClient
@@ -849,7 +857,7 @@ export class ZyfaiSDK {
       }
 
       const walletClient = this.getWalletClient();
-      const chainConfig = getChainConfig(chainId);
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
       // Check if the user address is a Safe
       const accountType = await getAccountType(
@@ -869,7 +877,7 @@ export class ZyfaiSDK {
       ] as SupportedChainId[];
       const allPublicClients = sessionChainIds
         .filter(isSupportedChain)
-        .map((id) => getChainConfig(id).publicClient);
+        .map((id) => getChainConfig(id, this.rpcUrls).publicClient);
 
       // Sign the session key
       const { signature, sessionNonces } = await signSessionKey(
@@ -1029,7 +1037,7 @@ export class ZyfaiSDK {
       const token = getDefaultTokenAddress(chainId);
 
       const walletClient = this.getWalletClient();
-      const chainConfig = getChainConfig(chainId);
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
       // Get Safe address
       const safeAddress = await getDeterministicSafeAddress({
@@ -1124,7 +1132,7 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      const chainConfig = getChainConfig(chainId);
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
       // Try to get smart wallet address from API first
       let safeAddress: Address;

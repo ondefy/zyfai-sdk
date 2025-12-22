@@ -31,6 +31,12 @@ const sdk = new ZyfaiSDK({
   apiKey: "YOUR_API_KEY", // API key for both Execution API and Data API
   bundlerApiKey: "YOUR_BUNDLER_API_KEY", // Required for Safe deployment
   environment: "production", // or 'staging'
+  rpcUrls: {
+    // Optional: Custom RPC URLs to avoid rate limiting from public RPCs
+    8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY", // Base
+    42161: "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY", // Arbitrum
+    9745: "https://your-plasma-rpc-provider.com", // Plasma
+  },
 });
 
 // Option 2: Simple string initialization (API key only)
@@ -60,6 +66,10 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 | `apiKey`        | Yes      | API key for both Execution API and Data API             |
 | `bundlerApiKey` | No\*     | Pimlico API key (\*required for `deploySafe`)           |
 | `environment`   | No       | `"production"` or `"staging"` (default: `"production"`) |
+| `rpcUrls`       | No       | Custom RPC URLs per chain to avoid rate limiting        |
+|                 |          | - `8453` (string): Base Mainnet RPC URL                 |
+|                 |          | - `42161` (string): Arbitrum One RPC URL                |
+|                 |          | - `9745` (string): Plasma Mainnet RPC URL               |
 
 **Important:**
 
@@ -776,6 +786,12 @@ const sdk = new ZyfaiSDK({
   apiKey: API_KEY,
   bundlerApiKey: BUNDLER_API_KEY,
   environment: "production",
+  rpcUrls: {
+    // Optional: Use your own RPC providers to avoid rate limiting
+    8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY",
+    42161: "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY",
+    9745: "https://your-plasma-rpc-provider.com",
+  },
 });
 
 // Connect wallet (automatically authenticates via SIWE)

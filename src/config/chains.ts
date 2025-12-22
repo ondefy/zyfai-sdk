@@ -4,6 +4,7 @@
  */
 
 import { createPublicClient, http, type Chain, type PublicClient } from "viem";
+import type { RpcUrlsConfig } from "../types";
 import { arbitrum, base } from "viem/chains";
 import { defineChain } from "viem";
 
@@ -54,8 +55,8 @@ export const getDefaultTokenAddress = (chainId: SupportedChainId): string => {
 };
 
 /**
- * Default RPC URLs for each chain
- * You can override these with your own RPC providers
+ * Default RPC URLs for each chain.
+ * SDK consumers can override these by passing `rpcUrls` in `SDKConfig`.
  */
 const DEFAULT_RPC_URLS: Record<SupportedChainId, string> = {
   8453: "https://mainnet.base.org",
@@ -73,16 +74,22 @@ export const CHAINS: Record<SupportedChainId, Chain> = {
 };
 
 /**
- * Get chain configuration for a given chain ID
+ * Get chain configuration for a given chain ID.
+ *
+ * @param chainId - Supported chain ID
+ * @param rpcUrls - Optional per-chain RPC URL overrides
  */
-export const getChainConfig = (chainId: SupportedChainId): ChainConfig => {
+export const getChainConfig = (
+  chainId: SupportedChainId,
+  rpcUrls?: RpcUrlsConfig
+): ChainConfig => {
   const chain = CHAINS[chainId];
 
   if (!chain) {
     throw new Error(`Unsupported chain ID: ${chainId}`);
   }
 
-  const rpcUrl = DEFAULT_RPC_URLS[chainId];
+  const rpcUrl = (rpcUrls && rpcUrls[chainId]) || DEFAULT_RPC_URLS[chainId];
 
   const publicClient = createPublicClient({
     chain,
