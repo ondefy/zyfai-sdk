@@ -29,7 +29,7 @@ pnpm add @zyfai/sdk viem
 2. **Bundler API Key**: Required for Safe deployment. Get it from:
    - [Pimlico](https://www.pimlico.io/) (Recommended)
 
-**Get your API key from [ZyFAI Dashboard](https://app.zyf.ai)**
+**Get your API key from [ZyFAI Dashboard](https://sdk.zyf.ai)**
 
 ## Quick Start
 
