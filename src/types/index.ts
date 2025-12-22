@@ -453,7 +453,6 @@ export interface DepositResponse {
   txHash: string;
   smartWallet: string;
   amount: string;
-  status: "pending" | "confirmed" | "failed";
 }
 
 export interface WithdrawResponse {
@@ -462,8 +461,6 @@ export interface WithdrawResponse {
   txHash?: string;
   type: "full" | "partial";
   amount: string;
-  receiver: string;
-  status: "pending" | "confirmed" | "failed";
 }
 
 export interface AddWalletToSdkResponse {

@@ -53,6 +53,7 @@ import {
   getChainConfig,
   getBundlerUrl,
   isSupportedChain,
+  getDefaultTokenAddress,
   type SupportedChainId,
 } from "../config/chains";
 import {
@@ -987,9 +988,12 @@ export class ZyfaiSDK {
    * Deposit funds from EOA to Safe smart wallet
    * Transfers tokens from the connected wallet to the user's Safe and logs the deposit
    *
+   * Token is automatically selected based on chain:
+   * - Base (8453) and Arbitrum (42161): USDC
+   * - Plasma (9745): USDT
+   *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
-   * @param tokenAddress - Token contract address to deposit
    * @param amount - Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals)
    * @returns Deposit response with transaction hash
    *
@@ -999,7 +1003,6 @@ export class ZyfaiSDK {
    * const result = await sdk.depositFunds(
    *   "0xUser...",
    *   8453,
-   *   "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // USDC
    *   "100000000" // 100 USDC = 100 * 10^6
    * );
    * ```
@@ -1007,7 +1010,6 @@ export class ZyfaiSDK {
   async depositFunds(
     userAddress: string,
     chainId: SupportedChainId,
-    tokenAddress: string,
     amount: string
   ): Promise<DepositResponse> {
     try {
@@ -1019,13 +1021,12 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      if (!tokenAddress) {
-        throw new Error("Token address is required");
-      }
-
       if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
         throw new Error("Valid amount is required");
       }
+
+      // Get default token address for the chain
+      const token = getDefaultTokenAddress(chainId);
 
       const walletClient = this.getWalletClient();
       const chainConfig = getChainConfig(chainId);
@@ -1056,7 +1057,7 @@ export class ZyfaiSDK {
 
       // Transfer tokens from connected wallet to Safe
       const txHash = await walletClient.writeContract({
-        address: tokenAddress as Address,
+        address: token as Address,
         abi: ERC20_ABI,
         functionName: "transfer",
         args: [safeAddress, amountBigInt],
@@ -1078,7 +1079,6 @@ export class ZyfaiSDK {
         txHash,
         smartWallet: safeAddress,
         amount: amountBigInt.toString(),
-        status: "confirmed",
       };
     } catch (error) {
       throw new Error(`Deposit failed: ${(error as Error).message}`);
@@ -1089,11 +1089,11 @@ export class ZyfaiSDK {
    * Withdraw funds from Safe smart wallet
    * Initiates a withdrawal request to the ZyFAI API
    * Note: The withdrawal is processed asynchronously, so txHash may not be immediately available
+   * Funds are always withdrawn to the Safe owner's address (userAddress)
    *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
    * @param amount - Optional: Amount in least decimal units to withdraw (partial withdrawal). If not specified, withdraws all funds
-   * @param receiver - Optional: Receiver address. If not specified, sends to Safe owner
    * @returns Withdraw response with message and optional transaction hash (available once processed)
    *
    * @example
@@ -1106,16 +1106,14 @@ export class ZyfaiSDK {
    * const result = await sdk.withdrawFunds(
    *   "0xUser...",
    *   8453,
-   *   "50000000", // 50 USDC = 50 * 10^6
-   *   "0xReceiver..."
+   *   "50000000" // 50 USDC = 50 * 10^6
    * );
    * ```
    */
   async withdrawFunds(
     userAddress: string,
     chainId: SupportedChainId,
-    amount?: string,
-    receiver?: string
+    amount?: string
   ): Promise<WithdrawResponse> {
     try {
       if (!userAddress) {
@@ -1186,7 +1184,6 @@ export class ZyfaiSDK {
         response = await this.httpClient.post(ENDPOINTS.PARTIAL_WITHDRAW, {
           chainId,
           amount,
-          receiver: receiver || userAddress,
         });
       } else {
         // Full withdrawal - ask backend to trigger automatic withdrawal flow
@@ -1205,8 +1202,6 @@ export class ZyfaiSDK {
         txHash,
         type: amount ? "partial" : "full",
         amount: amount || "all",
-        receiver: receiver || userAddress,
-        status: success ? "pending" : "failed",
       };
     } catch (error) {
       throw new Error(`Withdrawal failed: ${(error as Error).message}`);

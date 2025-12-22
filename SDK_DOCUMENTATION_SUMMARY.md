@@ -344,19 +344,24 @@ Transfer tokens from user's EOA to their Smart Wallet and log the deposit.
 depositFunds(
   userAddress: string,
   chainId: number,
-  tokenAddress: string,
   amount: string
 ): Promise<DepositResponse>
 ```
 
+**Token Selection:**
+
+Token address is automatically selected based on chain:
+
+- **Base (8453) and Arbitrum (42161)**: USDC
+- **Plasma (9745)**: USDT
+
 #### Request Parameters
 
-| Parameter      | Type   | Required | Description                                                                    |
-| -------------- | ------ | -------- | ------------------------------------------------------------------------------ |
-| `userAddress`  | string | ✅       | User's EOA address                                                             |
-| `chainId`      | number | ✅       | Chain to deposit on                                                            |
-| `tokenAddress` | string | ✅       | Token contract address                                                         |
-| `amount`       | string | ✅       | Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals) |
+| Parameter     | Type   | Required | Description                                                                    |
+| ------------- | ------ | -------- | ------------------------------------------------------------------------------ |
+| `userAddress` | string | ✅       | User's EOA address                                                             |
+| `chainId`     | number | ✅       | Chain to deposit on                                                            |
+| `amount`      | string | ✅       | Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals) |
 
 #### Response Type
 
@@ -366,7 +371,6 @@ interface DepositResponse {
   txHash: string;
   smartWallet: string;
   amount: string;
-  status: "pending" | "confirmed" | "failed";
 }
 ```
 
@@ -474,6 +478,7 @@ interface PositionsResponse {
 ### 7. Withdraw Funds
 
 Initiate a full or partial withdrawal from active positions to user's EOA. **Note: Withdrawals are processed asynchronously by the backend.**
+Funds are always withdrawn to the Safe owner's address (userAddress).
 
 #### Function Signature
 
@@ -481,8 +486,7 @@ Initiate a full or partial withdrawal from active positions to user's EOA. **Not
 withdrawFunds(
   userAddress: string,
   chainId: number,
-  amount?: string,
-  receiver?: string
+  amount?: string
 ): Promise<WithdrawResponse>
 ```
 
@@ -493,7 +497,6 @@ withdrawFunds(
 | `userAddress` | string | ✅       | User's EOA address                                                   |
 | `chainId`     | number | ✅       | Chain to withdraw from                                               |
 | `amount`      | string | ❌       | Amount in least decimal units to withdraw (omit for full withdrawal) |
-| `receiver`    | string | ❌       | Receiver address (defaults to user's EOA)                            |
 
 #### Response Type
 
@@ -504,8 +507,6 @@ interface WithdrawResponse {
   txHash?: string; // May not be immediately available (async processing)
   type: "full" | "partial";
   amount: string;
-  receiver: string;
-  status: "pending" | "confirmed" | "failed";
 }
 ```
 
@@ -782,7 +783,6 @@ await sdk.connectAccount(privateKey, 8453);
 
 const userAddress = "0xUser...";
 const chainId = 8453; // Base
-const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 // 1. Deploy Safe
 const wallet = await sdk.getSmartWalletAddress(userAddress, chainId);
@@ -794,10 +794,10 @@ if (!wallet.isDeployed) {
 await sdk.createSessionKey(userAddress, chainId);
 
 // 3. Deposit funds - 100 USDC (least decimal units: 100 * 10^6)
+// Token address is automatically selected (USDC for Base/Arbitrum, USDT for Plasma)
 const depositResult = await sdk.depositFunds(
   userAddress,
   chainId,
-  USDC,
   "100000000" // 100 USDC with 6 decimals
 );
 
@@ -863,10 +863,10 @@ class YieldService {
   async depositAndMonitor(
     userAddress: string,
     chainId: number,
-    tokenAddress: string,
     amount: string
   ) {
-    await this.sdk.depositFunds(userAddress, chainId, tokenAddress, amount);
+    // Token address is automatically selected based on chain
+    await this.sdk.depositFunds(userAddress, chainId, amount);
     return await this.sdk.getPositions(userAddress, chainId);
   }
 
@@ -875,18 +875,9 @@ class YieldService {
     return { positions };
   }
 
-  async withdrawFunds(
-    userAddress: string,
-    chainId: number,
-    amount?: string,
-    receiver?: string
-  ) {
-    const result = await this.sdk.withdrawFunds(
-      userAddress,
-      chainId,
-      amount,
-      receiver
-    );
+  async withdrawFunds(userAddress: string, chainId: number, amount?: string) {
+    // Funds are always withdrawn to the Safe owner's address (userAddress)
+    const result = await this.sdk.withdrawFunds(userAddress, chainId, amount);
     // Handle async withdrawal
     if (!result.txHash) {
       console.log("Withdrawal initiated:", result.message);

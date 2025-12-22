@@ -13,6 +13,8 @@ export {
   getChainConfig,
   isSupportedChain,
   getSupportedChainIds,
+  getDefaultTokenAddress,
+  DEFAULT_TOKEN_ADDRESSES,
   type SupportedChainId,
   type ChainConfig,
 } from "./config/chains";

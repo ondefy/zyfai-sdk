@@ -29,7 +29,7 @@ pnpm add @zyfai/sdk viem
 2. **Bundler API Key**: Required for Safe deployment. Get it from:
    - [Pimlico](https://www.pimlico.io/) (Recommended)
 
-**Get your API key from [ZyFAI Dashboard](https://app.zyf.ai)**
+**Get your API key from [ZyFAI Dashboard](https://sdk.zyf.ai)**
 
 ## Quick Start
 
@@ -342,14 +342,16 @@ console.log("User ID:", result.userId);
 
 ### 4. Deposit Funds
 
-Transfer tokens to your Safe smart wallet:
+Transfer tokens to your Safe smart wallet. Token address is automatically selected based on chain:
+
+- **Base (8453) and Arbitrum (42161)**: USDC
+- **Plasma (9745)**: USDT
 
 ```typescript
 // Deposit 100 USDC (6 decimals) to Safe on Base
 const result = await sdk.depositFunds(
   userAddress,
   8453, // Chain ID
-  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
   "100000000" // Amount: 100 USDC = 100 * 10^6
 );
 
@@ -359,12 +361,16 @@ if (result.success) {
 }
 ```
 
-**Note:** Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
-The SDK automatically authenticates via SIWE before logging the deposit with ZyFAI's API, so no extra steps are required on your end once the transfer confirms.
+**Note:**
+
+- Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
+- Token address is automatically selected based on chain (USDC for Base/Arbitrum, USDT for Plasma)
+- The SDK automatically authenticates via SIWE before logging the deposit with ZyFAI's API, so no extra steps are required on your end once the transfer confirms
 
 ### 5. Withdraw Funds
 
 Initiate a withdrawal from your Safe. **Note: Withdrawals are processed asynchronously by the backend.**
+Funds are always withdrawn to the Safe owner's address (userAddress).
 
 ```typescript
 // Full withdrawal
@@ -374,8 +380,7 @@ const result = await sdk.withdrawFunds(userAddress, 8453);
 const result = await sdk.withdrawFunds(
   userAddress,
   8453,
-  "50000000", // Amount: 50 USDC = 50 * 10^6
-  "0xReceiverAddress" // Optional: receiver address
+  "50000000" // Amount: 50 USDC = 50 * 10^6
 );
 
 if (result.success) {
