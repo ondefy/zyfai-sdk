@@ -5,6 +5,8 @@
 
 TypeScript SDK for interacting with the ZyFAI Yield Optimization Engine. This SDK provides easy-to-use methods for deploying Safe smart wallets, managing DeFi positions, and optimizing yield across multiple protocols.
 
+You can generate an api key from here: https://sdk.zyf.ai/
+
 ## Features
 
 - **Safe Smart Wallet Deployment**: Deploy Safe wallets with deterministic addresses
