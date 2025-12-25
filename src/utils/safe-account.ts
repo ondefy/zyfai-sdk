@@ -238,29 +238,9 @@ export const getSafeAccount = async (
   // Convert string salt to hex if needed
   const saltHex = fromHex(toHex(effectiveSalt), "bigint");
 
-  const signer = {
-    ...owner,
-    address: signerAddress as Address, // Override with the signer address at top level
-    signMessage: async (message: { raw: Hex } | string): Promise<Hex> => {
-      if (typeof message === "string") {
-        return await owner.signMessage({
-          account: owner.account!,
-          message,
-        });
-      } else {
-        return await owner.signMessage({
-          account: owner.account!,
-          message: {
-            raw: message.raw,
-          },
-        });
-      }
-    },
-  } as any;
-
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
-    owners: [signer], // Pass the owner object with address and signMessage capability
+    owners: [owner.account], // Pass the owner object with address and signMessage capability
     version: "1.4.1",
     entryPoint: {
       address: entryPoint07Address,
