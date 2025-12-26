@@ -31,6 +31,9 @@ export const ENDPOINTS = {
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
 
+  // Safe Deployment (single endpoint)
+  SAFE_DEPLOY: "/users/safe-deploy",
+
   // Session Keys
   SESSION_KEYS_CONFIG: "/session-keys/config",
   SESSION_KEYS_ADD: "/session-keys/add",

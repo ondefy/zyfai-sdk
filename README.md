@@ -124,16 +124,11 @@ const result = await sdk.deploySafe(userAddress, 8453);
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
   console.log("Status:", result.status); // 'deployed' | 'failed'
-
-  if (result.alreadyDeployed) {
-    console.log("Safe was already deployed - no action needed");
-  } else {
-    console.log("Transaction Hash:", result.txHash);
-  }
+  console.log("Transaction Hash:", result.txHash);
 }
 ```
 
-**Note:** The SDK proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns `alreadyDeployed: true` without making any transactions.
+**Note:** The SDK proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns early without making any transactions.
 
 ### 2. Multi-Chain Support
 
@@ -178,8 +173,8 @@ new ZyfaiSDK(config: SDKConfig | string)
   - If an object is provided:
     - `apiKey` (string): Your ZyFAI API key (required)
     - `environment` ('production' | 'staging', optional): API environment (default: 'production')
-    - `bundlerApiKey` (string, optional): Bundler API key for Safe deployment (required for deploySafe)
-    - `rpcUrls` (object, optional): Custom RPC URLs per chain to avoid rate limiting
+    - `bundlerApiKey` (string, optional): **Deprecated** - No longer required. Safe deployment is handled by the backend API.
+    - `rpcUrls` (object, optional): Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations like `getSmartWalletAddress`)
       - `8453` (string, optional): Base Mainnet RPC URL
       - `42161` (string, optional): Arbitrum One RPC URL
       - `9745` (string, optional): Plasma Mainnet RPC URL
@@ -283,7 +278,7 @@ Get the Smart Wallet (Safe) address for a user.
 
 ##### `deploySafe(userAddress: string, chainId: SupportedChainId): Promise<DeploySafeResponse>`
 
-Deploy a Safe smart wallet for a user.
+Deploy a Safe smart wallet for a user. **Deployment is handled by the backend API**, which manages all RPC calls and bundler interactions. This avoids rate limiting issues and removes the need for `bundlerApiKey` and custom `rpcUrls`.
 
 **Parameters:**
 
@@ -298,9 +293,14 @@ Deploy a Safe smart wallet for a user.
   safeAddress: Address;
   txHash: string;
   status: "deployed" | "failed";
-  alreadyDeployed?: boolean; // True if the Safe was already deployed (no new deployment needed)
 }
 ```
+
+**Note:**
+
+- User must be authenticated (automatically done via `connectAccount()`)
+- Backend handles all RPC calls, avoiding rate limiting
+- No `bundlerApiKey` or `rpcUrls` required for deployment
 
 ##### `addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>`
 

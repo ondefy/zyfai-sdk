@@ -66,9 +66,6 @@ async function main() {
       console.log(`  Safe Address: ${deployment.safeAddress}`);
       console.log(`  Transaction Hash: ${deployment.txHash}`);
       console.log(`  Status: ${deployment.status}`);
-      if (deployment.alreadyDeployed) {
-        console.log(`  Note: Safe was already deployed`);
-      }
     } else {
       console.error("\n❌ Safe deployment failed");
       throw new Error("Failed to deploy Safe");
