@@ -20,7 +20,7 @@
     "TypeAlias",
     "Interface"
   ],
-  "name": "ZyFAI SDK",
+  "name": "Zyfai SDK",
   "navigationLinks": {
     "GitHub": "https://github.com/ondefy/zyfai-sdk",
     "NPM": "https://www.npmjs.com/package/@zyfai/sdk"

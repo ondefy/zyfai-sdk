@@ -2,7 +2,7 @@
  * HTTP Client for API requests
  *
  * Supports two backends:
- * - Execution API (v1): Main ZyFAI API for transactions
+ * - Execution API (v1): Main Zyfai API for transactions
  * - Data API (v2): DeFi data API for analytics
  */
 

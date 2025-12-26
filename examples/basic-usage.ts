@@ -30,7 +30,7 @@ async function main() {
     );
   }
 
-  console.log("Starting ZyFAI SDK example...\n");
+  console.log("Starting Zyfai SDK example...\n");
 
   console.log("Step 1: Initializing SDK...");
   const sdk = new ZyfaiSDK({

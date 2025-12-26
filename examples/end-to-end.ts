@@ -1,7 +1,7 @@
 /**
- * End-to-End ZyFAI SDK Example
+ * End-to-End Zyfai SDK Example
  *
- * This example demonstrates the complete workflow of using the ZyFAI SDK:
+ * This example demonstrates the complete workflow of using the Zyfai SDK:
  * 1. Initialize SDK and connect account
  * 2. Deploy Safe smart wallet
  * 3. Create session key for delegated transactions
@@ -23,7 +23,7 @@ config();
 
 async function main() {
   console.log("=".repeat(60));
-  console.log("ZyFAI SDK - End-to-End Workflow Example");
+  console.log("Zyfai SDK - End-to-End Workflow Example");
   console.log("=".repeat(60));
   console.log();
 
@@ -44,13 +44,12 @@ async function main() {
   // =================================================================
   // STEP 1: Initialize SDK
   // =================================================================
-  console.log("STEP 1: Initializing ZyFAI SDK");
+  console.log("STEP 1: Initializing Zyfai SDK");
   console.log("-".repeat(60));
 
   const sdk = new ZyfaiSDK({
     apiKey,
     environment: "staging",
-    
   });
 
   console.log("SDK initialized successfully");
@@ -112,7 +111,7 @@ async function main() {
   try {
     const sessionResult = await sdk.createSessionKey(userAddress, chainId);
     console.log("\nSession key created successfully");
-    console.log("  Configuration: Auto-fetched from ZyFAI API");
+    console.log("  Configuration: Auto-fetched from Zyfai API");
   } catch (error) {
     console.log("\n✗ Session key creation failed:", (error as Error).message);
     console.log("  Note: Ensure Safe is deployed first");

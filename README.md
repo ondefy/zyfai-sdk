@@ -1,9 +1,9 @@
-# ZyFAI SDK
+# Zyfai SDK
 
 [![npm version](https://img.shields.io/npm/v/@zyfai/sdk.svg)](https://www.npmjs.com/package/@zyfai/sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-TypeScript SDK for interacting with the ZyFAI Yield Optimization Engine. This SDK provides easy-to-use methods for deploying Safe smart wallets, managing DeFi positions, and optimizing yield across multiple protocols.
+TypeScript SDK for interacting with the Zyfai Yield Optimization Engine. This SDK provides easy-to-use methods for deploying Safe smart wallets, managing DeFi positions, and optimizing yield across multiple protocols.
 
 You can generate an api key from here: https://sdk.zyf.ai/
 
@@ -29,7 +29,7 @@ pnpm add @zyfai/sdk viem
 
 1. **API Key**: Single API key for both Execution API (Safe deployment, transactions, session keys) and Data API (earnings, opportunities, analytics)
 
-**Get your API key from [ZyFAI Dashboard](https://sdk.zyf.ai)**
+**Get your API key from [Zyfai Dashboard](https://sdk.zyf.ai)**
 
 ## Quick Start
 
@@ -167,7 +167,7 @@ new ZyfaiSDK(config: SDKConfig | string)
 - `config`: Configuration object or API key string
   - If a string is provided, it's treated as the `apiKey`
   - If an object is provided:
-    - `apiKey` (string): Your ZyFAI API key (required)
+    - `apiKey` (string): Your Zyfai API key (required)
     - `environment` ('production' | 'staging', optional): API environment (default: 'production')
     - `rpcUrls` (object, optional): Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations like `getSmartWalletAddress`)
       - `8453` (string, optional): Base Mainnet RPC URL
@@ -319,7 +319,7 @@ Session keys enable delegated transaction execution without exposing the main pr
 
 #### Simple Usage (Recommended)
 
-The SDK automatically fetches optimal session configuration from ZyFAI API:
+The SDK automatically fetches optimal session configuration from Zyfai API:
 
 ```typescript
 // SDK automatically:
@@ -375,7 +375,7 @@ if (result.success) {
 
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
 - Token address is automatically selected based on chain (USDC for Base/Arbitrum, USDT for Plasma)
-- The SDK automatically authenticates via SIWE before logging the deposit with ZyFAI's API, so no extra steps are required on your end once the transfer confirms
+- The SDK automatically authenticates via SIWE before logging the deposit with Zyfai's API, so no extra steps are required on your end once the transfer confirms
 
 ### 5. Withdraw Funds
 
@@ -902,7 +902,7 @@ If `withdrawFunds` returns without a `txHash`, the withdrawal is being processed
 
 ### Data API CORS Errors
 
-Some Data API endpoints may require server-side CORS configuration. If you see CORS errors for endpoints like `onchain-earnings`, `calculate-onchain-earnings`, or `opportunities`, contact ZyFAI support to ensure your origin is whitelisted.
+Some Data API endpoints may require server-side CORS configuration. If you see CORS errors for endpoints like `onchain-earnings`, `calculate-onchain-earnings`, or `opportunities`, contact Zyfai support to ensure your origin is whitelisted.
 
 ## Contributing
 

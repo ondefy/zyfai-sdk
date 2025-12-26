@@ -1,5 +1,5 @@
 /**
- * Chain Configuration for ZyFAI SDK
+ * Chain Configuration for Zyfai SDK
  * Supports Arbitrum, Base, and Plasma networks
  */
 
@@ -118,4 +118,3 @@ export const isSupportedChain = (
 export const getSupportedChainIds = (): SupportedChainId[] => {
   return Object.keys(CHAINS).map(Number) as SupportedChainId[];
 };
-
