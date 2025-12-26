@@ -655,22 +655,6 @@ export class ZyfaiSDK {
         chainId,
         httpClient: this.httpClient,
       });
-
-      // IMPORTANT: After deploying Safe, update user profile with Safe address and chainId
-      // This is required before calling createSessionKey or other authenticated endpoints
-      try {
-        await this.updateUserProfile({
-          smartWallet: deploymentResult.safeAddress,
-          chains: [chainId],
-        });
-      } catch (updateError) {
-        // Log the error but don't fail deployment
-        console.warn(
-          "Failed to update user profile after Safe deployment:",
-          (updateError as Error).message
-        );
-      }
-
       // Initialize user after Safe deployment
       try {
         await this.initializeUser(deploymentResult.safeAddress, chainId);
