@@ -272,7 +272,8 @@ export const deploySafeAccount = async (
 
     // Step 3: Call backend again with the signature to complete deployment
     const deployResponse = (await httpClient.post(
-      `${ENDPOINTS.SAFE_DEPLOY}?chainId=${chainId}&userOpSignature=${userOpSignature}`
+      `${ENDPOINTS.SAFE_DEPLOY}?chainId=${chainId}`,
+      { userOpSignature }
     )) as {
       success: boolean;
       safeAddress?: Address;

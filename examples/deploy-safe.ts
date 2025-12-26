@@ -55,7 +55,7 @@ async function main() {
     console.log("Safe is already deployed. No action needed.");
     console.log(`Safe Address: ${walletInfo.address}`);
   } else {
-    console.log("Safe not deployed. Deploying now (one-time cost)...");
+    console.log("Safe not deployed. Deploying now ...");
     const deployment = await sdk.deploySafe(connectedAddress, chainId);
 
     if (deployment.success) {

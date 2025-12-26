@@ -25,7 +25,7 @@ async function main() {
 
   const sdk = new ZyfaiSDK({
     apiKey,
-    
+
     environment: "staging",
   });
 
@@ -84,16 +84,13 @@ async function main() {
   }
 
   // Option: Calculate/refresh earnings
-  const shouldCalculate = process.env.CALCULATE_EARNINGS === "true";
-  if (shouldCalculate) {
-    console.log("\n\nCalculating/refreshing onchain earnings...");
-    try {
-      const updated = await sdk.calculateOnchainEarnings(smartWallet);
-      console.log("Earnings recalculated:");
-      console.log(`  Total: $${updated.data.totalEarnings.toFixed(6)}`);
-    } catch (error) {
-      console.log("Failed to calculate earnings:", (error as Error).message);
-    }
+  console.log("\n\nCalculating/refreshing onchain earnings...");
+  try {
+    const updated = await sdk.calculateOnchainEarnings(smartWallet);
+    console.log("Earnings recalculated:");
+    console.log(`  Total: $${updated.data.totalEarnings.toFixed(6)}`);
+  } catch (error) {
+    console.log("Failed to calculate earnings:", (error as Error).message);
   }
 }
 
