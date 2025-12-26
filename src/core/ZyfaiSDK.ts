@@ -1,5 +1,5 @@
 /**
- * ZyFAI SDK Main Class
+ * Zyfai SDK Main Class
  */
 
 import { HttpClient } from "../utils/http-client";
@@ -679,7 +679,7 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Create session key with auto-fetched configuration from ZyFAI API
+   * Create session key with auto-fetched configuration from Zyfai API
    * This is the simplified method that automatically fetches session configuration
    *
    * @param userAddress - User's EOA or Safe address
@@ -924,7 +924,7 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Activate session key via ZyFAI API
+   * Activate session key via Zyfai API
    */
   private async activateSessionKey(
     signer: Address,
@@ -1069,7 +1069,7 @@ export class ZyfaiSDK {
 
   /**
    * Withdraw funds from Safe smart wallet
-   * Initiates a withdrawal request to the ZyFAI API
+   * Initiates a withdrawal request to the Zyfai API
    * Note: The withdrawal is processed asynchronously, so txHash may not be immediately available
    * Funds are always withdrawn to the Safe owner's address (userAddress)
    *
@@ -1340,7 +1340,7 @@ export class ZyfaiSDK {
   // ============================================================================
 
   /**
-   * Get total value locked (TVL) across all ZyFAI accounts
+   * Get total value locked (TVL) across all Zyfai accounts
    *
    * @returns Total TVL in USD and breakdown by chain
    *
@@ -1375,7 +1375,7 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get total volume across all ZyFAI accounts
+   * Get total volume across all Zyfai accounts
    *
    * @returns Total volume in USD
    *

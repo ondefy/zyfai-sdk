@@ -1,6 +1,6 @@
 /**
- * ZyFAI SDK
- * TypeScript SDK for ZyFAI Yield Optimization Engine
+ * Zyfai SDK
+ * TypeScript SDK for Zyfai Yield Optimization Engine
  *
  * @packageDocumentation
  * @module @zyfai/sdk

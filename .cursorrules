@@ -1,8 +1,8 @@
-# ZyFAI SDK - Cursor Rules
+# Zyfai SDK - Cursor Rules
 
 ## Project Overview
 
-TypeScript SDK for ZyFAI Yield Optimization Engine with Safe smart wallet deployment and DeFi yield management.
+TypeScript SDK for Zyfai Yield Optimization Engine with Safe smart wallet deployment and DeFi yield management.
 
 ## Code Style and Structure
 
@@ -314,7 +314,7 @@ function validateAddress(address: unknown): Address {
 
 Required for testing/examples:
 
-- `ZYFAI_API_KEY`: ZyFAI API key
+- `ZYFAI_API_KEY`: Zyfai API key
 - `PRIVATE_KEY`: Private key for testing (never commit!)
 
 ## Documentation Policy

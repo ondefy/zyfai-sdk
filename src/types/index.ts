@@ -1,5 +1,5 @@
 /**
- * ZyFAI SDK Types
+ * Zyfai SDK Types
  */
 
 export type Address = `0x${string}`;

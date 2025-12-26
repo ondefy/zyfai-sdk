@@ -189,7 +189,7 @@ Create a session key with limited permissions for delegated transactions.
 
 #### Simple Usage (Recommended)
 
-Automatically fetches optimal session configuration from ZyFAI API:
+Automatically fetches optimal session configuration from Zyfai API:
 
 ```typescript
 createSessionKey(
