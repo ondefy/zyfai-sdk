@@ -28,8 +28,6 @@ pnpm add @zyfai/sdk viem
 ## Prerequisites
 
 1. **API Key**: Single API key for both Execution API (Safe deployment, transactions, session keys) and Data API (earnings, opportunities, analytics)
-2. **Bundler API Key**: Required for Safe deployment. Get it from:
-   - [Pimlico](https://www.pimlico.io/) (Recommended)
 
 **Get your API key from [ZyFAI Dashboard](https://sdk.zyf.ai)**
 
@@ -44,8 +42,7 @@ import { ZyfaiSDK } from "@zyfai/sdk";
 
 // Option 1: Full configuration object
 const sdk = new ZyfaiSDK({
-  apiKey: "your-api-key", // API key for both Execution API and Data API
-  bundlerApiKey: "your-bundler-api-key", // Required for Safe deployment
+  apiKey: "your-api-key",
   environment: "production", // or 'staging' (default: 'production')
 });
 
@@ -55,11 +52,10 @@ const sdk = new ZyfaiSDK("your-api-key");
 
 **Configuration Options:**
 
-| Option          | Required | Description                                                                                          |
-| --------------- | -------- | ---------------------------------------------------------------------------------------------------- |
-| `apiKey`        | Yes      | API key for both Execution API and Data API (Safe deployment, transactions, session keys, analytics) |
-| `bundlerApiKey` | No\*     | Pimlico API key for Safe deployment (\*required for `deploySafe`)                                    |
-| `environment`   | No       | `"production"` or `"staging"` (default: `"production"`)                                              |
+| Option        | Required | Description                                                                                          |
+| ------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `apiKey`      | Yes      | API key for both Execution API and Data API (Safe deployment, transactions, session keys, analytics) |
+| `environment` | No       | `"production"` or `"staging"` (default: `"production"`)                                              |
 
 ### Connect Account
 
@@ -124,16 +120,11 @@ const result = await sdk.deploySafe(userAddress, 8453);
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
   console.log("Status:", result.status); // 'deployed' | 'failed'
-
-  if (result.alreadyDeployed) {
-    console.log("Safe was already deployed - no action needed");
-  } else {
-    console.log("Transaction Hash:", result.txHash);
-  }
+  console.log("Transaction Hash:", result.txHash);
 }
 ```
 
-**Note:** The SDK proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns `alreadyDeployed: true` without making any transactions.
+**Note:** The SDK proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns early without making any transactions.
 
 ### 2. Multi-Chain Support
 
@@ -178,8 +169,7 @@ new ZyfaiSDK(config: SDKConfig | string)
   - If an object is provided:
     - `apiKey` (string): Your ZyFAI API key (required)
     - `environment` ('production' | 'staging', optional): API environment (default: 'production')
-    - `bundlerApiKey` (string, optional): Bundler API key for Safe deployment (required for deploySafe)
-    - `rpcUrls` (object, optional): Custom RPC URLs per chain to avoid rate limiting
+    - `rpcUrls` (object, optional): Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations like `getSmartWalletAddress`)
       - `8453` (string, optional): Base Mainnet RPC URL
       - `42161` (string, optional): Arbitrum One RPC URL
       - `9745` (string, optional): Plasma Mainnet RPC URL
@@ -193,14 +183,12 @@ const sdk = new ZyfaiSDK("your-api-key");
 // Option 2: Object initialization (full configuration)
 const sdk = new ZyfaiSDK({
   apiKey: "your-api-key",
-  bundlerApiKey: "your-bundler-api-key",
   environment: "production",
 });
 
 // Option 3: With custom RPC URLs (recommended to avoid rate limiting)
 const sdk = new ZyfaiSDK({
   apiKey: "your-api-key",
-  bundlerApiKey: "your-bundler-api-key",
   environment: "production",
   rpcUrls: {
     8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY", // Base
@@ -283,7 +271,7 @@ Get the Smart Wallet (Safe) address for a user.
 
 ##### `deploySafe(userAddress: string, chainId: SupportedChainId): Promise<DeploySafeResponse>`
 
-Deploy a Safe smart wallet for a user.
+Deploy a Safe smart wallet for a user. **Deployment is handled by the backend API**, which manages all RPC calls and bundler interactions. This avoids rate limiting issues.
 
 **Parameters:**
 
@@ -298,9 +286,13 @@ Deploy a Safe smart wallet for a user.
   safeAddress: Address;
   txHash: string;
   status: "deployed" | "failed";
-  alreadyDeployed?: boolean; // True if the Safe was already deployed (no new deployment needed)
 }
 ```
+
+**Note:**
+
+- User must be authenticated (automatically done via `connectAccount()`)
+- Backend handles all RPC calls, avoiding rate limiting
 
 ##### `addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>`
 
@@ -710,7 +702,6 @@ import { ZyfaiSDK } from "@zyfai/sdk";
 async function main() {
   const sdk = new ZyfaiSDK({
     apiKey: process.env.ZYFAI_API_KEY!,
-    bundlerApiKey: process.env.BUNDLER_API_KEY!,
   });
 
   // Connect account (automatically authenticates via SIWE)
@@ -864,9 +855,6 @@ For running the examples, set up the following environment variables:
 ```bash
 # Required: API key (used for both Execution API and Data API)
 ZYFAI_API_KEY=your-api-key
-
-# Required for Safe deployment: Bundler API key (e.g., Pimlico)
-BUNDLER_API_KEY=your-pimlico-api-key
 
 # Required for examples: Private key for signing transactions
 # WARNING: Never commit your private key to version control!

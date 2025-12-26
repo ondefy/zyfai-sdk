@@ -14,18 +14,16 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
-  const bundlerApiKey = process.env.BUNDLER_API_KEY;
   const privateKey = process.env.PRIVATE_KEY;
 
-  if (!apiKey || !bundlerApiKey || !privateKey) {
+  if (!apiKey || !privateKey) {
     throw new Error(
-      "Missing environment variables. Please set ZYFAI_API_KEY, BUNDLER_API_KEY, and PRIVATE_KEY in .env"
+      "Missing environment variables. Please set ZYFAI_API_KEY and PRIVATE_KEY in .env"
     );
   }
 
   const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
 
-  // Recommended to use custom rpc urls to avoid rate limiting
   const rpcUrls = {
     8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
     42161: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
@@ -34,7 +32,6 @@ async function main() {
   const sdk = new ZyfaiSDK({
     apiKey,
     environment: "staging",
-    bundlerApiKey,
     // rpcUrls,
   });
 
@@ -58,7 +55,7 @@ async function main() {
     console.log("Safe is already deployed. No action needed.");
     console.log(`Safe Address: ${walletInfo.address}`);
   } else {
-    console.log("Safe not deployed. Deploying now (one-time cost)...");
+    console.log("Safe not deployed. Deploying now ...");
     const deployment = await sdk.deploySafe(connectedAddress, chainId);
 
     if (deployment.success) {
@@ -66,9 +63,6 @@ async function main() {
       console.log(`  Safe Address: ${deployment.safeAddress}`);
       console.log(`  Transaction Hash: ${deployment.txHash}`);
       console.log(`  Status: ${deployment.status}`);
-      if (deployment.alreadyDeployed) {
-        console.log(`  Note: Safe was already deployed`);
-      }
     } else {
       console.error("\n❌ Safe deployment failed");
       throw new Error("Failed to deploy Safe");

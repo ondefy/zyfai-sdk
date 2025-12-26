@@ -16,7 +16,6 @@ export interface RpcUrlsConfig {
 export interface SDKConfig {
   apiKey: string;
   environment?: Environment;
-  bundlerApiKey?: string;
   rpcUrls?: RpcUrlsConfig;
 }
 
@@ -27,8 +26,6 @@ export interface DeploySafeResponse {
   safeAddress: Address;
   txHash: string;
   status: "deployed" | "failed";
-  /** True if the Safe was already deployed (no new deployment needed) */
-  alreadyDeployed?: boolean;
 }
 
 // Internal types - used by SDK implementation

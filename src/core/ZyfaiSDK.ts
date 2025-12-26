@@ -52,7 +52,6 @@ import {
 } from "viem";
 import {
   getChainConfig,
-  getBundlerUrl,
   isSupportedChain,
   getDefaultTokenAddress,
   type SupportedChainId,
@@ -72,20 +71,18 @@ export class ZyfaiSDK {
   private httpClient: HttpClient;
   private signer: PrivateKeyAccount | null = null;
   private walletClient: WalletClient | null = null;
-  private bundlerApiKey?: string;
-  private authenticatedUserId: string | null = null; // If non-null, user is authenticated
-  private hasActiveSessionKey: boolean = false; // Stored from login response
+  private authenticatedUserId: string | null = null;
+  private hasActiveSessionKey: boolean = false;
   private environment: Environment;
-  private currentProvider: any = null; // Store reference to current provider for event handling
-  private currentChainId: SupportedChainId | null = null; // Store current chain ID for private key connections
-  private rpcUrls?: RpcUrlsConfig; // Optional custom RPC URLs per chain
+  private currentProvider: any = null;
+  private currentChainId: SupportedChainId | null = null;
+  private rpcUrls?: RpcUrlsConfig;
 
   constructor(config: SDKConfig | string) {
-    // Support both object and string initialization
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, environment, bundlerApiKey, rpcUrls } = sdkConfig;
+    const { apiKey, environment, rpcUrls } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
@@ -93,7 +90,6 @@ export class ZyfaiSDK {
 
     this.environment = environment || "production";
     this.httpClient = new HttpClient(apiKey, this.environment);
-    this.bundlerApiKey = bundlerApiKey;
     this.rpcUrls = rpcUrls;
   }
 
@@ -606,11 +602,8 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      if (!this.bundlerApiKey) {
-        throw new Error(
-          "Bundler API key is required for Safe deployment. Please provide bundlerApiKey in SDK configuration."
-        );
-      }
+      // Ensure user is authenticated (required for safe-deploy endpoint)
+      await this.authenticateUser();
 
       const walletClient = this.getWalletClient(chainId);
       const chainConfig = getChainConfig(chainId, this.rpcUrls);
@@ -629,58 +622,39 @@ export class ZyfaiSDK {
         chainConfig.publicClient
       );
 
+      // Verify that userAddress is an EOA (only if not already deployed to save RPC calls)
+      if (!alreadyDeployed) {
+        const accountType = await getAccountType(
+          userAddress as Address,
+          chainConfig.publicClient
+        );
+
+        if (accountType !== "EOA") {
+          throw new Error(
+            `Address ${userAddress} is not an EOA. Only EOA addresses can deploy Safe smart wallets.`
+          );
+        }
+      }
+
+      // If already deployed, return early without attempting deployment
       if (alreadyDeployed) {
-        // Safe already exists - return success without redeploying
         return {
           success: true,
           safeAddress,
           txHash: "0x0",
           status: "deployed",
-          alreadyDeployed: true,
         };
       }
 
-      // Verify that userAddress is an EOA
-      const accountType = await getAccountType(
-        userAddress as Address,
-        chainConfig.publicClient
-      );
-
-      if (accountType !== "EOA") {
-        throw new Error(
-          `Address ${userAddress} is not an EOA. Only EOA addresses can deploy Safe smart wallets.`
-        );
-      }
-
-      // Get bundler URL
-      const bundlerUrl = getBundlerUrl(chainId, this.bundlerApiKey);
-
-      // Deploy the Safe account
       const deploymentResult = await deploySafeAccount({
         owner: walletClient,
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
-        bundlerUrl,
         environment: this.environment,
         chainId,
+        httpClient: this.httpClient,
       });
-
-      // IMPORTANT: After deploying Safe, update user profile with Safe address and chainId
-      // This is required before calling createSessionKey or other authenticated endpoints
-      try {
-        await this.updateUserProfile({
-          smartWallet: deploymentResult.safeAddress,
-          chains: [chainId],
-        });
-      } catch (updateError) {
-        // Log the error but don't fail deployment
-        console.warn(
-          "Failed to update user profile after Safe deployment:",
-          (updateError as Error).message
-        );
-      }
-
       // Initialize user after Safe deployment
       try {
         await this.initializeUser(deploymentResult.safeAddress, chainId);

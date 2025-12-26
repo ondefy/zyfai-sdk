@@ -119,32 +119,3 @@ export const getSupportedChainIds = (): SupportedChainId[] => {
   return Object.keys(CHAINS).map(Number) as SupportedChainId[];
 };
 
-/**
- * Get bundler URL for ERC-4337 account abstraction
- * Supports Pimlico and other compatible bundler services
- *
- * @param chainId - Target chain ID
- * @param bundlerApiKey - API key for the bundler service
- * @param bundlerProvider - Bundler provider (default: "pimlico")
- * @returns Bundler RPC URL
- */
-export const getBundlerUrl = (
-  chainId: SupportedChainId,
-  bundlerApiKey?: string,
-  bundlerProvider: "pimlico" | "custom" = "pimlico"
-): string => {
-  if (!bundlerApiKey) {
-    throw new Error("Bundler API key is required for Safe deployment");
-  }
-
-  // Support for different bundler providers
-  switch (bundlerProvider) {
-    case "pimlico":
-      return `https://api.pimlico.io/v2/${chainId}/rpc?apikey=${bundlerApiKey}`;
-    case "custom":
-      // For custom bundler URLs, the bundlerApiKey should be the full URL
-      return bundlerApiKey;
-    default:
-      throw new Error(`Unsupported bundler provider: ${bundlerProvider}`);
-  }
-};
