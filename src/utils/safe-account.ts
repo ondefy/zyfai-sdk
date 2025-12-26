@@ -12,12 +12,8 @@ import {
   getSessionNonce,
   type Session,
 } from "@rhinestone/module-sdk";
-import { createSmartAccountClient } from "permissionless";
-import { erc7579Actions } from "permissionless/actions/erc7579";
-import { createPimlicoClient } from "permissionless/clients/pimlico";
 import { toSafeSmartAccount } from "permissionless/accounts";
 import {
-  http,
   getAddress,
   type Address,
   type Hash,
@@ -37,12 +33,11 @@ import type { SupportedChainId } from "../config/chains";
 import { ENDPOINTS } from "../config/endpoints";
 
 export interface SafeAccountConfig {
-  owner: WalletClient; // The wallet that signs for transactions
-  safeOwnerAddress?: Address; // Optional: The address that will own the Safe (if different from owner)
+  owner: WalletClient;
+  safeOwnerAddress?: Address;
   chain: Chain;
   publicClient: PublicClient;
-  bundlerUrl?: string;
-  environment?: Environment; // Environment to determine default account salt
+  environment?: Environment;
 }
 
 export interface SafeDeploymentResult {
@@ -232,39 +227,6 @@ export const getAccountType = async (
     console.error("Error checking account type:", error);
     return "Unknown";
   }
-};
-
-/**
- * Creates a smart account client with bundler and paymaster
- */
-export const getSmartAccountClient = async (
-  config: SafeAccountConfig & { bundlerUrl: string }
-) => {
-  const { chain, bundlerUrl } = config;
-  const safeAccount = await getSafeAccount(config);
-
-  console.log("Line 351: chain", chain);
-  const bundlerClient = createPimlicoClient({
-    transport: http(bundlerUrl),
-    entryPoint: {
-      address: entryPoint07Address,
-      version: "0.7",
-    },
-  });
-
-  const smartAccountClient = createSmartAccountClient({
-    account: safeAccount,
-    chain: chain,
-    bundlerTransport: http(bundlerUrl),
-    paymaster: bundlerClient,
-    userOperation: {
-      estimateFeesPerGas: async () => {
-        return (await bundlerClient.getUserOperationGasPrice()).fast;
-      },
-    },
-  }).extend(erc7579Actions());
-
-  return smartAccountClient as any;
 };
 
 export interface DeploySafeAccountConfig extends SafeAccountConfig {

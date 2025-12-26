@@ -29,14 +29,14 @@ async function main() {
 
   // Validate environment variables
   const apiKey = process.env.ZYFAI_API_KEY;
-  const bundlerApiKey = process.env.BUNDLER_API_KEY;
+
   const privateKey = process.env.PRIVATE_KEY;
 
-  if (!apiKey || !bundlerApiKey || !privateKey) {
+  if (!apiKey || !privateKey) {
     throw new Error(
       "Missing required environment variables:\n" +
         "- ZYFAI_API_KEY\n" +
-        "- BUNDLER_API_KEY\n" +
+        "- \n" +
         "- PRIVATE_KEY"
     );
   }
@@ -50,7 +50,7 @@ async function main() {
   const sdk = new ZyfaiSDK({
     apiKey,
     environment: "staging",
-    bundlerApiKey,
+    
   });
 
   console.log("SDK initialized successfully");

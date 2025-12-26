@@ -5,22 +5,20 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
-  const bundlerApiKey = process.env.BUNDLER_API_KEY;
   const privateKey = process.env.PRIVATE_KEY;
 
-  if (!apiKey || !bundlerApiKey || !privateKey) {
+  if (!apiKey || !privateKey) {
     throw new Error(
-      "Missing env vars. Please set ZYFAI_API_KEY, BUNDLER_API_KEY, and PRIVATE_KEY."
+      "Missing env vars. Please set ZYFAI_API_KEY and PRIVATE_KEY."
     );
   }
 
   const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
   const amount =
-    process.env.DEPOSIT_AMOUNT ?? (chainId === 8453 ? "1500000" : "1500000"); // 1.5 USDC default
+    process.env.DEPOSIT_AMOUNT ?? (chainId === 8453 ? "1500000" : "1500000");
 
   const sdk = new ZyfaiSDK({
     apiKey,
-    bundlerApiKey,
     environment: "staging",
   });
 

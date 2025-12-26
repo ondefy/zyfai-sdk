@@ -28,9 +28,8 @@ The SDK can be initialized with either a configuration object or just the API ke
 ```typescript
 // Option 1: Full configuration object
 const sdk = new ZyfaiSDK({
-  apiKey: "YOUR_API_KEY", // API key for both Execution API and Data API
+  apiKey: "YOUR_API_KEY",
   environment: "production", // or 'staging'
-  // bundlerApiKey is no longer required - Safe deployment is handled by backend
   // rpcUrls is optional - only needed for local operations like getSmartWalletAddress
   rpcUrls: {
     // Optional: Custom RPC URLs to avoid rate limiting from public RPCs
@@ -62,15 +61,14 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 
 ### Configuration Options
 
-| Option          | Required | Description                                                                                   |
-| --------------- | -------- | --------------------------------------------------------------------------------------------- |
-| `apiKey`        | Yes      | API key for both Execution API and Data API                                                   |
-| `bundlerApiKey` | No       | **Deprecated** - No longer required. Safe deployment is handled by backend API.               |
-| `environment`   | No       | `"production"` or `"staging"` (default: `"production"`)                                       |
-| `rpcUrls`       | No       | Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations) |
-|                 |          | - `8453` (string): Base Mainnet RPC URL                                                       |
-|                 |          | - `42161` (string): Arbitrum One RPC URL                                                      |
-|                 |          | - `9745` (string): Plasma Mainnet RPC URL                                                     |
+| Option        | Required | Description                                                                                   |
+| ------------- | -------- | --------------------------------------------------------------------------------------------- |
+| `apiKey`      | Yes      | API key for both Execution API and Data API                                                   |
+| `environment` | No       | `"production"` or `"staging"` (default: `"production"`)                                       |
+| `rpcUrls`     | No       | Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations) |
+|               |          | - `8453` (string): Base Mainnet RPC URL                                                       |
+|               |          | - `42161` (string): Arbitrum One RPC URL                                                      |
+|               |          | - `9745` (string): Plasma Mainnet RPC URL                                                     |
 
 **Important:**
 
@@ -121,7 +119,7 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 
 Deploy an ERC-4337 with ERC-7579 launchpad + smart session module standard compliant Safe Smart Account for a user.
 
-**Note:** Safe deployment is now handled by the backend API, which manages all RPC calls and bundler interactions. This avoids rate limiting issues and removes the need for `bundlerApiKey` and custom `rpcUrls` in the SDK configuration.
+**Note:** Safe deployment is now handled by the backend API, which manages all RPC calls and bundler interactions. This avoids rate limiting issues.
 
 #### Function Signature
 
@@ -155,7 +153,6 @@ interface DeploySafeResponse {
 - The backend API proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns early without making any transactions.
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting issues
-- No `bundlerApiKey` or `rpcUrls` required for deployment
 
 #### Example Response (New Deployment)
 
@@ -789,7 +786,6 @@ await sdk.disconnectAccount();
 ```typescript
 const sdk = new ZyfaiSDK({
   apiKey: API_KEY,
-  bundlerApiKey: BUNDLER_API_KEY,
   environment: "production",
   rpcUrls: {
     // Optional: Use your own RPC providers to avoid rate limiting
@@ -858,10 +854,9 @@ await sdk.disconnectAccount();
 class YieldService {
   private sdk: ZyfaiSDK;
 
-  constructor(apiKey: string, bundlerApiKey: string) {
+  constructor(apiKey: string) {
     this.sdk = new ZyfaiSDK({
       apiKey,
-      bundlerApiKey,
     });
   }
 

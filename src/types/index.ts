@@ -16,7 +16,6 @@ export interface RpcUrlsConfig {
 export interface SDKConfig {
   apiKey: string;
   environment?: Environment;
-  bundlerApiKey?: string;
   rpcUrls?: RpcUrlsConfig;
 }
 

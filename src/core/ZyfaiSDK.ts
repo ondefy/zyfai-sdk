@@ -52,7 +52,6 @@ import {
 } from "viem";
 import {
   getChainConfig,
-  getBundlerUrl,
   isSupportedChain,
   getDefaultTokenAddress,
   type SupportedChainId,
@@ -72,20 +71,18 @@ export class ZyfaiSDK {
   private httpClient: HttpClient;
   private signer: PrivateKeyAccount | null = null;
   private walletClient: WalletClient | null = null;
-  private bundlerApiKey?: string;
-  private authenticatedUserId: string | null = null; // If non-null, user is authenticated
-  private hasActiveSessionKey: boolean = false; // Stored from login response
+  private authenticatedUserId: string | null = null;
+  private hasActiveSessionKey: boolean = false;
   private environment: Environment;
-  private currentProvider: any = null; // Store reference to current provider for event handling
-  private currentChainId: SupportedChainId | null = null; // Store current chain ID for private key connections
-  private rpcUrls?: RpcUrlsConfig; // Optional custom RPC URLs per chain
+  private currentProvider: any = null;
+  private currentChainId: SupportedChainId | null = null;
+  private rpcUrls?: RpcUrlsConfig;
 
   constructor(config: SDKConfig | string) {
-    // Support both object and string initialization
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, environment, bundlerApiKey, rpcUrls } = sdkConfig;
+    const { apiKey, environment, rpcUrls } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
@@ -93,7 +90,6 @@ export class ZyfaiSDK {
 
     this.environment = environment || "production";
     this.httpClient = new HttpClient(apiKey, this.environment);
-    this.bundlerApiKey = bundlerApiKey;
     this.rpcUrls = rpcUrls;
   }
 
@@ -650,8 +646,6 @@ export class ZyfaiSDK {
         };
       }
 
-      // Deploy the Safe account via backend API
-      // The backend handles all bundler interactions and RPC calls
       const deploymentResult = await deploySafeAccount({
         owner: walletClient,
         safeOwnerAddress: userAddress as Address,
