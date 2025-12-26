@@ -26,8 +26,6 @@ export interface DeploySafeResponse {
   safeAddress: Address;
   txHash: string;
   status: "deployed" | "failed";
-  /** UserOp hash that needs to be signed (if deployment is pending) */
-  userOpHashToSign?: Hex;
 }
 
 // Internal types - used by SDK implementation
