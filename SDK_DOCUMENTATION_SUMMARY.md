@@ -62,9 +62,9 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 | --------- | -------- | --------------------------------------------------------------------------------------------- |
 | `apiKey`  | Yes      | API key for both Execution API and Data API                                                   |
 | `rpcUrls` | No       | Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations) |
-|               |          | - `8453` (string): Base Mainnet RPC URL                                                       |
-|               |          | - `42161` (string): Arbitrum One RPC URL                                                      |
-|               |          | - `9745` (string): Plasma Mainnet RPC URL                                                     |
+|           |          | - `8453` (string): Base Mainnet RPC URL                                                       |
+|           |          | - `42161` (string): Arbitrum One RPC URL                                                      |
+|           |          | - `9745` (string): Plasma Mainnet RPC URL                                                     |
 
 **Important:**
 
@@ -123,15 +123,17 @@ Deploy an ERC-4337 with ERC-7579 launchpad + smart session module standard compl
 deploySafe(
   userAddress: string,
   chainId: number,
+  strategy?: Strategy
 ): Promise<DeploySafeResponse>
 ```
 
 #### Request Parameters
 
-| Parameter     | Type   | Required | Description                      |
-| ------------- | ------ | -------- | -------------------------------- |
-| `userAddress` | string | ✅       | User's EOA address               |
-| `chainId`     | number | ✅       | Target chain (8453, 42161, 9745) |
+| Parameter     | Type     | Required | Description                                                                     |
+| ------------- | -------- | -------- | ------------------------------------------------------------------------------- |
+| `userAddress` | string   | ✅       | User's EOA address                                                              |
+| `chainId`     | number   | ✅       | Target chain (8453, 42161, 9745)                                                |
+| `strategy`    | Strategy | ❌       | Strategy selection: `"safe_strategy"` (default) or `"degen_strategy"` (yieldor) |
 
 #### Response Type
 
@@ -144,11 +146,17 @@ interface DeploySafeResponse {
 }
 ```
 
+**Strategy Options:**
+
+- `"safe_strategy"` (default): Low-risk, stable yield strategy
+- `"degen_strategy"`: High-risk, high-reward strategy (also known as "yieldor" on the frontend)
+
 **Note:**
 
 - The backend API proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns early without making any transactions.
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting issues
+- If no strategy is provided, `"safe_strategy"` is used as the default
 
 #### Example Response (New Deployment)
 
@@ -752,7 +760,10 @@ const sdk = new ZyfaiSDK(API_KEY);
 await sdk.connectAccount(PRIVATE_KEY, 8453);
 
 const userAddress = "0xUser...";
+// Deploy with default safe strategy
 await sdk.deploySafe(userAddress, 8453);
+// Or deploy with degen strategy (yieldor)
+await sdk.deploySafe(userAddress, 8453, "degen_strategy");
 const wallet = await sdk.getSmartWalletAddress(userAddress, 8453);
 console.log("Deposit to:", wallet.address);
 
@@ -799,7 +810,9 @@ const chainId = 8453; // Base
 // 1. Deploy Safe
 const wallet = await sdk.getSmartWalletAddress(userAddress, chainId);
 if (!wallet.isDeployed) {
+  // Deploy with default safe strategy
   await sdk.deploySafe(userAddress, chainId);
+  // Or deploy with degen strategy: await sdk.deploySafe(userAddress, chainId, "degen_strategy");
 }
 
 // 2. Create session key (uses existing authentication)

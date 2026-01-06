@@ -39,6 +39,7 @@ import type {
   RebalanceFrequencyResponse,
   AddWalletToSdkResponse,
   RpcUrlsConfig,
+  Strategy,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -581,11 +582,22 @@ export class ZyfaiSDK {
    *
    * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
+   * @param strategy - Optional strategy selection: "safe_strategy" (default) or "degen_strategy" (yieldor)
    * @returns Deployment response with Safe address and transaction hash
+   *
+   * @example
+   * ```typescript
+   * // Deploy with default safe strategy
+   * await sdk.deploySafe(userAddress, 8453);
+   *
+   * // Deploy with degen strategy (yieldor)
+   * await sdk.deploySafe(userAddress, 8453, "degen_strategy");
+   * ```
    */
   async deploySafe(
     userAddress: string,
-    chainId: SupportedChainId
+    chainId: SupportedChainId,
+    strategy?: Strategy
   ): Promise<DeploySafeResponse> {
     try {
       // Validate inputs
@@ -647,6 +659,7 @@ export class ZyfaiSDK {
         publicClient: chainConfig.publicClient,
         chainId,
         httpClient: this.httpClient,
+        strategy: strategy || "safe_strategy",
       });
       // Initialize user after Safe deployment
       try {

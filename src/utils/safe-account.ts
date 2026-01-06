@@ -220,13 +220,14 @@ export const getAccountType = async (
 export interface DeploySafeAccountConfig extends SafeAccountConfig {
   httpClient: any; // HttpClient instance from SDK
   chainId: SupportedChainId;
+  strategy?: "safe_strategy" | "degen_strategy";
 }
 
 export const deploySafeAccount = async (
   config: DeploySafeAccountConfig
 ): Promise<SafeDeploymentResult> => {
   try {
-    const { owner, httpClient, chainId } = config;
+    const { owner, httpClient, chainId, strategy = "safe_strategy" } = config;
 
     if (!owner || !owner.account) {
       throw new Error(
@@ -236,7 +237,8 @@ export const deploySafeAccount = async (
 
     // Step 1: Call backend to get userOpHashToSign
     const prepareResponse = (await httpClient.post(
-      `${ENDPOINTS.SAFE_DEPLOY}?chainId=${chainId}`
+      `${ENDPOINTS.SAFE_DEPLOY}?chainId=${chainId}`,
+      { strategy }
     )) as {
       success: boolean;
       userOpHashToSign?: Hex;
@@ -261,7 +263,7 @@ export const deploySafeAccount = async (
     // Step 3: Call backend again with the signature to complete deployment
     const deployResponse = (await httpClient.post(
       `${ENDPOINTS.SAFE_DEPLOY}?chainId=${chainId}`,
-      { userOpSignature }
+      { userOpSignature, strategy }
     )) as {
       success: boolean;
       safeAddress?: Address;

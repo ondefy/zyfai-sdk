@@ -26,6 +26,7 @@ export type {
   // Common Types
   Address,
   Hex,
+  Strategy,
 
   // Core Response Types
   DeploySafeResponse,

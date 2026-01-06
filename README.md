@@ -112,8 +112,11 @@ const walletInfo = await sdk.getSmartWalletAddress(userAddress, 8453);
 console.log("Safe Address:", walletInfo.address);
 console.log("Is Deployed:", walletInfo.isDeployed);
 
-// Deploy the Safe (automatically checks if already deployed)
+// Deploy the Safe with default safe strategy (automatically checks if already deployed)
 const result = await sdk.deploySafe(userAddress, 8453);
+
+// Or deploy with degen strategy (yieldor)
+const degenResult = await sdk.deploySafe(userAddress, 8453, "degen_strategy");
 
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
@@ -123,6 +126,11 @@ if (result.success) {
 ```
 
 **Note:** The SDK proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns early without making any transactions.
+
+**Strategy Options:**
+
+- `"safe_strategy"` (default): Low-risk, stable yield strategy
+- `"degen_strategy"`: High-risk, high-reward strategy (also known as "yieldor" on the frontend)
 
 ### 2. Multi-Chain Support
 
@@ -264,7 +272,7 @@ Get the Smart Wallet (Safe) address for a user.
 }
 ```
 
-##### `deploySafe(userAddress: string, chainId: SupportedChainId): Promise<DeploySafeResponse>`
+##### `deploySafe(userAddress: string, chainId: SupportedChainId, strategy?: Strategy): Promise<DeploySafeResponse>`
 
 Deploy a Safe smart wallet for a user. **Deployment is handled by the backend API**, which manages all RPC calls and bundler interactions. This avoids rate limiting issues.
 
@@ -272,6 +280,9 @@ Deploy a Safe smart wallet for a user. **Deployment is handled by the backend AP
 
 - `userAddress`: User's EOA address
 - `chainId`: Target chain ID
+- `strategy`: Optional strategy selection (default: `"safe_strategy"`)
+  - `"safe_strategy"`: Low-risk, stable yield strategy (default)
+  - `"degen_strategy"`: High-risk, high-reward strategy (also known as "yieldor" on the frontend)
 
 **Returns:**
 
@@ -712,8 +723,11 @@ async function main() {
     return;
   }
 
-  // Deploy Safe
+  // Deploy Safe with default safe strategy
   const result = await sdk.deploySafe(userAddress, 8453);
+
+  // Or deploy with degen strategy (yieldor)
+  // const result = await sdk.deploySafe(userAddress, 8453, "degen_strategy");
 
   if (result.success) {
     console.log("✅ Successfully deployed Safe");
@@ -732,9 +746,7 @@ import { ZyfaiSDK } from "@zyfai/sdk";
 import { useState } from "react";
 
 function SafeDeployment() {
-  const [sdk] = useState(
-    () => new ZyfaiSDK(process.env.ZYFAI_API_KEY!)
-  );
+  const [sdk] = useState(() => new ZyfaiSDK(process.env.ZYFAI_API_KEY!));
 
   const [userAddress, setUserAddress] = useState<string>("");
   const [safeAddress, setSafeAddress] = useState<string>("");

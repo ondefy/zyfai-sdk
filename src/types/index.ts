@@ -5,6 +5,8 @@
 export type Address = `0x${string}`;
 export type Hex = `0x${string}`;
 
+export type Strategy = "safe_strategy" | "degen_strategy";
+
 export interface RpcUrlsConfig {
   8453?: string;
   42161?: string;
