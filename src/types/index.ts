@@ -5,8 +5,6 @@
 export type Address = `0x${string}`;
 export type Hex = `0x${string}`;
 
-export type Environment = "staging" | "production";
-
 export interface RpcUrlsConfig {
   8453?: string;
   42161?: string;
@@ -15,7 +13,6 @@ export interface RpcUrlsConfig {
 
 export interface SDKConfig {
   apiKey: string;
-  environment?: Environment;
   rpcUrls?: RpcUrlsConfig;
 }
 

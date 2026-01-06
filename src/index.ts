@@ -22,7 +22,6 @@ export {
 export type {
   // Configuration
   SDKConfig,
-  Environment,
 
   // Common Types
   Address,

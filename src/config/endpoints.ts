@@ -3,19 +3,13 @@
  *
  */
 
-import { SupportedChainId } from "..";
+import { SupportedChainId } from "../config/chains";
 
 // Execution API
-export const API_ENDPOINTS = {
-  staging: "https://staging-api.zyf.ai",
-  production: "https://api.zyf.ai",
-} as const;
+export const API_ENDPOINT = "https://api.zyf.ai";
 
 // Data API
-export const DATA_API_ENDPOINTS = {
-  staging: "https://staging-defiapi.zyf.ai",
-  production: "https://defiapi.zyf.ai",
-} as const;
+export const DATA_API_ENDPOINT = "https://defiapi.zyf.ai";
 
 export const API_VERSION = "/api/v1";
 export const DATA_API_VERSION = "/api/v2";

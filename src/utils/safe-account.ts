@@ -28,7 +28,6 @@ import {
   type SmartAccount,
   entryPoint07Address,
 } from "viem/account-abstraction";
-import type { Environment } from "../types";
 import type { SupportedChainId } from "../config/chains";
 import { ENDPOINTS } from "../config/endpoints";
 
@@ -37,7 +36,6 @@ export interface SafeAccountConfig {
   safeOwnerAddress?: Address;
   chain: Chain;
   publicClient: PublicClient;
-  environment?: Environment;
 }
 
 export interface SafeDeploymentResult {
@@ -49,10 +47,7 @@ export interface SafeDeploymentResult {
 // Constants
 const SAFE_7579_ADDRESS = "0x7579EE8307284F293B1927136486880611F20002";
 const ERC7579_LAUNCHPAD_ADDRESS = "0x7579011aB74c46090561ea277Ba79D510c6C00ff";
-const ACCOUNT_SALTS: Record<Environment, string> = {
-  staging: "zyfai-staging",
-  production: "zyfai",
-};
+const ACCOUNT_SALT = "zyfai";
 
 /**
  * Gets the Safe smart account configuration
@@ -60,14 +55,7 @@ const ACCOUNT_SALTS: Record<Environment, string> = {
 export const getSafeAccount = async (
   config: SafeAccountConfig
 ): Promise<SmartAccount> => {
-  const {
-    owner,
-    safeOwnerAddress,
-    publicClient,
-    environment = "production",
-  } = config;
-
-  const effectiveSalt = ACCOUNT_SALTS[environment];
+  const { owner, safeOwnerAddress, publicClient } = config;
 
   if (!owner || !owner.account) {
     throw new Error("Wallet not connected. Please connect your wallet first.");
@@ -121,7 +109,7 @@ export const getSafeAccount = async (
   });
 
   // Convert string salt to hex if needed
-  const saltHex = fromHex(toHex(effectiveSalt), "bigint");
+  const saltHex = fromHex(toHex(ACCOUNT_SALT), "bigint");
 
   const tempOwner = {
     address: formattedEffectiveAddress,

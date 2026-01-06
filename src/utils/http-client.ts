@@ -8,12 +8,11 @@
 
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from "axios";
 import {
-  API_ENDPOINTS,
+  API_ENDPOINT,
   API_VERSION,
-  DATA_API_ENDPOINTS,
+  DATA_API_ENDPOINT,
   DATA_API_VERSION,
 } from "../config/endpoints";
-import type { Environment } from "../types";
 
 export class HttpClient {
   private client: AxiosInstance;
@@ -22,26 +21,22 @@ export class HttpClient {
   private authToken: string | null = null;
   private origin: string;
   private host: string;
-  private environment: Environment;
 
   /**
    * Create HTTP client for both Execution API and Data API
    *
    * @param apiKey - API key for both Execution API and Data API
-   * @param environment - 'staging' or 'production'
    */
-  constructor(apiKey: string, environment: Environment = "production") {
+  constructor(apiKey: string) {
     this.apiKey = apiKey;
-    this.environment = environment;
 
     // Execution API (v1)
-    const endpoint = API_ENDPOINTS[environment];
-    const parsedUrl = new URL(endpoint);
+    const parsedUrl = new URL(API_ENDPOINT);
     this.origin = parsedUrl.origin;
     this.host = parsedUrl.host;
 
     this.client = axios.create({
-      baseURL: `${endpoint}${API_VERSION}`,
+      baseURL: `${API_ENDPOINT}${API_VERSION}`,
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": this.apiKey,
@@ -50,9 +45,8 @@ export class HttpClient {
     });
 
     // Data API (v2)
-    const dataEndpoint = DATA_API_ENDPOINTS[environment];
     this.dataClient = axios.create({
-      baseURL: `${dataEndpoint}${DATA_API_VERSION}`,
+      baseURL: `${DATA_API_ENDPOINT}${DATA_API_VERSION}`,
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": this.apiKey,
@@ -191,7 +185,7 @@ export class HttpClient {
     config?: AxiosRequestConfig
   ): Promise<T> {
     // Construct full URL using data API endpoint base URL
-    const fullUrl = `${DATA_API_ENDPOINTS[this.environment]}${path}`;
+    const fullUrl = `${DATA_API_ENDPOINT}${path}`;
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",

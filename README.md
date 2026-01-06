@@ -43,7 +43,6 @@ import { ZyfaiSDK } from "@zyfai/sdk";
 // Option 1: Full configuration object
 const sdk = new ZyfaiSDK({
   apiKey: "your-api-key",
-  environment: "production", // or 'staging' (default: 'production')
 });
 
 // Option 2: Simple string initialization (API key only)
@@ -52,10 +51,9 @@ const sdk = new ZyfaiSDK("your-api-key");
 
 **Configuration Options:**
 
-| Option        | Required | Description                                                                                          |
-| ------------- | -------- | ---------------------------------------------------------------------------------------------------- |
-| `apiKey`      | Yes      | API key for both Execution API and Data API (Safe deployment, transactions, session keys, analytics) |
-| `environment` | No       | `"production"` or `"staging"` (default: `"production"`)                                              |
+| Option   | Required | Description                                                                                          |
+| -------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `apiKey` | Yes      | API key for both Execution API and Data API (Safe deployment, transactions, session keys, analytics) |
 
 ### Connect Account
 
@@ -168,7 +166,6 @@ new ZyfaiSDK(config: SDKConfig | string)
   - If a string is provided, it's treated as the `apiKey`
   - If an object is provided:
     - `apiKey` (string): Your Zyfai API key (required)
-    - `environment` ('production' | 'staging', optional): API environment (default: 'production')
     - `rpcUrls` (object, optional): Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations like `getSmartWalletAddress`)
       - `8453` (string, optional): Base Mainnet RPC URL
       - `42161` (string, optional): Arbitrum One RPC URL
@@ -183,13 +180,11 @@ const sdk = new ZyfaiSDK("your-api-key");
 // Option 2: Object initialization (full configuration)
 const sdk = new ZyfaiSDK({
   apiKey: "your-api-key",
-  environment: "production",
 });
 
 // Option 3: With custom RPC URLs (recommended to avoid rate limiting)
 const sdk = new ZyfaiSDK({
   apiKey: "your-api-key",
-  environment: "production",
   rpcUrls: {
     8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY", // Base
     42161: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY", // Arbitrum
@@ -738,11 +733,7 @@ import { useState } from "react";
 
 function SafeDeployment() {
   const [sdk] = useState(
-    () =>
-      new ZyfaiSDK({
-        apiKey: process.env.ZYFAI_API_KEY!,
-        bundlerApiKey: process.env.BUNDLER_API_KEY!,
-      })
+    () => new ZyfaiSDK(process.env.ZYFAI_API_KEY!)
   );
 
   const [userAddress, setUserAddress] = useState<string>("");
@@ -885,8 +876,7 @@ The SDK automatically performs SIWE authentication when you call `connectAccount
 If you encounter SIWE authentication failures in a browser, ensure:
 
 1. Your frontend origin is allowed by the API's CORS configuration
-2. You're using the correct `environment` setting (`staging` or `production`)
-3. The user approves the SIWE signature request in their wallet
+2. The user approves the SIWE signature request in their wallet
 
 ### Session Key Already Exists
 
