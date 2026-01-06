@@ -35,7 +35,6 @@ async function main() {
   console.log("Step 1: Initializing SDK...");
   const sdk = new ZyfaiSDK({
     apiKey,
-    environment: "staging",
   });
   console.log("SDK initialized\n");
 

@@ -31,7 +31,6 @@ async function main() {
   };
   const sdk = new ZyfaiSDK({
     apiKey,
-    environment: "staging",
     // rpcUrls,
   });
 

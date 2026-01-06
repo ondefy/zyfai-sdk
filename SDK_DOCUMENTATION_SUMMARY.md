@@ -2,11 +2,9 @@
 
 **Note:**
 
-1. The sdk should support the test environment, would be linked to our staging environment, as well as prod environment, and would be linked to our prod environment.
+1. The SDK connects to the production environment only.
 
-2. Currently, our staging is pointing to the Base, Arbitrum, Plasma (and Sonic) mainnets, so even test environment safe wallet deployment would cost us a gas fee, but that I assume should be fine initially, unless an institutional client/developer exploits it.
-
-3. We'd have to allow the dashboard where the api key is generated for the clients to have an option of the whitelist domains to allow calling the relevant endpoints, since the api key provided by Zyfai would be sitting in the client's ui.
+2. We'd have to allow the dashboard where the api key is generated for the clients to have an option of the whitelist domains to allow calling the relevant endpoints, since the api key provided by Zyfai would be sitting in the client's ui.
 
 ---
 
@@ -29,7 +27,6 @@ The SDK can be initialized with either a configuration object or just the API ke
 // Option 1: Full configuration object
 const sdk = new ZyfaiSDK({
   apiKey: "YOUR_API_KEY",
-  environment: "production", // or 'staging'
   // rpcUrls is optional - only needed for local operations like getSmartWalletAddress
   rpcUrls: {
     // Optional: Custom RPC URLs to avoid rate limiting from public RPCs
@@ -61,20 +58,19 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 
 ### Configuration Options
 
-| Option        | Required | Description                                                                                   |
-| ------------- | -------- | --------------------------------------------------------------------------------------------- |
-| `apiKey`      | Yes      | API key for both Execution API and Data API                                                   |
-| `environment` | No       | `"production"` or `"staging"` (default: `"production"`)                                       |
-| `rpcUrls`     | No       | Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations) |
-|               |          | - `8453` (string): Base Mainnet RPC URL                                                       |
-|               |          | - `42161` (string): Arbitrum One RPC URL                                                      |
-|               |          | - `9745` (string): Plasma Mainnet RPC URL                                                     |
+| Option    | Required | Description                                                                                   |
+| --------- | -------- | --------------------------------------------------------------------------------------------- |
+| `apiKey`  | Yes      | API key for both Execution API and Data API                                                   |
+| `rpcUrls` | No       | Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations) |
+|           |          | - `8453` (string): Base Mainnet RPC URL                                                       |
+|           |          | - `42161` (string): Arbitrum One RPC URL                                                      |
+|           |          | - `9745` (string): Plasma Mainnet RPC URL                                                     |
 
 **Important:**
 
 - **Automatic Authentication**: `connectAccount()` automatically performs SIWE (Sign-In with Ethereum) authentication and stores the JWT token
 - **Browser vs Node.js**: The SDK automatically detects browser context and uses `window.location.origin` for SIWE domain/uri to match the browser's automatic `Origin` header
-- **Environment-Aware Salt**: Safe addresses use environment-specific salts (`zyfai-staging` for staging, `zyfai` for production)
+- **Production Environment**: The SDK connects to the production environment only
 - **Least Decimal Units**: Deposit and withdrawal amounts use raw token units (e.g., 1 USDC = 1000000)
 - **JWT Token Forwarding**: The SDK automatically forwards JWT tokens to Data API endpoints that require authentication
 - **Async Withdrawals**: Withdrawals are processed asynchronously - the `txHash` may not be immediately available in the response
@@ -127,15 +123,17 @@ Deploy an ERC-4337 with ERC-7579 launchpad + smart session module standard compl
 deploySafe(
   userAddress: string,
   chainId: number,
+  strategy?: Strategy
 ): Promise<DeploySafeResponse>
 ```
 
 #### Request Parameters
 
-| Parameter     | Type   | Required | Description                      |
-| ------------- | ------ | -------- | -------------------------------- |
-| `userAddress` | string | ✅       | User's EOA address               |
-| `chainId`     | number | ✅       | Target chain (8453, 42161, 9745) |
+| Parameter     | Type     | Required | Description                                                                     |
+| ------------- | -------- | -------- | ------------------------------------------------------------------------------- |
+| `userAddress` | string   | ✅       | User's EOA address                                                              |
+| `chainId`     | number   | ✅       | Target chain (8453, 42161, 9745)                                                |
+| `strategy`    | Strategy | ❌       | Strategy selection: `"safe_strategy"` (default) or `"degen_strategy"` (yieldor) |
 
 #### Response Type
 
@@ -148,11 +146,17 @@ interface DeploySafeResponse {
 }
 ```
 
+**Strategy Options:**
+
+- `"safe_strategy"` (default): Low-risk, stable yield strategy
+- `"degen_strategy"`: High-risk, high-reward strategy (also known as "yieldor" on the frontend)
+
 **Note:**
 
 - The backend API proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns early without making any transactions.
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting issues
+- If no strategy is provided, `"safe_strategy"` is used as the default
 
 #### Example Response (New Deployment)
 
@@ -756,7 +760,10 @@ const sdk = new ZyfaiSDK(API_KEY);
 await sdk.connectAccount(PRIVATE_KEY, 8453);
 
 const userAddress = "0xUser...";
+// Deploy with default safe strategy
 await sdk.deploySafe(userAddress, 8453);
+// Or deploy with degen strategy (yieldor)
+await sdk.deploySafe(userAddress, 8453, "degen_strategy");
 const wallet = await sdk.getSmartWalletAddress(userAddress, 8453);
 console.log("Deposit to:", wallet.address);
 
@@ -786,7 +793,6 @@ await sdk.disconnectAccount();
 ```typescript
 const sdk = new ZyfaiSDK({
   apiKey: API_KEY,
-  environment: "production",
   rpcUrls: {
     // Optional: Use your own RPC providers to avoid rate limiting
     8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY",
@@ -804,7 +810,9 @@ const chainId = 8453; // Base
 // 1. Deploy Safe
 const wallet = await sdk.getSmartWalletAddress(userAddress, chainId);
 if (!wallet.isDeployed) {
+  // Deploy with default safe strategy
   await sdk.deploySafe(userAddress, chainId);
+  // Or deploy with degen strategy: await sdk.deploySafe(userAddress, chainId, "degen_strategy");
 }
 
 // 2. Create session key (uses existing authentication)

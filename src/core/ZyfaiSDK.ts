@@ -3,7 +3,7 @@
  */
 
 import { HttpClient } from "../utils/http-client";
-import { ENDPOINTS, DATA_ENDPOINTS } from "../config/endpoints";
+import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT } from "../config/endpoints";
 import { ERC20_ABI } from "../config/abis";
 import type {
   SDKConfig,
@@ -23,7 +23,6 @@ import type {
   LoginResponse,
   AddSessionKeyRequest,
   AddSessionKeyResponse,
-  Environment,
   UserDetailsResponse,
   TVLResponse,
   VolumeResponse,
@@ -40,6 +39,7 @@ import type {
   RebalanceFrequencyResponse,
   AddWalletToSdkResponse,
   RpcUrlsConfig,
+  Strategy,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -65,7 +65,6 @@ import {
   type SigningParams,
 } from "../utils/safe-account";
 import { SiweMessage } from "siwe";
-import { API_ENDPOINTS } from "../config/endpoints";
 
 export class ZyfaiSDK {
   private httpClient: HttpClient;
@@ -73,7 +72,6 @@ export class ZyfaiSDK {
   private walletClient: WalletClient | null = null;
   private authenticatedUserId: string | null = null;
   private hasActiveSessionKey: boolean = false;
-  private environment: Environment;
   private currentProvider: any = null;
   private currentChainId: SupportedChainId | null = null;
   private rpcUrls?: RpcUrlsConfig;
@@ -82,14 +80,13 @@ export class ZyfaiSDK {
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, environment, rpcUrls } = sdkConfig;
+    const { apiKey, rpcUrls } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
     }
 
-    this.environment = environment || "production";
-    this.httpClient = new HttpClient(apiKey, this.environment);
+    this.httpClient = new HttpClient(apiKey);
     this.rpcUrls = rpcUrls;
   }
 
@@ -135,8 +132,8 @@ export class ZyfaiSDK {
         uri = globalWindow.location.origin;
         domain = globalWindow.location.host;
       } else {
-        uri = API_ENDPOINTS[this.environment];
-        domain = API_ENDPOINTS[this.environment].split("//")[1];
+        uri = API_ENDPOINT;
+        domain = API_ENDPOINT.split("//")[1];
       }
 
       const messageObj = new SiweMessage({
@@ -567,7 +564,6 @@ export class ZyfaiSDK {
       safeOwnerAddress: userAddress as Address,
       chain: chainConfig.chain,
       publicClient: chainConfig.publicClient,
-      environment: this.environment,
     });
 
     const isDeployed = await isSafeDeployed(
@@ -586,11 +582,22 @@ export class ZyfaiSDK {
    *
    * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
+   * @param strategy - Optional strategy selection: "safe_strategy" (default) or "degen_strategy" (yieldor)
    * @returns Deployment response with Safe address and transaction hash
+   *
+   * @example
+   * ```typescript
+   * // Deploy with default safe strategy
+   * await sdk.deploySafe(userAddress, 8453);
+   *
+   * // Deploy with degen strategy (yieldor)
+   * await sdk.deploySafe(userAddress, 8453, "degen_strategy");
+   * ```
    */
   async deploySafe(
     userAddress: string,
-    chainId: SupportedChainId
+    chainId: SupportedChainId,
+    strategy?: Strategy
   ): Promise<DeploySafeResponse> {
     try {
       // Validate inputs
@@ -614,7 +621,6 @@ export class ZyfaiSDK {
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
-        environment: this.environment,
       });
 
       const alreadyDeployed = await isSafeDeployed(
@@ -651,9 +657,9 @@ export class ZyfaiSDK {
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
-        environment: this.environment,
         chainId,
         httpClient: this.httpClient,
+        strategy: strategy || "safe_strategy",
       });
       // Initialize user after Safe deployment
       try {
@@ -860,7 +866,6 @@ export class ZyfaiSDK {
           safeOwnerAddress: userAddress as Address,
           chain: chainConfig.chain,
           publicClient: chainConfig.publicClient,
-          environment: this.environment,
         },
         sessions,
         allPublicClients,
@@ -873,7 +878,6 @@ export class ZyfaiSDK {
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
-        environment: this.environment,
       });
 
       return {
@@ -1019,7 +1023,6 @@ export class ZyfaiSDK {
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
-        environment: this.environment,
       });
 
       // Check if Safe is deployed
@@ -1122,7 +1125,6 @@ export class ZyfaiSDK {
             safeOwnerAddress: userAddress as Address,
             chain: chainConfig.chain,
             publicClient: chainConfig.publicClient,
-            environment: this.environment,
           });
         }
       } catch {
@@ -1133,7 +1135,6 @@ export class ZyfaiSDK {
           safeOwnerAddress: userAddress as Address,
           chain: chainConfig.chain,
           publicClient: chainConfig.publicClient,
-          environment: this.environment,
         });
       }
 

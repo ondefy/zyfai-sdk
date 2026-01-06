@@ -22,11 +22,11 @@ export {
 export type {
   // Configuration
   SDKConfig,
-  Environment,
 
   // Common Types
   Address,
   Hex,
+  Strategy,
 
   // Core Response Types
   DeploySafeResponse,
