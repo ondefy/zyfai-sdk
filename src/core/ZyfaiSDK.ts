@@ -27,6 +27,8 @@ import type {
   TVLResponse,
   VolumeResponse,
   ActiveWalletsResponse,
+  APYPerStrategy,
+  APYPerStrategyResponse,
   SmartWalletByEOAResponse,
   FirstTopupResponse,
   HistoryResponse,
@@ -1372,6 +1374,40 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(`Failed to get TVL: ${(error as Error).message}`);
+    }
+  }
+
+  // ============================================================================
+  // APY Per Strategy Methods
+  // ============================================================================
+
+  /**
+   * Get APY per strategy for a specific chain
+   *
+   * @param crossChain - Whether to get cross-chain APY (true = omni account, false = simple account)
+   * @param days - Time period: "7D", "14D", or "30D"
+   * @param strategyType - Strategy type: "safe" or "degen"
+   * @returns APY per strategy for a specific chain
+   *
+   * @example
+   * ```typescript
+   * const apyPerStrategy = await sdk.getAPYPerStrategy(false, "7D", "safe");
+   * console.log("APY per strategy per chain:", apyPerStrategy.data);
+   * ```
+   */
+  async getAPYPerStrategy(crossChain: boolean = false, days: string = "7D", strategyType: string = "safe"): Promise<APYPerStrategyResponse> {
+    try {
+      const response = await this.httpClient.dataGet<any>(DATA_ENDPOINTS.APY_PER_STRATEGY(crossChain, days, strategyType));
+
+      return {
+        success: true,
+        count: response.count || 0,
+        data: response.data || [],
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get APY per strategy: ${(error as Error).message}`
+      );
     }
   }
 

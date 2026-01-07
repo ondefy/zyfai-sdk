@@ -77,6 +77,10 @@ export type {
   RebalanceInfoResponse,
   RebalanceFrequencyResponse,
 
+  // APY Per Strategy Types
+  APYPerStrategy,
+  APYPerStrategyResponse,
+
   // Protocol Types
   Protocol,
   Pool,
