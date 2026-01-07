@@ -34,21 +34,14 @@ async function main() {
   const smartWallet = walletInfo.address;
   console.log(`Smart Wallet: ${smartWallet}\n`);
 
-  // Test different periods
-  const periods: Array<"7D" | "14D" | "30D"> = ["7D", "14D", "30D"];
-
-  for (const period of periods) {
-    console.log(`\nFetching ${period} APY Per Strategy...`);
-    console.log("-".repeat(60));
-
+  // Use 1 period
     try {
-      const response = await sdk.getAPYPerStrategy(false, period, "safe");
+      const response = await sdk.getAPYPerStrategy(false, 7, "safe");
 
       console.log(response);
     } catch (error) {
       console.log(`  Failed: ${(error as Error).message}`);
     }
-  }
 }
 
 main().catch((error) => {

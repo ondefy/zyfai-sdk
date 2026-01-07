@@ -96,6 +96,6 @@ export const DATA_ENDPOINTS = {
       : "/rebalance/rebalance-info",
 
   // APY Per Strategy
-  APY_PER_STRATEGY: (isCrossChain: boolean = false, days: string = "7D", strategyType: string = "safe") =>
-    `/rebalance/rebalance-info?isCrossChain=${isCrossChain}&days=${days}&strategyType=${strategyType}`,
+  APY_PER_STRATEGY: (isCrossChain: boolean = false, days: number = 7, strategy: string = "safe") =>
+    `/rebalance/rebalance-info?isCrossChain=${isCrossChain}&days=${days}&strategy=${strategy}`,
 } as const;
