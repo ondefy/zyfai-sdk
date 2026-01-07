@@ -3,19 +3,13 @@
  *
  */
 
-import { SupportedChainId } from "..";
+import { SupportedChainId } from "../config/chains";
 
 // Execution API
-export const API_ENDPOINTS = {
-  staging: "https://staging-api.zyf.ai",
-  production: "https://api.zyf.ai",
-} as const;
+export const API_ENDPOINT = "https://api.zyf.ai";
 
 // Data API
-export const DATA_API_ENDPOINTS = {
-  staging: "https://staging-defiapi.zyf.ai",
-  production: "https://defiapi.zyf.ai",
-} as const;
+export const DATA_API_ENDPOINT = "https://defiapi.zyf.ai";
 
 export const API_VERSION = "/api/v1";
 export const DATA_API_VERSION = "/api/v2";
@@ -30,6 +24,9 @@ export const ENDPOINTS = {
   USER_ME: "/users/me",
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
+
+  // Safe Deployment (single endpoint)
+  SAFE_DEPLOY: "/users/safe-deploy",
 
   // Session Keys
   SESSION_KEYS_CONFIG: "/session-keys/config",
@@ -56,6 +53,9 @@ export const ENDPOINTS = {
 
 // Data API Endpoints (v2)
 export const DATA_ENDPOINTS = {
+  // User Initialization
+  USER_INITIALIZE: "/api/earnings/initialize",
+
   // Earnings
   ONCHAIN_EARNINGS: (walletAddress: string) =>
     `/usercheck/onchain-earnings?walletAddress=${walletAddress}`,

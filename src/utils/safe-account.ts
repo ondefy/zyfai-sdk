@@ -12,12 +12,9 @@ import {
   getSessionNonce,
   type Session,
 } from "@rhinestone/module-sdk";
-import { createSmartAccountClient } from "permissionless";
-import { erc7579Actions } from "permissionless/actions/erc7579";
-import { createPimlicoClient } from "permissionless/clients/pimlico";
 import { toSafeSmartAccount } from "permissionless/accounts";
 import {
-  http,
+  getAddress,
   type Address,
   type Hash,
   type Hex,
@@ -31,15 +28,14 @@ import {
   type SmartAccount,
   entryPoint07Address,
 } from "viem/account-abstraction";
-import type { Environment } from "../types";
+import type { SupportedChainId } from "../config/chains";
+import { ENDPOINTS } from "../config/endpoints";
 
 export interface SafeAccountConfig {
-  owner: WalletClient; // The wallet that signs for transactions
-  safeOwnerAddress?: Address; // Optional: The address that will own the Safe (if different from owner)
+  owner: WalletClient;
+  safeOwnerAddress?: Address;
   chain: Chain;
   publicClient: PublicClient;
-  bundlerUrl?: string;
-  environment?: Environment; // Environment to determine default account salt
 }
 
 export interface SafeDeploymentResult {
@@ -51,10 +47,7 @@ export interface SafeDeploymentResult {
 // Constants
 const SAFE_7579_ADDRESS = "0x7579EE8307284F293B1927136486880611F20002";
 const ERC7579_LAUNCHPAD_ADDRESS = "0x7579011aB74c46090561ea277Ba79D510c6C00ff";
-const ACCOUNT_SALTS: Record<Environment, string> = {
-  staging: "zyfai-staging",
-  production: "zyfai",
-};
+const ACCOUNT_SALT = "zyfai";
 
 /**
  * Gets the Safe smart account configuration
@@ -62,14 +55,7 @@ const ACCOUNT_SALTS: Record<Environment, string> = {
 export const getSafeAccount = async (
   config: SafeAccountConfig
 ): Promise<SmartAccount> => {
-  const {
-    owner,
-    safeOwnerAddress,
-    publicClient,
-    environment = "production",
-  } = config;
-
-  const effectiveSalt = ACCOUNT_SALTS[environment];
+  const { owner, safeOwnerAddress, publicClient } = config;
 
   if (!owner || !owner.account) {
     throw new Error("Wallet not connected. Please connect your wallet first.");
@@ -80,9 +66,34 @@ export const getSafeAccount = async (
   // This ensures the signer can actually authorize transactions
   const signerAddress = owner.account.address;
 
-  // If safeOwnerAddress is provided, it must match the connected wallet
-  // Otherwise the validator will reject signatures from the connected wallet
+  if (!signerAddress) {
+    throw new Error("Owner account address is required");
+  }
+
+  // Determine the effective owner address for the Safe
+  // If safeOwnerAddress is provided and different from signer, use it for address calculation
+  // (This allows read-only address calculation without requiring the actual wallet)
+  // For transaction signing, the addresses must match (validated below)
+  const effectiveOwnerAddress = safeOwnerAddress || signerAddress;
+
+  if (!effectiveOwnerAddress) {
+    throw new Error("Address is required");
+  }
+
+  // Ensure addresses are properly formatted (checksummed)
+  const formattedEffectiveAddress = getAddress(effectiveOwnerAddress);
+
+  // If safeOwnerAddress is provided and different from signer, this is likely a read-only operation
+  // (e.g., calculating address for API calls). We allow this for address calculation,
+  // but the signer won't be able to sign transactions for this Safe.
+  const isReadOnly =
+    safeOwnerAddress &&
+    safeOwnerAddress.toLowerCase() !== signerAddress.toLowerCase();
+
+  // Only validate address matching for non-read-only operations
+  // (When we actually need to sign transactions)
   if (
+    !isReadOnly &&
     safeOwnerAddress &&
     safeOwnerAddress.toLowerCase() !== signerAddress.toLowerCase()
   ) {
@@ -93,16 +104,21 @@ export const getSafeAccount = async (
   }
 
   const ownableValidator = getOwnableValidator({
-    owners: [signerAddress],
+    owners: [formattedEffectiveAddress], // Use formatted effective owner address for validator
     threshold: 1,
   });
 
   // Convert string salt to hex if needed
-  const saltHex = fromHex(toHex(effectiveSalt), "bigint");
+  const saltHex = fromHex(toHex(ACCOUNT_SALT), "bigint");
+
+  const tempOwner = {
+    address: formattedEffectiveAddress,
+    type: "json-rpc" as const,
+  };
 
   const safeAccount = await toSafeSmartAccount({
     client: publicClient,
-    owners: [owner], // Pass the owner object with address and signMessage capability
+    owners: [tempOwner],
     version: "1.4.1",
     entryPoint: {
       address: entryPoint07Address,
@@ -201,46 +217,17 @@ export const getAccountType = async (
   }
 };
 
-/**
- * Creates a smart account client with bundler and paymaster
- */
-export const getSmartAccountClient = async (
-  config: SafeAccountConfig & { bundlerUrl: string }
-) => {
-  const { chain, bundlerUrl } = config;
-  const safeAccount = await getSafeAccount(config);
+export interface DeploySafeAccountConfig extends SafeAccountConfig {
+  httpClient: any; // HttpClient instance from SDK
+  chainId: SupportedChainId;
+  strategy?: "safe_strategy" | "degen_strategy";
+}
 
-  const bundlerClient = createPimlicoClient({
-    transport: http(bundlerUrl),
-    entryPoint: {
-      address: entryPoint07Address,
-      version: "0.7",
-    },
-  });
-
-  const smartAccountClient = createSmartAccountClient({
-    account: safeAccount,
-    chain: chain,
-    bundlerTransport: http(bundlerUrl),
-    paymaster: bundlerClient,
-    userOperation: {
-      estimateFeesPerGas: async () => {
-        return (await bundlerClient.getUserOperationGasPrice()).fast;
-      },
-    },
-  }).extend(erc7579Actions());
-
-  return smartAccountClient as any;
-};
-
-/**
- * Deploys a Safe smart account with required modules
- */
 export const deploySafeAccount = async (
-  config: SafeAccountConfig & { bundlerUrl: string }
+  config: DeploySafeAccountConfig
 ): Promise<SafeDeploymentResult> => {
   try {
-    const { owner, publicClient } = config;
+    const { owner, httpClient, chainId, strategy = "safe_strategy" } = config;
 
     if (!owner || !owner.account) {
       throw new Error(
@@ -248,41 +235,51 @@ export const deploySafeAccount = async (
       );
     }
 
-    // Get the deterministic Safe address
-    const safeAddress = await getDeterministicSafeAddress(config);
+    // Step 1: Call backend to get userOpHashToSign
+    const prepareResponse = (await httpClient.post(
+      `${ENDPOINTS.SAFE_DEPLOY}?chainId=${chainId}`,
+      { strategy }
+    )) as {
+      success: boolean;
+      userOpHashToSign?: Hex;
+      status: string;
+    };
 
-    // Check if already deployed
-    const isDeployed = await isSafeDeployed(safeAddress, publicClient);
-    if (isDeployed) {
-      return {
-        safeAddress,
-        isDeployed: true,
-      };
+    if (!prepareResponse.userOpHashToSign) {
+      throw new Error(
+        "Backend did not return userOpHashToSign. Response: " +
+          JSON.stringify(prepareResponse)
+      );
     }
 
-    // Create smart account client
-    const smartAccountClient = await getSmartAccountClient(config);
+    const userOpHashToSign = prepareResponse.userOpHashToSign;
 
-    // Deploy by sending a simple user operation
-    // The Safe will be deployed automatically when the first transaction is sent
-    const userOpHash = await smartAccountClient.sendUserOperation({
-      calls: [
-        {
-          to: safeAddress,
-          value: BigInt(0),
-          data: "0x",
-        },
-      ],
+    // Step 2: Sign the userOpHashToSign with the user's wallet
+    const userOpSignature = await owner.signMessage({
+      account: owner.account,
+      message: { raw: userOpHashToSign },
     });
 
-    // Wait for the transaction to be mined
-    const receipt = await smartAccountClient.waitForUserOperationReceipt({
-      hash: userOpHash,
-    });
+    // Step 3: Call backend again with the signature to complete deployment
+    const deployResponse = (await httpClient.post(
+      `${ENDPOINTS.SAFE_DEPLOY}?chainId=${chainId}`,
+      { userOpSignature, strategy }
+    )) as {
+      success: boolean;
+      safeAddress?: Address;
+      txHash?: string;
+      status: string;
+    };
+
+    if (!deployResponse.success) {
+      throw new Error(
+        `Safe deployment failed: ${JSON.stringify(deployResponse)}`
+      );
+    }
 
     return {
-      safeAddress,
-      txHash: receipt.receipt.transactionHash,
+      safeAddress: deployResponse.safeAddress || "0x",
+      txHash: deployResponse.txHash as Hash | undefined,
       isDeployed: true,
     };
   } catch (error) {
@@ -292,41 +289,10 @@ export const deploySafeAccount = async (
   }
 };
 
-/**
- * Execute transactions via the Safe smart account
- * Let the smart account client handle signing automatically
- */
-export const executeTransactions = async (
-  config: SafeAccountConfig & { bundlerUrl: string },
-  calls: Array<{ to: Address; value: string | bigint; data: Hex }>
-): Promise<Hash> => {
-  const { owner } = config;
-
-  if (!owner || !owner.account) {
-    throw new Error("Wallet not connected. Please connect your wallet first.");
-  }
-
-  const smartAccountClient = await getSmartAccountClient(config);
-
-  // Send user operation - the smart account client handles signing automatically
-  // This uses the Safe's signUserOperation method internally
-  const userOpHash = await smartAccountClient.sendUserOperation({
-    calls: calls.map((call) => ({
-      ...call,
-      value: typeof call.value === "string" ? BigInt(call.value) : call.value,
-    })),
-  });
-
-  try {
-    const transaction = await smartAccountClient.waitForUserOperationReceipt({
-      hash: userOpHash,
-    });
-    return transaction.receipt.transactionHash;
-  } catch (error) {
-    console.error("Transaction failed:", error);
-    throw new Error("Failed to execute transaction");
-  }
-};
+export interface SigningParams {
+  permitGenericPolicy: boolean;
+  ignoreSecurityAttestations: boolean;
+}
 
 /**
  * Sign session key for delegated transactions
@@ -335,7 +301,8 @@ export const executeTransactions = async (
 export const signSessionKey = async (
   config: SafeAccountConfig,
   sessions: Session[],
-  allPublicClients?: PublicClient[]
+  allPublicClients?: PublicClient[],
+  signingParams?: SigningParams
 ): Promise<{ signature: Hex; sessionNonces: bigint[] }> => {
   const { owner, publicClient } = config;
 
@@ -379,8 +346,10 @@ export const signSessionKey = async (
     sessions,
     account,
     clients,
-    permitGenericPolicy: true,
+    permitGenericPolicy: signingParams?.permitGenericPolicy ?? true,
     sessionNonces,
+    ignoreSecurityAttestations:
+      signingParams?.ignoreSecurityAttestations ?? false,
   });
 
   // Sign the permission enable hash with the owner

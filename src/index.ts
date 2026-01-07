@@ -1,6 +1,6 @@
 /**
- * ZyFAI SDK
- * TypeScript SDK for ZyFAI Yield Optimization Engine
+ * Zyfai SDK
+ * TypeScript SDK for Zyfai Yield Optimization Engine
  *
  * @packageDocumentation
  * @module @zyfai/sdk
@@ -13,6 +13,8 @@ export {
   getChainConfig,
   isSupportedChain,
   getSupportedChainIds,
+  getDefaultTokenAddress,
+  DEFAULT_TOKEN_ADDRESSES,
   type SupportedChainId,
   type ChainConfig,
 } from "./config/chains";
@@ -20,11 +22,11 @@ export {
 export type {
   // Configuration
   SDKConfig,
-  Environment,
 
   // Common Types
   Address,
   Hex,
+  Strategy,
 
   // Core Response Types
   DeploySafeResponse,
@@ -34,6 +36,7 @@ export type {
   PositionsResponse,
   DepositResponse,
   WithdrawResponse,
+  AddWalletToSdkResponse,
 
   // User Types
   UserDetails,

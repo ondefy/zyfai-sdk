@@ -1,9 +1,9 @@
 /**
- * ZyFAI SDK Main Class
+ * Zyfai SDK Main Class
  */
 
 import { HttpClient } from "../utils/http-client";
-import { ENDPOINTS, DATA_ENDPOINTS } from "../config/endpoints";
+import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT } from "../config/endpoints";
 import { ERC20_ABI } from "../config/abis";
 import type {
   SDKConfig,
@@ -19,10 +19,10 @@ import type {
   PositionsResponse,
   UpdateUserProfileRequest,
   UpdateUserProfileResponse,
+  InitializeUserResponse,
   LoginResponse,
   AddSessionKeyRequest,
   AddSessionKeyResponse,
-  Environment,
   UserDetailsResponse,
   TVLResponse,
   VolumeResponse,
@@ -39,6 +39,9 @@ import type {
   DailyApyHistoryResponse,
   RebalanceInfoResponse,
   RebalanceFrequencyResponse,
+  AddWalletToSdkResponse,
+  RpcUrlsConfig,
+  Strategy,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -51,8 +54,8 @@ import {
 } from "viem";
 import {
   getChainConfig,
-  getBundlerUrl,
   isSupportedChain,
+  getDefaultTokenAddress,
   type SupportedChainId,
 } from "../config/chains";
 import {
@@ -61,34 +64,32 @@ import {
   getAccountType,
   isSafeDeployed,
   signSessionKey,
+  type SigningParams,
 } from "../utils/safe-account";
 import { SiweMessage } from "siwe";
-import { API_ENDPOINTS } from "../config/endpoints";
 
 export class ZyfaiSDK {
   private httpClient: HttpClient;
   private signer: PrivateKeyAccount | null = null;
   private walletClient: WalletClient | null = null;
-  private bundlerApiKey?: string;
-  private isAuthenticated: boolean = false;
-  private authenticatedUserId: string | null = null; // Stored from login response
-  private hasActiveSessionKey: boolean = false; // Stored from login response
-  private environment: Environment; // TODO: The environment should be removed. Having the same key for staging and production is not ideal, but for now it's fine.
+  private authenticatedUserId: string | null = null;
+  private hasActiveSessionKey: boolean = false;
+  private currentProvider: any = null;
+  private currentChainId: SupportedChainId | null = null;
+  private rpcUrls?: RpcUrlsConfig;
 
   constructor(config: SDKConfig | string) {
-    // Support both object and string initialization
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, dataApiKey, environment, bundlerApiKey } = sdkConfig;
+    const { apiKey, rpcUrls } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
     }
 
-    this.environment = environment || "production";
-    this.httpClient = new HttpClient(apiKey, this.environment, dataApiKey);
-    this.bundlerApiKey = bundlerApiKey;
+    this.httpClient = new HttpClient(apiKey);
+    this.rpcUrls = rpcUrls;
   }
 
   /**
@@ -101,14 +102,15 @@ export class ZyfaiSDK {
   private async authenticateUser(): Promise<void> {
     try {
       // Skip if already authenticated
-      if (this.isAuthenticated) {
+      if (this.authenticatedUserId !== null) {
         return;
       }
 
       const walletClient = this.getWalletClient();
       // Ensure address is EIP-55 checksummed (required by SIWE)
       const userAddress = getAddress(walletClient.account!.address);
-      const chainId = walletClient.chain?.id || 8453; // Default to Base
+      // Use stored chain ID if available (for private key connections), otherwise use wallet client's chain or default
+      const chainId = this.currentChainId || walletClient.chain?.id || 8453; // Default to Base
 
       // Step 1: Get challenge/nonce
       const challengeResponse = await this.httpClient.post<{
@@ -127,12 +129,13 @@ export class ZyfaiSDK {
         typeof globalThis !== "undefined"
           ? (globalThis as any).window
           : undefined;
+      const isNodeJs = !globalWindow?.location?.origin;
       if (globalWindow?.location?.origin) {
         uri = globalWindow.location.origin;
         domain = globalWindow.location.host;
       } else {
-        uri = API_ENDPOINTS[this.environment];
-        domain = API_ENDPOINTS[this.environment].split("//")[1];
+        uri = API_ENDPOINT;
+        domain = API_ENDPOINT.split("//")[1];
       }
 
       const messageObj = new SiweMessage({
@@ -161,7 +164,15 @@ export class ZyfaiSDK {
         {
           message: messageObj,
           signature,
-        }
+        },
+        // Set Origin header in Node.js to match message.uri (required by backend validation)
+        isNodeJs
+          ? {
+              headers: {
+                Origin: uri,
+              },
+            }
+          : undefined
       );
       const authToken = loginResponse.accessToken;
 
@@ -173,7 +184,6 @@ export class ZyfaiSDK {
       this.httpClient.setAuthToken(authToken);
       this.authenticatedUserId = loginResponse.userId || null;
       this.hasActiveSessionKey = loginResponse.hasActiveSessionKey || false;
-      this.isAuthenticated = true;
     } catch (error) {
       throw new Error(
         `Failed to authenticate user: ${(error as Error).message}`
@@ -192,7 +202,7 @@ export class ZyfaiSDK {
    * ```typescript
    * await sdk.updateUserProfile({
    *   smartWallet: "0x1396730...",
-   *   chains: [8453, 42161],
+   *   chains: [8453],
    * });
    * ```
    */
@@ -223,11 +233,115 @@ export class ZyfaiSDK {
   }
 
   /**
+   * Initialize user after Safe deployment
+   * This method is automatically called after deploySafe to initialize user state
+   *
+   * @param smartWallet - Safe smart wallet address
+   * @param chainId - Target chain ID
+   * @returns Initialization response
+   *
+   * @example
+   * ```typescript
+   * await sdk.initializeUser("0x1396730...", 8453);
+   * ```
+   * @internal
+   */
+  private async initializeUser(
+    smartWallet: string,
+    chainId: number
+  ): Promise<InitializeUserResponse> {
+    try {
+      // Ensure authentication is present
+      await this.authenticateUser();
+
+      // Initialize user via Data API
+      // Note: This endpoint uses /api/earnings/initialize (without /v2)
+      // Use dataPostCustom to bypass the /v2 prefix
+      const responseData = await this.httpClient.dataPostCustom<any>(
+        DATA_ENDPOINTS.USER_INITIALIZE,
+        {
+          walletAddress: smartWallet,
+        }
+      );
+
+      return {
+        success: responseData.status === "success" || true,
+        userId: responseData.userId || responseData.id,
+        smartWallet: responseData.smartWallet || smartWallet,
+        chainId: responseData.chainId || chainId,
+        message:
+          responseData.message ||
+          responseData.status ||
+          "User initialized successfully",
+      };
+    } catch (error) {
+      throw new Error(`Failed to initialize user: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Handle account changes from wallet provider
+   * Resets authentication state when wallet is switched
+   * @private
+   */
+  private async handleAccountsChanged(accounts: string[]): Promise<void> {
+    if (!accounts || accounts.length === 0) {
+      // No accounts available - disconnect
+      await this.disconnectAccount();
+      return;
+    }
+
+    const newAddress = accounts[0];
+    const currentAddress = this.walletClient?.account?.address;
+
+    // Check if the account actually changed
+    if (
+      currentAddress &&
+      newAddress.toLowerCase() === currentAddress.toLowerCase()
+    ) {
+      return; // Same account, no action needed
+    }
+
+    // Account changed - reset authentication
+    this.authenticatedUserId = null;
+    this.hasActiveSessionKey = false;
+    this.httpClient.clearAuthToken();
+
+    // Update wallet client with new account
+    if (this.walletClient && this.currentProvider) {
+      const chainConfig = getChainConfig(
+        (this.walletClient.chain?.id as SupportedChainId) || 8453,
+        this.rpcUrls
+      );
+
+      this.walletClient = createWalletClient({
+        account: newAddress as Address,
+        chain: chainConfig.chain,
+        transport: custom(this.currentProvider),
+      });
+
+      // Update stored chain ID
+      this.currentChainId =
+        (this.walletClient.chain?.id as SupportedChainId) || null;
+
+      // Re-authenticate with new account
+      try {
+        await this.authenticateUser();
+      } catch (error) {
+        console.warn(
+          "Failed to authenticate after wallet switch:",
+          (error as Error).message
+        );
+      }
+    }
+  }
+
+  /**
    * Connect account for signing transactions
    * Accepts either a private key string or a modern wallet provider
    *
    * @param account - Private key string or wallet provider object
-   * @param chainId - Target chain ID (default: 42161 - Arbitrum)
+   * @param chainId - Target chain ID (default: 8453 - Base)
    * @returns The connected EOA address
    *
    * @example
@@ -241,17 +355,27 @@ export class ZyfaiSDK {
    */
   async connectAccount(
     account: string | any,
-    chainId: SupportedChainId = 42161 as SupportedChainId
+    chainId: SupportedChainId = 8453 as SupportedChainId
   ): Promise<Address> {
     if (!isSupportedChain(chainId)) {
       throw new Error(`Unsupported chain ID: ${chainId}`);
     }
 
     // Reset authentication when connecting a new account
-    this.isAuthenticated = false;
+    this.authenticatedUserId = null;
+    this.currentChainId = null;
     this.httpClient.clearAuthToken();
 
-    const chainConfig = getChainConfig(chainId);
+    // Remove existing event listeners if any
+    if (this.currentProvider?.removeAllListeners) {
+      try {
+        this.currentProvider.removeAllListeners("accountsChanged");
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+    }
+
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
     let connectedAddress: Address;
 
@@ -264,6 +388,9 @@ export class ZyfaiSDK {
 
       this.signer = privateKeyToAccount(privateKey as Hex);
 
+      // Store chain ID for private key connections (needed for authentication)
+      this.currentChainId = chainId;
+
       // Create wallet client for the signer
       this.walletClient = createWalletClient({
         account: this.signer,
@@ -272,6 +399,7 @@ export class ZyfaiSDK {
       });
 
       connectedAddress = this.signer.address;
+      this.currentProvider = null; // No provider for private key
     } else {
       // Otherwise, treat as a wallet provider
       const provider = account;
@@ -299,6 +427,13 @@ export class ZyfaiSDK {
         });
 
         connectedAddress = accounts[0];
+        this.currentProvider = provider;
+        this.currentChainId = chainId; // Store chain ID for consistency
+
+        // Set up event listener for account changes
+        if (provider.on) {
+          provider.on("accountsChanged", this.handleAccountsChanged.bind(this));
+        }
       } else if (provider.account && provider.transport) {
         // Handle viem WalletClient or similar objects
         this.walletClient = createWalletClient({
@@ -308,6 +443,8 @@ export class ZyfaiSDK {
         });
 
         connectedAddress = provider.account.address;
+        this.currentProvider = null; // No event support for viem clients
+        this.currentChainId = chainId; // Store chain ID for consistency
       } else {
         throw new Error(
           "Invalid wallet provider. Expected EIP-1193 provider or viem WalletClient."
@@ -332,12 +469,22 @@ export class ZyfaiSDK {
    * ```
    */
   async disconnectAccount(): Promise<void> {
+    // Remove event listeners if any
+    if (this.currentProvider?.removeAllListeners) {
+      try {
+        this.currentProvider.removeAllListeners("accountsChanged");
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+    }
+
     // Clear wallet connection
     this.signer = null;
     this.walletClient = null;
+    this.currentProvider = null;
+    this.currentChainId = null;
 
     // Clear authentication state
-    this.isAuthenticated = false;
     this.authenticatedUserId = null;
     this.hasActiveSessionKey = false;
 
@@ -351,10 +498,16 @@ export class ZyfaiSDK {
    */
   private getWalletClient(chainId?: SupportedChainId): WalletClient {
     if (this.signer) {
+      // Use provided chainId, stored chainId, or default to Base
+      const targetChainId = chainId || this.currentChainId || 8453;
+      const targetChainConfig = getChainConfig(
+        targetChainId as SupportedChainId,
+        this.rpcUrls
+      );
       return createWalletClient({
         account: this.signer,
-        chain: getChainConfig(chainId || 8453).chain,
-        transport: http(getChainConfig(chainId || 8453).rpcUrl),
+        chain: targetChainConfig.chain,
+        transport: http(targetChainConfig.rpcUrl),
       });
     } else {
       if (!this.walletClient) {
@@ -385,17 +538,34 @@ export class ZyfaiSDK {
       throw new Error(`Unsupported chain ID: ${chainId}`);
     }
 
-    const walletClient = this.getWalletClient();
-    const chainConfig = getChainConfig(chainId);
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
-    // For EOA, get the deterministic Safe address
-    // Note: Safe will be owned by userAddress, not the connected wallet
+    // Try to get smart wallet address from API first (if already registered)
+    try {
+      const smartWalletInfo = await this.getSmartWalletByEOA(userAddress);
+      if (smartWalletInfo.smartWallet) {
+        // Check if Safe is deployed
+        const isDeployed = await isSafeDeployed(
+          smartWalletInfo.smartWallet,
+          chainConfig.publicClient
+        );
+        return {
+          address: smartWalletInfo.smartWallet,
+          isDeployed,
+        };
+      }
+    } catch {
+      // API call failed or no smart wallet found - fall through to deterministic calculation
+    }
+
+    // If not found in API, calculate deterministic Safe address
+    // This requires wallet client for address calculation
+    const walletClient = this.getWalletClient(chainId);
     const safeAddress = await getDeterministicSafeAddress({
       owner: walletClient,
       safeOwnerAddress: userAddress as Address,
       chain: chainConfig.chain,
       publicClient: chainConfig.publicClient,
-      environment: this.environment,
     });
 
     const isDeployed = await isSafeDeployed(
@@ -414,11 +584,22 @@ export class ZyfaiSDK {
    *
    * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
+   * @param strategy - Optional strategy selection: "safe_strategy" (default) or "degen_strategy" (yieldor)
    * @returns Deployment response with Safe address and transaction hash
+   *
+   * @example
+   * ```typescript
+   * // Deploy with default safe strategy
+   * await sdk.deploySafe(userAddress, 8453);
+   *
+   * // Deploy with degen strategy (yieldor)
+   * await sdk.deploySafe(userAddress, 8453, "degen_strategy");
+   * ```
    */
   async deploySafe(
     userAddress: string,
-    chainId: SupportedChainId
+    chainId: SupportedChainId,
+    strategy?: Strategy
   ): Promise<DeploySafeResponse> {
     try {
       // Validate inputs
@@ -430,14 +611,11 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      if (!this.bundlerApiKey) {
-        throw new Error(
-          "Bundler API key is required for Safe deployment. Please provide bundlerApiKey in SDK configuration."
-        );
-      }
+      // Ensure user is authenticated (required for safe-deploy endpoint)
+      await this.authenticateUser();
 
       const walletClient = this.getWalletClient(chainId);
-      const chainConfig = getChainConfig(chainId);
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
       // Check if Safe is already deployed before attempting deployment
       const safeAddress = await getDeterministicSafeAddress({
@@ -445,7 +623,6 @@ export class ZyfaiSDK {
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
-        environment: this.environment,
       });
 
       const alreadyDeployed = await isSafeDeployed(
@@ -453,54 +630,47 @@ export class ZyfaiSDK {
         chainConfig.publicClient
       );
 
+      // Verify that userAddress is an EOA (only if not already deployed to save RPC calls)
+      if (!alreadyDeployed) {
+        const accountType = await getAccountType(
+          userAddress as Address,
+          chainConfig.publicClient
+        );
+
+        if (accountType !== "EOA") {
+          throw new Error(
+            `Address ${userAddress} is not an EOA. Only EOA addresses can deploy Safe smart wallets.`
+          );
+        }
+      }
+
+      // If already deployed, return early without attempting deployment
       if (alreadyDeployed) {
-        // Safe already exists - return success without redeploying
         return {
           success: true,
           safeAddress,
           txHash: "0x0",
           status: "deployed",
-          alreadyDeployed: true,
         };
       }
 
-      // Verify that userAddress is an EOA
-      const accountType = await getAccountType(
-        userAddress as Address,
-        chainConfig.publicClient
-      );
-
-      if (accountType !== "EOA") {
-        throw new Error(
-          `Address ${userAddress} is not an EOA. Only EOA addresses can deploy Safe smart wallets.`
-        );
-      }
-
-      // Get bundler URL
-      const bundlerUrl = getBundlerUrl(chainId, this.bundlerApiKey);
-
-      // Deploy the Safe account
       const deploymentResult = await deploySafeAccount({
         owner: walletClient,
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
-        bundlerUrl,
-        environment: this.environment,
+        chainId,
+        httpClient: this.httpClient,
+        strategy: strategy || "safe_strategy",
       });
-
-      // IMPORTANT: After deploying Safe, update user profile with Safe address and chainId
-      // This is required before calling createSessionKey or other authenticated endpoints
+      // Initialize user after Safe deployment
       try {
-        await this.updateUserProfile({
-          smartWallet: deploymentResult.safeAddress,
-          chains: [chainId],
-        });
-      } catch (updateError) {
+        await this.initializeUser(deploymentResult.safeAddress, chainId);
+      } catch (initError) {
         // Log the error but don't fail deployment
         console.warn(
-          "Failed to update user profile after Safe deployment:",
-          (updateError as Error).message
+          "Failed to initialize user after Safe deployment:",
+          (initError as Error).message
         );
       }
 
@@ -517,7 +687,7 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Create session key with auto-fetched configuration from ZyFAI API
+   * Create session key with auto-fetched configuration from Zyfai API
    * This is the simplified method that automatically fetches session configuration
    *
    * @param userAddress - User's EOA or Safe address
@@ -559,9 +729,14 @@ export class ZyfaiSDK {
       }
 
       // Fetch personalized session configuration (requires SIWE auth)
-      const sessionConfig = await this.httpClient.get<any[]>(
+      const sessionConfigResponse = await this.httpClient.get<any>(
         ENDPOINTS.SESSION_KEYS_CONFIG
       );
+
+      // Handle both array format and wrapped object format
+      const sessionConfig = Array.isArray(sessionConfigResponse)
+        ? sessionConfigResponse
+        : sessionConfigResponse.sessions;
 
       if (!sessionConfig || sessionConfig.length === 0) {
         throw new Error("No session configuration available from API");
@@ -573,11 +748,38 @@ export class ZyfaiSDK {
         chainId: BigInt(session.chainId),
       }));
 
-      // Sign the session key
+      // Detect permitGenericPolicy by checking for DEFAULT action target
+      // This matches the frontend logic exactly (rhinestone.utils.ts lines 468-474)
+      const DEFAULT_ACTION_TARGET =
+        "0x0000000000000000000000000000000000000001";
+      const DEFAULT_ACTION_SELECTOR = "0x00000001";
+
+      const permitGenericPolicy = sessionConfig.some((session: any) =>
+        session.actions?.some(
+          (action: any) =>
+            action.actionTarget === DEFAULT_ACTION_TARGET &&
+            action.actionTargetSelector === DEFAULT_ACTION_SELECTOR
+        )
+      );
+
+      // Determine account type for ignoreSecurityAttestations
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
+      const accountType = await getAccountType(
+        userAddress as Address,
+        chainConfig.publicClient
+      );
+
+      const signingParams: SigningParams = {
+        permitGenericPolicy,
+        ignoreSecurityAttestations: accountType === "Safe",
+      };
+
+      // Sign the session key with derived signing params
       const signatureResult = await this.signSessionKey(
         userAddress,
         chainId,
-        sessions
+        sessions,
+        signingParams
       );
 
       // Ensure signature is available (should always be from signSessionKey)
@@ -585,8 +787,14 @@ export class ZyfaiSDK {
         throw new Error("Failed to obtain session key signature");
       }
 
+      // Update user protocols before activating session key
+      await this.updateUserProtocols(chainId);
+
+      const signer = sessions[0].sessionValidator as Address;
+      console.log("Session validator:", signer);
       // Register the session key on the backend so it becomes active immediately
       const activation = await this.activateSessionKey(
+        signer as Address,
         signatureResult.signature,
         signatureResult.sessionNonces
       );
@@ -613,7 +821,8 @@ export class ZyfaiSDK {
   private async signSessionKey(
     userAddress: string,
     chainId: SupportedChainId,
-    sessions: Session[]
+    sessions: Session[],
+    signingParams?: SigningParams
   ): Promise<SessionKeyResponse> {
     try {
       // Validate inputs
@@ -630,7 +839,7 @@ export class ZyfaiSDK {
       }
 
       const walletClient = this.getWalletClient();
-      const chainConfig = getChainConfig(chainId);
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
       // Check if the user address is a Safe
       const accountType = await getAccountType(
@@ -650,7 +859,7 @@ export class ZyfaiSDK {
       ] as SupportedChainId[];
       const allPublicClients = sessionChainIds
         .filter(isSupportedChain)
-        .map((id) => getChainConfig(id).publicClient);
+        .map((id) => getChainConfig(id, this.rpcUrls).publicClient);
 
       // Sign the session key
       const { signature, sessionNonces } = await signSessionKey(
@@ -659,10 +868,10 @@ export class ZyfaiSDK {
           safeOwnerAddress: userAddress as Address,
           chain: chainConfig.chain,
           publicClient: chainConfig.publicClient,
-          environment: this.environment,
         },
         sessions,
-        allPublicClients
+        allPublicClients,
+        signingParams
       );
 
       // Get the Safe address
@@ -671,7 +880,6 @@ export class ZyfaiSDK {
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
-        environment: this.environment,
       });
 
       return {
@@ -687,15 +895,52 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Activate session key via ZyFAI API
+   * Update user protocols with available protocols from the chain
+   * This method is automatically called before activating session key
+   *
+   * @param chainId - Target chain ID
+   * @internal
+   */
+  private async updateUserProtocols(chainId: SupportedChainId): Promise<void> {
+    try {
+      // Fetch available protocols for the chain
+      const protocolsResponse = await this.getAvailableProtocols(chainId);
+
+      if (
+        !protocolsResponse.protocols ||
+        protocolsResponse.protocols.length === 0
+      ) {
+        console.warn(`No protocols available for chain ${chainId}`);
+        return;
+      }
+
+      // Extract protocol IDs
+      const protocolIds = protocolsResponse.protocols.map((p) => p.id);
+
+      // Update user profile with protocols
+      await this.updateUserProfile({
+        protocols: protocolIds,
+      });
+    } catch (error) {
+      // Log error but don't fail session key creation
+      console.warn(
+        `Failed to update user protocols: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Activate session key via Zyfai API
    */
   private async activateSessionKey(
+    signer: Address,
     signature: Hex,
     sessionNonces?: bigint[]
   ): Promise<AddSessionKeyResponse> {
     const nonces = this.normalizeSessionNonces(sessionNonces);
 
     const payload: AddSessionKeyRequest = {
+      signer,
       hash: signature,
       nonces,
     };
@@ -731,19 +976,21 @@ export class ZyfaiSDK {
    * Deposit funds from EOA to Safe smart wallet
    * Transfers tokens from the connected wallet to the user's Safe and logs the deposit
    *
+   * Token is automatically selected based on chain:
+   * - Base (8453) and Arbitrum (42161): USDC
+   * - Plasma (9745): USDT
+   *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
-   * @param tokenAddress - Token contract address to deposit
    * @param amount - Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals)
    * @returns Deposit response with transaction hash
    *
    * @example
    * ```typescript
-   * // Deposit 100 USDC (6 decimals) to Safe on Arbitrum
+   * // Deposit 100 USDC (6 decimals) to Safe on Base
    * const result = await sdk.depositFunds(
    *   "0xUser...",
-   *   42161,
-   *   "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // USDC
+   *   8453,
    *   "100000000" // 100 USDC = 100 * 10^6
    * );
    * ```
@@ -751,7 +998,6 @@ export class ZyfaiSDK {
   async depositFunds(
     userAddress: string,
     chainId: SupportedChainId,
-    tokenAddress: string,
     amount: string
   ): Promise<DepositResponse> {
     try {
@@ -763,16 +1009,15 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      if (!tokenAddress) {
-        throw new Error("Token address is required");
-      }
-
       if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
         throw new Error("Valid amount is required");
       }
 
+      // Get default token address for the chain
+      const token = getDefaultTokenAddress(chainId);
+
       const walletClient = this.getWalletClient();
-      const chainConfig = getChainConfig(chainId);
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
       // Get Safe address
       const safeAddress = await getDeterministicSafeAddress({
@@ -780,7 +1025,6 @@ export class ZyfaiSDK {
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
-        environment: this.environment,
       });
 
       // Check if Safe is deployed
@@ -800,7 +1044,7 @@ export class ZyfaiSDK {
 
       // Transfer tokens from connected wallet to Safe
       const txHash = await walletClient.writeContract({
-        address: tokenAddress as Address,
+        address: token as Address,
         abi: ERC20_ABI,
         functionName: "transfer",
         args: [safeAddress, amountBigInt],
@@ -822,7 +1066,6 @@ export class ZyfaiSDK {
         txHash,
         smartWallet: safeAddress,
         amount: amountBigInt.toString(),
-        status: "confirmed",
       };
     } catch (error) {
       throw new Error(`Deposit failed: ${(error as Error).message}`);
@@ -831,35 +1074,33 @@ export class ZyfaiSDK {
 
   /**
    * Withdraw funds from Safe smart wallet
-   * Initiates a withdrawal request to the ZyFAI API
+   * Initiates a withdrawal request to the Zyfai API
    * Note: The withdrawal is processed asynchronously, so txHash may not be immediately available
+   * Funds are always withdrawn to the Safe owner's address (userAddress)
    *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
    * @param amount - Optional: Amount in least decimal units to withdraw (partial withdrawal). If not specified, withdraws all funds
-   * @param receiver - Optional: Receiver address. If not specified, sends to Safe owner
    * @returns Withdraw response with message and optional transaction hash (available once processed)
    *
    * @example
    * ```typescript
    * // Full withdrawal
-   * const result = await sdk.withdrawFunds("0xUser...", 42161);
+   * const result = await sdk.withdrawFunds("0xUser...", 8453);
    * console.log(result.message); // "Withdrawal request sent"
    *
    * // Partial withdrawal of 50 USDC (6 decimals)
    * const result = await sdk.withdrawFunds(
    *   "0xUser...",
-   *   42161,
-   *   "50000000", // 50 USDC = 50 * 10^6
-   *   "0xReceiver..."
+   *   8453,
+   *   "50000000" // 50 USDC = 50 * 10^6
    * );
    * ```
    */
   async withdrawFunds(
     userAddress: string,
     chainId: SupportedChainId,
-    amount?: string,
-    receiver?: string
+    amount?: string
   ): Promise<WithdrawResponse> {
     try {
       if (!userAddress) {
@@ -870,17 +1111,34 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      const walletClient = this.getWalletClient();
-      const chainConfig = getChainConfig(chainId);
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
-      // Get Safe address
-      const safeAddress = await getDeterministicSafeAddress({
-        owner: walletClient,
-        safeOwnerAddress: userAddress as Address,
-        chain: chainConfig.chain,
-        publicClient: chainConfig.publicClient,
-        environment: this.environment,
-      });
+      // Try to get smart wallet address from API first
+      let safeAddress: Address;
+      try {
+        const smartWalletInfo = await this.getSmartWalletByEOA(userAddress);
+        if (smartWalletInfo.smartWallet) {
+          safeAddress = smartWalletInfo.smartWallet;
+        } else {
+          // No smart wallet found in API, calculate deterministically
+          const walletClient = this.getWalletClient();
+          safeAddress = await getDeterministicSafeAddress({
+            owner: walletClient,
+            safeOwnerAddress: userAddress as Address,
+            chain: chainConfig.chain,
+            publicClient: chainConfig.publicClient,
+          });
+        }
+      } catch {
+        // API call failed, calculate deterministically
+        const walletClient = this.getWalletClient();
+        safeAddress = await getDeterministicSafeAddress({
+          owner: walletClient,
+          safeOwnerAddress: userAddress as Address,
+          chain: chainConfig.chain,
+          publicClient: chainConfig.publicClient,
+        });
+      }
 
       // Check if Safe is deployed
       const isDeployed = await isSafeDeployed(
@@ -911,7 +1169,6 @@ export class ZyfaiSDK {
         response = await this.httpClient.post(ENDPOINTS.PARTIAL_WITHDRAW, {
           chainId,
           amount,
-          receiver: receiver || userAddress,
         });
       } else {
         // Full withdrawal - ask backend to trigger automatic withdrawal flow
@@ -930,8 +1187,6 @@ export class ZyfaiSDK {
         txHash,
         type: amount ? "partial" : "full",
         amount: amount || "all",
-        receiver: receiver || userAddress,
-        status: success ? "pending" : "failed",
       };
     } catch (error) {
       throw new Error(`Withdrawal failed: ${(error as Error).message}`);
@@ -946,7 +1201,7 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * const protocols = await sdk.getAvailableProtocols(42161);
+   * const protocols = await sdk.getAvailableProtocols(8453);
    * protocols.forEach(protocol => {
    *   console.log(`${protocol.name}: ${protocol.minApy}% - ${protocol.maxApy}% APY`);
    * });
@@ -989,7 +1244,7 @@ export class ZyfaiSDK {
    * const positions = await sdk.getPositions(userAddress);
    *
    * // Get positions on a specific chain
-   * const arbPositions = await sdk.getPositions(userAddress, 42161);
+   * const basePositions = await sdk.getPositions(userAddress, 8453);
    * ```
    */
   async getPositions(
@@ -1005,20 +1260,20 @@ export class ZyfaiSDK {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      const walletClient = this.getWalletClient(chainId);
-      const chainConfig = getChainConfig(chainId ?? 8453);
-      // Translate EOA into deterministic Safe address
-      const safeAddress = await getDeterministicSafeAddress({
-        owner: walletClient,
-        safeOwnerAddress: userAddress as Address,
-        chain: chainConfig.chain,
-        publicClient: chainConfig.publicClient,
-        environment: this.environment,
-      });
+      const smartWalletInfo = await this.getSmartWalletByEOA(userAddress);
+
+      // If no smart wallet exists, return empty positions
+      if (!smartWalletInfo.smartWallet) {
+        return {
+          success: true,
+          userAddress,
+          positions: [],
+        };
+      }
 
       // Use the /data/position endpoint with smart wallet address
       const response = await this.httpClient.get<any>(
-        ENDPOINTS.DATA_POSITION(safeAddress)
+        ENDPOINTS.DATA_POSITION(smartWalletInfo.smartWallet)
       );
 
       return {
@@ -1088,7 +1343,7 @@ export class ZyfaiSDK {
   // ============================================================================
 
   /**
-   * Get total value locked (TVL) across all ZyFAI accounts
+   * Get total value locked (TVL) across all Zyfai accounts
    *
    * @returns Total TVL in USD and breakdown by chain
    *
@@ -1156,7 +1411,7 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get total volume across all ZyFAI accounts
+   * Get total volume across all Zyfai accounts
    *
    * @returns Total volume in USD
    *

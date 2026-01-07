@@ -1,21 +1,21 @@
 /**
- * ZyFAI SDK Types
+ * Zyfai SDK Types
  */
 
 export type Address = `0x${string}`;
 export type Hex = `0x${string}`;
 
-export type Environment = "staging" | "production";
+export type Strategy = "safe_strategy" | "degen_strategy";
+
+export interface RpcUrlsConfig {
+  8453?: string;
+  42161?: string;
+  9745?: string;
+}
 
 export interface SDKConfig {
-  /** API key for the Execution API */
   apiKey: string;
-  /** API key for the Data API - defaults to apiKey if not provided */
-  dataApiKey?: string;
-  /** Environment: 'staging' or 'production' (default: 'production') */
-  environment?: Environment;
-  /** Bundler API key for Safe deployment (e.g., Pimlico) */
-  bundlerApiKey?: string;
+  rpcUrls?: RpcUrlsConfig;
 }
 
 // Response Types
@@ -25,8 +25,6 @@ export interface DeploySafeResponse {
   safeAddress: Address;
   txHash: string;
   status: "deployed" | "failed";
-  /** True if the Safe was already deployed (no new deployment needed) */
-  alreadyDeployed?: boolean;
 }
 
 // Internal types - used by SDK implementation
@@ -48,6 +46,15 @@ export interface UpdateUserProfileResponse {
 }
 
 /** @internal */
+export interface InitializeUserResponse {
+  success: boolean;
+  userId: string;
+  smartWallet?: Address;
+  chainId?: number;
+  message?: string;
+}
+
+/** @internal */
 export interface LoginResponse {
   userId: string;
   accessToken?: string;
@@ -59,6 +66,7 @@ export interface LoginResponse {
 
 /** @internal */
 export interface AddSessionKeyRequest {
+  signer: Address;
   hash: Hex;
   nonces: number[];
 }
@@ -468,7 +476,6 @@ export interface DepositResponse {
   txHash: string;
   smartWallet: string;
   amount: string;
-  status: "pending" | "confirmed" | "failed";
 }
 
 export interface WithdrawResponse {
@@ -477,8 +484,11 @@ export interface WithdrawResponse {
   txHash?: string;
   type: "full" | "partial";
   amount: string;
-  receiver: string;
-  status: "pending" | "confirmed" | "failed";
+}
+
+export interface AddWalletToSdkResponse {
+  success: boolean;
+  message: string;
 }
 
 // Session Types

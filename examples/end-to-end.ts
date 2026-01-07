@@ -1,7 +1,7 @@
 /**
- * End-to-End ZyFAI SDK Example
+ * End-to-End Zyfai SDK Example
  *
- * This example demonstrates the complete workflow of using the ZyFAI SDK:
+ * This example demonstrates the complete workflow of using the Zyfai SDK:
  * 1. Initialize SDK and connect account
  * 2. Deploy Safe smart wallet
  * 3. Create session key for delegated transactions
@@ -17,54 +17,41 @@ import { SupportedChainId, ZyfaiSDK } from "../dist/index";
 // Load environment variables from .env file
 config();
 
-// Common USDC addresses
-const USDC_ADDRESSES = {
-  42161: "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // Arbitrum
-  8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base
-  9745: "0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb", // Plasma
-};
+// Token addresses are automatically selected based on chain:
+// - Base (8453) and Arbitrum (42161): USDC
+// - Plasma (9745): USDT
 
 async function main() {
   console.log("=".repeat(60));
-  console.log("ZyFAI SDK - End-to-End Workflow Example");
+  console.log("Zyfai SDK - End-to-End Workflow Example");
   console.log("=".repeat(60));
   console.log();
 
   // Validate environment variables
   const apiKey = process.env.ZYFAI_API_KEY;
-  const dataApiKey = process.env.ZYFAI_DATA_API_KEY; // Optional: separate Data API key
-  const bundlerApiKey = process.env.BUNDLER_API_KEY;
+
   const privateKey = process.env.PRIVATE_KEY;
 
-  if (!apiKey || !bundlerApiKey || !privateKey) {
+  if (!apiKey || !privateKey) {
     throw new Error(
       "Missing required environment variables:\n" +
         "- ZYFAI_API_KEY\n" +
-        "- BUNDLER_API_KEY\n" +
-        "- PRIVATE_KEY\n" +
-        "Optional:\n" +
-        "- ZYFAI_DATA_API_KEY (for Data API, defaults to ZYFAI_API_KEY)"
+        "- \n" +
+        "- PRIVATE_KEY"
     );
   }
 
   // =================================================================
   // STEP 1: Initialize SDK
   // =================================================================
-  console.log("STEP 1: Initializing ZyFAI SDK");
+  console.log("STEP 1: Initializing Zyfai SDK");
   console.log("-".repeat(60));
 
   const sdk = new ZyfaiSDK({
     apiKey,
-    dataApiKey, // Uses apiKey if not provided
-    environment: "staging",
-    bundlerApiKey,
   });
 
   console.log("SDK initialized successfully");
-  console.log(`  Environment: staging`);
-  console.log(
-    `  Data API Key: ${dataApiKey ? "provided" : "using main API key"}`
-  );
   console.log();
 
   // =================================================================
@@ -82,7 +69,6 @@ async function main() {
   console.log();
 
   const userAddress = connectedAddress;
-  const usdcAddress = USDC_ADDRESSES[chainId];
 
   // =================================================================
   // STEP 3: Deploy Safe Smart Wallet
@@ -123,7 +109,7 @@ async function main() {
   try {
     const sessionResult = await sdk.createSessionKey(userAddress, chainId);
     console.log("\nSession key created successfully");
-    console.log("  Configuration: Auto-fetched from ZyFAI API");
+    console.log("  Configuration: Auto-fetched from Zyfai API");
   } catch (error) {
     console.log("\n✗ Session key creation failed:", (error as Error).message);
     console.log("  Note: Ensure Safe is deployed first");
@@ -168,29 +154,29 @@ async function main() {
   // =================================================================
   console.log("STEP 6: Deposit Funds (Optional)");
   console.log("-".repeat(60));
-  console.log("  To deposit funds, uncomment the code below and ensure:");
-  console.log("  1. You have USDC in your connected wallet");
+  const tokenName = chainId === 9745 ? "USDT" : "USDC";
+  console.log(`  To deposit funds, uncomment the code below and ensure:`);
+  console.log(`  1. You have ${tokenName} in your connected wallet`);
   console.log("  2. You have gas fees for the transaction");
   console.log(
-    "  3. Amount is in least decimal units (e.g., 10 USDC = 10000000)"
+    `  3. Amount is in least decimal units (e.g., 10 ${tokenName} = 10000000)`
   );
   console.log();
 
   /* UNCOMMENT TO ENABLE DEPOSITS
   try {
-    console.log("  Depositing 10 USDC to Safe...");
+    console.log(`  Depositing 10 ${tokenName} to Safe...`);
+    // Token address is automatically selected (USDC for Base/Arbitrum, USDT for Plasma)
     const depositResult = await sdk.depositFunds(
       userAddress,
       chainId,
-      usdcAddress,
-      "10000000" // 10 USDC = 10 * 10^6 (6 decimals)
+      "10000000" // 10 USDC/USDT = 10 * 10^6 (6 decimals)
     );
 
     console.log("\nDeposit successful");
     console.log(`  Transaction: ${depositResult.txHash}`);
     console.log(`  Amount: ${depositResult.amount}`);
     console.log(`  Smart Wallet: ${depositResult.smartWallet}`);
-    console.log(`  Status: ${depositResult.status}`);
   } catch (error) {
     console.log("\n✗ Deposit failed:", (error as Error).message);
   }
@@ -268,19 +254,17 @@ async function main() {
   /* UNCOMMENT TO ENABLE WITHDRAWALS
   try {
     console.log("  Requesting partial withdrawal of 5 USDC...");
+    // Funds are always withdrawn to the Safe owner's address (userAddress)
     const withdrawResult = await sdk.withdrawFunds(
       userAddress,
       chainId,
-      "5000000", // 5 USDC = 5 * 10^6 (6 decimals)
-      userAddress // Receive back to connected wallet
+      "5000000" // 5 USDC = 5 * 10^6 (6 decimals)
     );
 
     console.log("\nWithdrawal requested successfully");
     console.log(`  Transaction: ${withdrawResult.txHash}`);
     console.log(`  Type: ${withdrawResult.type}`);
     console.log(`  Amount: ${withdrawResult.amount}`);
-    console.log(`  Receiver: ${withdrawResult.receiver}`);
-    console.log(`  Status: ${withdrawResult.status}`);
     console.log("\n  Note: Withdrawals may take some time to process");
   } catch (error) {
     console.log("\n✗ Withdrawal failed:", (error as Error).message);

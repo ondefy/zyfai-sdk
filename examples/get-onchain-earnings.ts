@@ -12,13 +12,12 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
-  const dataApiKey = process.env.ZYFAI_DATA_API_KEY; // Optional: separate Data API key
-  const bundlerApiKey = process.env.BUNDLER_API_KEY;
+
   const privateKey = process.env.PRIVATE_KEY;
 
-  if (!apiKey || !bundlerApiKey || !privateKey) {
+  if (!apiKey || !privateKey) {
     throw new Error(
-      "Missing env vars. Please set ZYFAI_API_KEY, BUNDLER_API_KEY, and PRIVATE_KEY."
+      "Missing env vars. Please set ZYFAI_API_KEY and PRIVATE_KEY."
     );
   }
 
@@ -26,9 +25,6 @@ async function main() {
 
   const sdk = new ZyfaiSDK({
     apiKey,
-    dataApiKey, // Uses apiKey if not provided
-    bundlerApiKey,
-    environment: "staging",
   });
 
   console.log("SDK initialized. Connecting account...");
@@ -56,7 +52,10 @@ async function main() {
       `  Lifetime Earnings: $${earnings.data.lifetimeEarnings.toFixed(6)}`
     );
 
-    if (earnings.data.unrealizedEarnings !== undefined && typeof earnings.data.unrealizedEarnings === "number") {
+    if (
+      earnings.data.unrealizedEarnings !== undefined &&
+      typeof earnings.data.unrealizedEarnings === "number"
+    ) {
       console.log(
         `  Unrealized Earnings: $${earnings.data.unrealizedEarnings.toFixed(6)}`
       );
@@ -83,16 +82,13 @@ async function main() {
   }
 
   // Option: Calculate/refresh earnings
-  const shouldCalculate = process.env.CALCULATE_EARNINGS === "true";
-  if (shouldCalculate) {
-    console.log("\n\nCalculating/refreshing onchain earnings...");
-    try {
-      const updated = await sdk.calculateOnchainEarnings(smartWallet);
-      console.log("Earnings recalculated:");
-      console.log(`  Total: $${updated.data.totalEarnings.toFixed(6)}`);
-    } catch (error) {
-      console.log("Failed to calculate earnings:", (error as Error).message);
-    }
+  console.log("\n\nCalculating/refreshing onchain earnings...");
+  try {
+    const updated = await sdk.calculateOnchainEarnings(smartWallet);
+    console.log("Earnings recalculated:");
+    console.log(`  Total: $${updated.data.totalEarnings.toFixed(6)}`);
+  } catch (error) {
+    console.log("Failed to calculate earnings:", (error as Error).message);
   }
 }
 

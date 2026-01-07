@@ -20,14 +20,14 @@
     "TypeAlias",
     "Interface"
   ],
-  "name": "ZyFAI SDK",
+  "name": "Zyfai SDK",
   "navigationLinks": {
     "GitHub": "https://github.com/ondefy/zyfai-sdk",
     "NPM": "https://www.npmjs.com/package/@zyfai/sdk"
   },
   "sidebarLinks": {
     "Website": "https://zyf.ai",
-    "Dashboard": "https://app.zyf.ai"
+    "Dashboard": "https://sdk.zyf.ai"
   },
   "hideGenerator": false,
   "visibilityFilters": {

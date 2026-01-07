@@ -1,9 +1,11 @@
-# ZyFAI SDK
+# Zyfai SDK
 
 [![npm version](https://img.shields.io/npm/v/@zyfai/sdk.svg)](https://www.npmjs.com/package/@zyfai/sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-TypeScript SDK for interacting with the ZyFAI Yield Optimization Engine. This SDK provides easy-to-use methods for deploying Safe smart wallets, managing DeFi positions, and optimizing yield across multiple protocols.
+TypeScript SDK for interacting with the Zyfai Yield Optimization Engine. This SDK provides easy-to-use methods for deploying Safe smart wallets, managing DeFi positions, and optimizing yield across multiple protocols.
+
+You can generate an api key from here: https://sdk.zyf.ai/
 
 ## Features
 
@@ -25,43 +27,33 @@ pnpm add @zyfai/sdk viem
 
 ## Prerequisites
 
-1. **Execution API Key**: API key for the Execution API (Safe deployment, transactions, session keys)
-2. **Data API Key** (optional): API key for the Data API (earnings, opportunities, analytics). If not provided, uses the Execution API key.
-3. **Bundler API Key**: Required for Safe deployment. Get it from:
-   - [Pimlico](https://www.pimlico.io/) (Recommended)
+1. **API Key**: Single API key for both Execution API (Safe deployment, transactions, session keys) and Data API (earnings, opportunities, analytics)
 
-**Get your API keys from [ZyFAI Dashboard](https://app.zyf.ai)**
+**Get your API key from [Zyfai Dashboard](https://sdk.zyf.ai)**
 
 ## Quick Start
 
 ### Initialize the SDK
 
+The SDK can be initialized with either a configuration object or just the API key string:
+
 ```typescript
 import { ZyfaiSDK } from "@zyfai/sdk";
 
+// Option 1: Full configuration object
 const sdk = new ZyfaiSDK({
-  apiKey: "your-execution-api-key", // Execution API (transactions, Safe deployment)
-  dataApiKey: "your-data-api-key", // Data API (analytics, earnings, opportunities)
-  bundlerApiKey: "your-bundler-api-key", // Required for Safe deployment
-  environment: "production", // or 'staging' (default: 'production')
+  apiKey: "your-api-key",
 });
+
+// Option 2: Simple string initialization (API key only)
+const sdk = new ZyfaiSDK("your-api-key");
 ```
 
 **Configuration Options:**
 
-| Option          | Required | Description                                                                                     |
-| --------------- | -------- | ----------------------------------------------------------------------------------------------- |
-| `apiKey`        | Yes      | API key for Execution API (Safe deployment, transactions, session keys)                         |
-| `dataApiKey`    | No       | API key for Data API (earnings, opportunities, analytics). Defaults to `apiKey` if not provided |
-| `bundlerApiKey` | No\*     | Pimlico API key for Safe deployment (\*required for `deploySafe`)                               |
-| `environment`   | No       | `"production"` or `"staging"` (default: `"production"`)                                         |
-
-**API Endpoints by Environment:**
-
-| Environment  | Execution API                | Data API                         |
-| ------------ | ---------------------------- | -------------------------------- |
-| `production` | `https://api.zyf.ai`         | `https://defiapi.zyf.ai`         |
-| `staging`    | `https://staging-api.zyf.ai` | `https://staging-defiapi.zyf.ai` |
+| Option   | Required | Description                                                                                          |
+| -------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `apiKey` | Yes      | API key for both Execution API and Data API (Safe deployment, transactions, session keys, analytics) |
 
 ### Connect Account
 
@@ -69,7 +61,7 @@ The SDK accepts either a private key or a modern wallet provider. **The SDK auto
 
 ```typescript
 // Option 1: With private key (chainId required)
-await sdk.connectAccount("0x...", 42161);
+await sdk.connectAccount("0x...", 8453);
 
 // Option 2: With wallet provider (chainId optional - uses provider's chain)
 const provider = await connector.getProvider();
@@ -81,10 +73,11 @@ await sdk.connectAccount(provider); // Automatically uses provider's current cha
 
 // Now call methods with explicit user addresses
 const userAddress = "0xUser...";
-await sdk.deploySafe(userAddress, 42161);
+await sdk.deploySafe(userAddress, 8453);
 ```
 
 **Note:**
+
 - When using a wallet provider, the SDK automatically detects the chain from the provider. You can optionally specify `chainId` to override.
 - The SDK automatically performs SIWE authentication when connecting, so you don't need to call any additional authentication methods.
 
@@ -99,6 +92,7 @@ console.log("Account disconnected and authentication cleared");
 ```
 
 This method:
+
 - Clears the wallet connection
 - Resets authentication state
 - Clears the JWT token
@@ -114,26 +108,29 @@ Deploy a Safe smart wallet:
 const userAddress = "0xUser..."; // User's EOA address
 
 // Get the deterministic Safe address (before deployment)
-const walletInfo = await sdk.getSmartWalletAddress(userAddress, 42161);
+const walletInfo = await sdk.getSmartWalletAddress(userAddress, 8453);
 console.log("Safe Address:", walletInfo.address);
 console.log("Is Deployed:", walletInfo.isDeployed);
 
-// Deploy the Safe (automatically checks if already deployed)
-const result = await sdk.deploySafe(userAddress, 42161);
+// Deploy the Safe with default safe strategy (automatically checks if already deployed)
+const result = await sdk.deploySafe(userAddress, 8453);
+
+// Or deploy with degen strategy (yieldor)
+const degenResult = await sdk.deploySafe(userAddress, 8453, "degen_strategy");
 
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
   console.log("Status:", result.status); // 'deployed' | 'failed'
-  
-  if (result.alreadyDeployed) {
-    console.log("Safe was already deployed - no action needed");
-  } else {
-    console.log("Transaction Hash:", result.txHash);
-  }
+  console.log("Transaction Hash:", result.txHash);
 }
 ```
 
-**Note:** The SDK proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns `alreadyDeployed: true` without making any transactions.
+**Note:** The SDK proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns early without making any transactions.
+
+**Strategy Options:**
+
+- `"safe_strategy"` (default): Low-risk, stable yield strategy
+- `"degen_strategy"`: High-risk, high-reward strategy (also known as "yieldor" on the frontend)
 
 ### 2. Multi-Chain Support
 
@@ -155,9 +152,9 @@ const chains = getSupportedChainIds();
 console.log("Supported chains:", chains);
 
 // Check if a chain is supported
-if (isSupportedChain(42161)) {
+if (isSupportedChain(8453)) {
   const userAddress = "0xUser...";
-  const result = await sdk.deploySafe(userAddress, 42161); // Arbitrum
+  const result = await sdk.deploySafe(userAddress, 8453); // Base
 }
 ```
 
@@ -174,9 +171,35 @@ new ZyfaiSDK(config: SDKConfig | string)
 **Parameters:**
 
 - `config`: Configuration object or API key string
-  - `apiKey` (string): Your ZyFAI API key
-  - `environment` ('production' | 'staging', optional): API environment (default: 'production')
-  - `bundlerApiKey` (string, optional): Bundler API key for Safe deployment (required for deploySafe)
+  - If a string is provided, it's treated as the `apiKey`
+  - If an object is provided:
+    - `apiKey` (string): Your Zyfai API key (required)
+    - `rpcUrls` (object, optional): Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations like `getSmartWalletAddress`)
+      - `8453` (string, optional): Base Mainnet RPC URL
+      - `42161` (string, optional): Arbitrum One RPC URL
+      - `9745` (string, optional): Plasma Mainnet RPC URL
+
+**Examples:**
+
+```typescript
+// Option 1: String initialization (API key only)
+const sdk = new ZyfaiSDK("your-api-key");
+
+// Option 2: Object initialization (full configuration)
+const sdk = new ZyfaiSDK({
+  apiKey: "your-api-key",
+});
+
+// Option 3: With custom RPC URLs (recommended to avoid rate limiting)
+const sdk = new ZyfaiSDK({
+  apiKey: "your-api-key",
+  rpcUrls: {
+    8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY", // Base
+    42161: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY", // Arbitrum
+    9745: "https://your-plasma-rpc-provider.com", // Plasma
+  },
+});
+```
 
 #### Methods
 
@@ -190,11 +213,12 @@ Connect account for signing transactions and authenticate via SIWE. Accepts eith
 - `chainId`: Target chain ID
   - **Required** for private key
   - **Optional** for wallet providers (auto-detects from provider)
-  - Default: 42161 (Arbitrum)
+  - Default: 8453 (Base)
 
 **Returns:** Connected wallet address
 
 **Automatic Actions:**
+
 - Connects the wallet
 - Authenticates via SIWE (Sign-In with Ethereum)
 - Stores JWT token for authenticated endpoints
@@ -203,7 +227,7 @@ Connect account for signing transactions and authenticate via SIWE. Accepts eith
 
 ```typescript
 // With private key (chainId required)
-await sdk.connectAccount("0x...", 42161);
+await sdk.connectAccount("0x...", 8453);
 
 // With wallet provider (chainId optional)
 const provider = await connector.getProvider();
@@ -217,6 +241,7 @@ Disconnect account and clear all authentication state.
 **Returns:** Promise that resolves when disconnection is complete
 
 **Actions:**
+
 - Clears wallet connection
 - Resets authentication state
 - Clears JWT token
@@ -247,14 +272,17 @@ Get the Smart Wallet (Safe) address for a user.
 }
 ```
 
-##### `deploySafe(userAddress: string, chainId: SupportedChainId): Promise<DeploySafeResponse>`
+##### `deploySafe(userAddress: string, chainId: SupportedChainId, strategy?: Strategy): Promise<DeploySafeResponse>`
 
-Deploy a Safe smart wallet for a user.
+Deploy a Safe smart wallet for a user. **Deployment is handled by the backend API**, which manages all RPC calls and bundler interactions. This avoids rate limiting issues.
 
 **Parameters:**
 
 - `userAddress`: User's EOA address
 - `chainId`: Target chain ID
+- `strategy`: Optional strategy selection (default: `"safe_strategy"`)
+  - `"safe_strategy"`: Low-risk, stable yield strategy (default)
+  - `"degen_strategy"`: High-risk, high-reward strategy (also known as "yieldor" on the frontend)
 
 **Returns:**
 
@@ -267,13 +295,37 @@ Deploy a Safe smart wallet for a user.
 }
 ```
 
+**Note:**
+
+- User must be authenticated (automatically done via `connectAccount()`)
+- Backend handles all RPC calls, avoiding rate limiting
+
+##### `addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>`
+
+Add a wallet address to the SDK API key's allowedWallets list. This endpoint requires SDK API key authentication (API key starting with "zyfai\_").
+
+**Parameters:**
+
+- `walletAddress`: Wallet address to add to the allowed list
+
+**Returns:**
+
+```typescript
+{
+  success: boolean;
+  message: string; // Status message
+}
+```
+
+**Note**: This method is only available when using an SDK API key (starts with "zyfai\_"). Regular API keys cannot use this endpoint.
+
 ### 3. Session Keys
 
 Session keys enable delegated transaction execution without exposing the main private key.
 
 #### Simple Usage (Recommended)
 
-The SDK automatically fetches optimal session configuration from ZyFAI API:
+The SDK automatically fetches optimal session configuration from Zyfai API:
 
 ```typescript
 // SDK automatically:
@@ -284,7 +336,7 @@ The SDK automatically fetches optimal session configuration from ZyFAI API:
 // 5. Signs the session key
 // 6. Calls /session-keys/add so the session becomes active immediately
 
-const result = await sdk.createSessionKey(userAddress, 42161);
+const result = await sdk.createSessionKey(userAddress, 8453);
 
 // Check if session key already existed
 if (result.alreadyActive) {
@@ -306,14 +358,16 @@ console.log("User ID:", result.userId);
 
 ### 4. Deposit Funds
 
-Transfer tokens to your Safe smart wallet:
+Transfer tokens to your Safe smart wallet. Token address is automatically selected based on chain:
+
+- **Base (8453) and Arbitrum (42161)**: USDC
+- **Plasma (9745)**: USDT
 
 ```typescript
-// Deposit 100 USDC (6 decimals) to Safe on Arbitrum
+// Deposit 100 USDC (6 decimals) to Safe on Base
 const result = await sdk.depositFunds(
   userAddress,
-  42161, // Chain ID
-  "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // USDC on Arbitrum
+  8453, // Chain ID
   "100000000" // Amount: 100 USDC = 100 * 10^6
 );
 
@@ -323,23 +377,26 @@ if (result.success) {
 }
 ```
 
-**Note:** Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
-The SDK automatically authenticates via SIWE before logging the deposit with ZyFAI's API, so no extra steps are required on your end once the transfer confirms.
+**Note:**
+
+- Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
+- Token address is automatically selected based on chain (USDC for Base/Arbitrum, USDT for Plasma)
+- The SDK automatically authenticates via SIWE before logging the deposit with Zyfai's API, so no extra steps are required on your end once the transfer confirms
 
 ### 5. Withdraw Funds
 
 Initiate a withdrawal from your Safe. **Note: Withdrawals are processed asynchronously by the backend.**
+Funds are always withdrawn to the Safe owner's address (userAddress).
 
 ```typescript
 // Full withdrawal
-const result = await sdk.withdrawFunds(userAddress, 42161);
+const result = await sdk.withdrawFunds(userAddress, 8453);
 
 // Partial withdrawal of 50 USDC (6 decimals)
 const result = await sdk.withdrawFunds(
   userAddress,
-  42161,
-  "50000000", // Amount: 50 USDC = 50 * 10^6
-  "0xReceiverAddress" // Optional: receiver address
+  8453,
+  "50000000" // Amount: 50 USDC = 50 * 10^6
 );
 
 if (result.success) {
@@ -354,6 +411,7 @@ if (result.success) {
 ```
 
 **Important Notes:**
+
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
 - The SDK authenticates via SIWE before calling the withdrawal endpoints
 - Withdrawals are processed asynchronously - the `txHash` may not be immediately available
@@ -365,7 +423,7 @@ if (result.success) {
 Retrieve all available DeFi protocols and pools for a specific chain:
 
 ```typescript
-const protocols = await sdk.getAvailableProtocols(42161);
+const protocols = await sdk.getAvailableProtocols(8453);
 
 console.log(`Found ${protocols.protocols.length} protocols`);
 protocols.protocols.forEach((protocol) => {
@@ -427,10 +485,50 @@ console.log("Active wallet count:", wallets.count);
 
 #### Get Smart Wallets by EOA
 
+Get the smart wallet address associated with an EOA address:
+
 ```typescript
 const result = await sdk.getSmartWalletByEOA("0xYourEOA...");
-console.log("Smart wallets:", result.smartWallets);
+console.log("Smart Wallet:", result.smartWallet);
+console.log("Chains:", result.chains);
+console.log("EOA:", result.eoa);
 ```
+
+**Returns:**
+
+```typescript
+{
+  success: boolean;
+  eoa: string;
+  smartWallet: Address | null;
+  chains: number[];
+}
+```
+
+#### Get First Topup
+
+Get information about the first deposit/topup for a wallet:
+
+```typescript
+const firstTopup = await sdk.getFirstTopup(walletAddress, 8453);
+console.log("First Topup Date:", firstTopup.date);
+console.log("First Topup Amount:", firstTopup.amount);
+console.log("Chain ID:", firstTopup.chainId);
+```
+
+**Returns:**
+
+```typescript
+{
+  success: boolean;
+  walletAddress: string;
+  date: string;
+  amount?: string;
+  chainId?: number;
+}
+```
+
+**Note**: Returns an error if the wallet has no deposits yet.
 
 #### Get Transaction History
 
@@ -508,7 +606,20 @@ console.log("Tier:", frequency.tier);
 console.log("Max rebalances/day:", frequency.frequency);
 ```
 
-### 12. Portfolio (Premium)
+### 12. SDK API Key Management
+
+#### Add Wallet to SDK API Key
+
+Add a wallet address to the SDK API key's allowedWallets list. This endpoint requires SDK API key authentication (API key starting with "zyfai\_").
+
+```typescript
+const result = await sdk.addWalletToSdk("0x1234...");
+console.log(result.message); // "Wallet successfully added to allowed list"
+```
+
+**Note**: This method is only available when using an SDK API key (starts with "zyfai\_"). Regular API keys cannot use this endpoint.
+
+### 13. Portfolio (Premium)
 
 #### Get Debank Portfolio (Multi-chain)
 
@@ -578,7 +689,7 @@ pnpm tsx examples/end-to-end.ts
 
 ## Complete Examples
 
-### Example 1: Deploy Safe on Arbitrum
+### Example 1: Deploy Safe on Base
 
 ```typescript
 import { ZyfaiSDK } from "@zyfai/sdk";
@@ -586,24 +697,26 @@ import { ZyfaiSDK } from "@zyfai/sdk";
 async function main() {
   const sdk = new ZyfaiSDK({
     apiKey: process.env.ZYFAI_API_KEY!,
-    bundlerApiKey: process.env.BUNDLER_API_KEY!,
   });
 
   // Connect account (automatically authenticates via SIWE)
-  await sdk.connectAccount(process.env.PRIVATE_KEY!, 42161);
+  await sdk.connectAccount(process.env.PRIVATE_KEY!, 8453);
 
   const userAddress = "0xUser..."; // User's EOA address
 
   // Check if Safe already exists
-  const walletInfo = await sdk.getSmartWalletAddress(userAddress, 42161);
+  const walletInfo = await sdk.getSmartWalletAddress(userAddress, 8453);
 
   if (walletInfo.isDeployed) {
     console.log("Safe already deployed at:", walletInfo.address);
     return;
   }
 
-  // Deploy Safe
-  const result = await sdk.deploySafe(userAddress, 42161);
+  // Deploy Safe with default safe strategy
+  const result = await sdk.deploySafe(userAddress, 8453);
+
+  // Or deploy with degen strategy (yieldor)
+  // const result = await sdk.deploySafe(userAddress, 8453, "degen_strategy");
 
   if (result.success) {
     console.log("✅ Successfully deployed Safe");
@@ -622,13 +735,7 @@ import { ZyfaiSDK } from "@zyfai/sdk";
 import { useState } from "react";
 
 function SafeDeployment() {
-  const [sdk] = useState(
-    () =>
-      new ZyfaiSDK({
-        apiKey: process.env.ZYFAI_API_KEY!,
-        bundlerApiKey: process.env.BUNDLER_API_KEY!,
-      })
-  );
+  const [sdk] = useState(() => new ZyfaiSDK(process.env.ZYFAI_API_KEY!));
 
   const [userAddress, setUserAddress] = useState<string>("");
   const [safeAddress, setSafeAddress] = useState<string>("");
@@ -644,7 +751,7 @@ function SafeDeployment() {
       console.log("Connected and authenticated:", address);
 
       // Get Safe address for this user
-      const walletInfo = await sdk.getSmartWalletAddress(address, 42161);
+      const walletInfo = await sdk.getSmartWalletAddress(address, 8453);
       setSafeAddress(walletInfo.address);
     } catch (error) {
       console.error("Connection failed:", error);
@@ -656,7 +763,7 @@ function SafeDeployment() {
 
     setIsDeploying(true);
     try {
-      const result = await sdk.deploySafe(userAddress, 42161);
+      const result = await sdk.deploySafe(userAddress, 8453);
       if (result.success) {
         alert(`Safe deployed at ${result.safeAddress}`);
       }
@@ -713,7 +820,7 @@ The SDK is built on top of:
 ```typescript
 try {
   const userAddress = "0xUser...";
-  const result = await sdk.deploySafe(userAddress, 42161);
+  const result = await sdk.deploySafe(userAddress, 8453);
   if (!result.success) {
     console.error("Deployment failed:", result.status);
   }
@@ -738,15 +845,8 @@ try {
 For running the examples, set up the following environment variables:
 
 ```bash
-# Required: Execution API key (Safe deployment, transactions, session keys)
-ZYFAI_API_KEY=your-execution-api-key
-
-# Optional: Data API key (earnings, opportunities, analytics)
-# Falls back to ZYFAI_API_KEY if not provided
-ZYFAI_DATA_API_KEY=your-data-api-key
-
-# Required for Safe deployment: Bundler API key (e.g., Pimlico)
-BUNDLER_API_KEY=your-pimlico-api-key
+# Required: API key (used for both Execution API and Data API)
+ZYFAI_API_KEY=your-api-key
 
 # Required for examples: Private key for signing transactions
 # WARNING: Never commit your private key to version control!
@@ -770,13 +870,14 @@ Check that the chain ID is in the supported chains list: Arbitrum (42161), Base 
 ### SIWE Authentication Issues in Browser
 
 The SDK automatically performs SIWE authentication when you call `connectAccount()`. The SDK automatically detects browser vs Node.js environments:
+
 - **Browser**: Uses `window.location.origin` for the SIWE message domain/uri to match the browser's automatic `Origin` header
 - **Node.js**: Uses the API endpoint URL
 
 If you encounter SIWE authentication failures in a browser, ensure:
+
 1. Your frontend origin is allowed by the API's CORS configuration
-2. You're using the correct `environment` setting (`staging` or `production`)
-3. The user approves the SIWE signature request in their wallet
+2. The user approves the SIWE signature request in their wallet
 
 ### Session Key Already Exists
 
@@ -785,13 +886,14 @@ If `createSessionKey` returns `{ alreadyActive: true }`, the user already has an
 ### Withdrawal Transaction Hash Not Available
 
 If `withdrawFunds` returns without a `txHash`, the withdrawal is being processed asynchronously by the backend. You can:
+
 1. Check the `message` field for status information
 2. Use `getHistory()` to track when the withdrawal transaction is processed
 3. The transaction will appear in the history once it's been executed
 
 ### Data API CORS Errors
 
-Some Data API endpoints may require server-side CORS configuration. If you see CORS errors for endpoints like `onchain-earnings`, `calculate-onchain-earnings`, or `opportunities`, contact ZyFAI support to ensure your origin is whitelisted.
+Some Data API endpoints may require server-side CORS configuration. If you see CORS errors for endpoints like `onchain-earnings`, `calculate-onchain-earnings`, or `opportunities`, contact Zyfai support to ensure your origin is whitelisted.
 
 ## Contributing
 

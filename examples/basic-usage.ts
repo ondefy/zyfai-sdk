@@ -15,20 +15,12 @@ import { SupportedChainId, ZyfaiSDK } from "../dist/index";
 config();
 
 async function main() {
-  // Validate environment variables
   const apiKey = process.env.ZYFAI_API_KEY;
-  const bundlerApiKey = process.env.BUNDLER_API_KEY;
   const privateKey = process.env.PRIVATE_KEY;
 
   if (!apiKey) {
     throw new Error(
       "ZYFAI_API_KEY environment variable is required. Please add it to your .env file."
-    );
-  }
-
-  if (!bundlerApiKey) {
-    throw new Error(
-      "BUNDLER_API_KEY environment variable is required. Please add it to your .env file."
     );
   }
 
@@ -38,14 +30,11 @@ async function main() {
     );
   }
 
-  console.log("Starting ZyFAI SDK example...\n");
+  console.log("Starting Zyfai SDK example...\n");
 
-  // Step 1: Initialize SDK
   console.log("Step 1: Initializing SDK...");
   const sdk = new ZyfaiSDK({
     apiKey,
-    environment: "staging",
-    bundlerApiKey,
   });
   console.log("SDK initialized\n");
 

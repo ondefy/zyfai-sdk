@@ -11,22 +11,20 @@ import { SupportedChainId, ZyfaiSDK } from "../dist/index";
 // Load environment variables from .env file
 config();
 
-// Common USDC addresses
-const USDC_ADDRESSES = {
-  42161: "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // Arbitrum
-  8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base
-  9745: "0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb", // Plasma
-};
+// Token addresses are now automatically selected based on chain:
+// - Base (8453) and Arbitrum (42161): USDC
+// - Plasma (9745): USDT
+// You can still provide a custom token address if needed
 
 async function main() {
   // Validate environment variables
   const apiKey = process.env.ZYFAI_API_KEY;
-  const bundlerApiKey = process.env.BUNDLER_API_KEY;
+
   const privateKey = process.env.PRIVATE_KEY;
 
-  if (!apiKey || !bundlerApiKey || !privateKey) {
+  if (!apiKey || !privateKey) {
     throw new Error(
-      "Required environment variables: ZYFAI_API_KEY, BUNDLER_API_KEY, PRIVATE_KEY"
+      "Required environment variables: ZYFAI_API_KEY, PRIVATE_KEY"
     );
   }
 
@@ -36,8 +34,6 @@ async function main() {
   console.log("Step 1: Initializing SDK...");
   const sdk = new ZyfaiSDK({
     apiKey,
-    environment: "staging",
-    bundlerApiKey,
   });
   console.log("SDK initialized\n");
 
@@ -51,7 +47,6 @@ async function main() {
 
   const userAddress = connectedAddress;
   const chainId = 8453 as SupportedChainId; // Base
-  const usdcAddress = USDC_ADDRESSES[chainId];
 
   // Get Safe address
   console.log("Step 3: Getting Safe address...");
@@ -73,12 +68,15 @@ async function main() {
   // Deposit funds
   console.log("Step 4: Depositing funds to Safe...");
   console.log("Depositing 0.1 USDC (100000 units with 6 decimals) to Safe...");
+  console.log(
+    "Note: Token address is automatically selected (USDC for Base/Arbitrum, USDT for Plasma)"
+  );
 
   try {
+    // Token address is automatically selected based on chain (USDC for Base/Arbitrum, USDT for Plasma)
     const depositResult = await sdk.depositFunds(
       userAddress,
       chainId,
-      usdcAddress,
       "100000" // 0.1 USDC = 100000 (6 decimals)
     );
 
@@ -101,17 +99,16 @@ async function main() {
   );
 
   try {
+    // Funds are always withdrawn to the Safe owner's address (userAddress)
     const withdrawResult = await sdk.withdrawFunds(
       userAddress,
       chainId,
-      "100000", // Withdraw 0.1 USDC = 100000 (6 decimals)
-      userAddress // Receive back to connected wallet
+      "100000" // Withdraw 0.1 USDC = 100000 (6 decimals)
     );
 
     console.log("\nWithdrawal requested!");
     console.log(`Transaction Hash: ${withdrawResult.txHash}`);
     console.log(`Amount: ${withdrawResult.amount}`);
-    console.log(`Receiver: ${withdrawResult.receiver}`);
     console.log(`Success: ${withdrawResult.success}\n`);
 
     console.log("Note: Withdrawals may take some time to process");
