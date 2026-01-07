@@ -73,8 +73,6 @@ export type {
   DailyApyHistoryResponse,
 
   // Rebalance Types
-  RebalanceInfo,
-  RebalanceInfoResponse,
   RebalanceFrequencyResponse,
 
   // APY Per Strategy Types

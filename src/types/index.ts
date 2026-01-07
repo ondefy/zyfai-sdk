@@ -448,25 +448,6 @@ export interface DailyApyHistoryResponse {
 // Rebalance Types
 // ============================================================================
 
-export interface RebalanceInfo {
-  id: string;
-  timestamp: string;
-  fromProtocol?: string;
-  toProtocol?: string;
-  fromPool?: string;
-  toPool?: string;
-  amount?: string;
-  isCrossChain: boolean;
-  fromChainId?: number;
-  toChainId?: number;
-}
-
-export interface RebalanceInfoResponse {
-  success: boolean;
-  data: RebalanceInfo[];
-  count: number;
-}
-
 export interface RebalanceFrequencyResponse {
   success: boolean;
   walletAddress: string;
