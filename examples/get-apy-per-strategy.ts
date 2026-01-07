@@ -12,11 +12,8 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
-  const dataApiKey = process.env.ZYFAI_DATA_API_KEY; // Optional: separate Data API key
-  const bundlerApiKey = process.env.BUNDLER_API_KEY;
-  const privateKey = process.env.PRIVATE_KEY;
 
-  if (!apiKey || !bundlerApiKey || !privateKey) {
+  if (!apiKey) {
     throw new Error(
       "Missing env vars. Please set ZYFAI_API_KEY, BUNDLER_API_KEY, and PRIVATE_KEY."
     );
@@ -29,7 +26,7 @@ async function main() {
   });
 
   console.log("SDK initialized. Connecting account...");
-  const connectedEOA = await sdk.connectAccount(privateKey, chainId);
+  const connectedEOA = await sdk.connectAccount(process.env.PRIVATE_KEY, chainId);
   console.log(`Connected EOA: ${connectedEOA}\n`);
 
   // Get smart wallet address
