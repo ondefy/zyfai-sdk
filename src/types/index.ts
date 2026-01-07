@@ -206,6 +206,29 @@ export interface TVLResponse {
   breakdown?: TVLBreakdown[];
 }
 
+export interface APYPerStrategy {
+  id: string;
+  timestamp: string;
+  amount: number;
+  fee_threshold: number;
+  days: number;
+  chain_id: number;
+  is_cross_chain: boolean;
+  average_apy: number;
+  average_apy_with_rzfi: number;
+  total_rebalances: number;
+  created_at: string;
+  strategy: string;
+  average_apy_without_fee: number;
+  average_apy_with_rzfi_without_fee: number;
+}
+
+export interface APYPerStrategyResponse {
+  success: boolean;
+  count: number;
+  data: APYPerStrategy[];
+}
+
 export interface VolumeResponse {
   success: boolean;
   volumeInUSD: string;

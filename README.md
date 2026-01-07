@@ -500,17 +500,6 @@ degenStrats.data.forEach((s) => {
 
 ### 11. Rebalancing
 
-#### Get Rebalance Info
-
-```typescript
-// Get same-chain rebalances
-const rebalances = await sdk.getRebalanceInfo(false);
-console.log("Rebalance events:", rebalances.count);
-
-// Get cross-chain rebalances
-const crossChain = await sdk.getRebalanceInfo(true);
-```
-
 #### Get Rebalance Frequency
 
 ```typescript

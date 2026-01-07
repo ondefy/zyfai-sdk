@@ -101,7 +101,7 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 | `getSafeOpportunities`     | **Data API**  | No            |
 | `getDegenStrategies`       | **Data API**  | No            |
 | `getDailyApyHistory`       | **Data API**  | No            |
-| `getRebalanceInfo`         | **Data API**  | No            |
+| `getAPYPerStrategy`        | **Data API**  | No            |
 
 \* JWT token is automatically forwarded from SIWE authentication
 
@@ -666,12 +666,11 @@ const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
 
 ---
 
-### 20. Get Rebalance Info
+### 20. Get APY Per Strategy
 
 ```typescript
-const rebalances = await sdk.getRebalanceInfo(false); // same-chain
-const crossChain = await sdk.getRebalanceInfo(true); // cross-chain
-// Returns: { success, data, count }
+const apyPerStrategy = await sdk.getAPYPerStrategy(false, "7D", "safe"); // same-chain
+// Returns: { success, count, data }
 ```
 
 ---
