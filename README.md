@@ -596,25 +596,14 @@ degenStrats.data.forEach((s) => {
 });
 ```
 
-### 11. Rebalancing
+### 11. APY Per Strategy
 
-#### Get Rebalance Info
+#### Get APY Per Strategy
 
 ```typescript
 // Get same-chain rebalances
-const rebalances = await sdk.getRebalanceInfo(false);
-console.log("Rebalance events:", rebalances.count);
-
-// Get cross-chain rebalances
-const crossChain = await sdk.getRebalanceInfo(true);
-```
-
-#### Get Rebalance Frequency
-
-```typescript
-const frequency = await sdk.getRebalanceFrequency(walletAddress);
-console.log("Tier:", frequency.tier);
-console.log("Max rebalances/day:", frequency.frequency);
+const apyPerStrategy = await sdk.getAPYPerStrategy(false, "7D", "safe");
+console.log("APY per strategy:", apyPerStrategy.data);
 ```
 
 ### 12. SDK API Key Management
