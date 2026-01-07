@@ -1390,13 +1390,13 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * const apyPerStrategy = await sdk.getAPYPerStrategy(false, "7D", "safe");
+   * const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "safe");
    * console.log("APY per strategy per chain:", apyPerStrategy.data);
    * ```
    */
-  async getAPYPerStrategy(crossChain: boolean = false, days: string = "7D", strategyType: string = "safe"): Promise<APYPerStrategyResponse> {
+  async getAPYPerStrategy(crossChain: boolean = false, days: number = 7, strategy: string = "safe"): Promise<APYPerStrategyResponse> {
     try {
-      const response = await this.httpClient.dataGet<any>(DATA_ENDPOINTS.APY_PER_STRATEGY(crossChain, days, strategyType));
+      const response = await this.httpClient.dataGet<any>(DATA_ENDPOINTS.APY_PER_STRATEGY(crossChain, days, strategy));
 
       return {
         success: true,
