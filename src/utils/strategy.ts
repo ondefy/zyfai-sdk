@@ -35,3 +35,29 @@ export function isValidPublicStrategy(
 ): strategy is PublicStrategy {
   return strategy === "conservative" || strategy === "aggressive";
 }
+
+export function convertStrategyToPublic<T extends { strategy?: string }>(
+  obj: T
+): T {
+  if (!obj.strategy) {
+    return obj;
+  }
+
+  try {
+    return {
+      ...obj,
+      strategy: toPublicStrategy(
+        obj.strategy as InternalStrategy | "safe" | "degen"
+      ),
+    };
+  } catch {
+    // If conversion fails, keep original value
+    return obj;
+  }
+}
+
+export function convertStrategiesToPublic<T extends { strategy?: string }>(
+  array: T[]
+): T[] {
+  return array.map((item) => convertStrategyToPublic(item));
+}

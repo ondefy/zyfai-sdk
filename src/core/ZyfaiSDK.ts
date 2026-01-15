@@ -65,7 +65,12 @@ import {
   signSessionKey,
   type SigningParams,
 } from "../utils/safe-account";
-import { toInternalStrategy, toPublicStrategy } from "../utils/strategy";
+import {
+  toInternalStrategy,
+  toPublicStrategy,
+  convertStrategyToPublic,
+  convertStrategiesToPublic,
+} from "../utils/strategy";
 import { SiweMessage } from "siwe";
 
 export class ZyfaiSDK {
@@ -1280,10 +1285,15 @@ export class ZyfaiSDK {
         ENDPOINTS.DATA_POSITION(smartWalletInfo.smartWallet)
       );
 
+      // Convert strategy field in position data from backend format to public format
+      const convertedPositions = response
+        ? [convertStrategyToPublic(response)]
+        : [];
+
       return {
         success: true,
         userAddress,
-        positions: response ? [response] : [],
+        positions: convertedPositions,
       };
     } catch (error) {
       throw new Error(`Failed to get positions: ${(error as Error).message}`);
@@ -1314,25 +1324,28 @@ export class ZyfaiSDK {
 
       const response = await this.httpClient.get<any>(ENDPOINTS.USER_ME);
 
+      // Convert strategy from backend format to public format
+      const convertedResponse = convertStrategyToPublic(response);
+
       return {
         success: true,
         user: {
-          id: response.id,
-          address: response.address,
-          smartWallet: response.smartWallet,
-          chains: response.chains || [],
-          protocols: response.protocols || [],
-          hasActiveSessionKey: response.hasActiveSessionKey || false,
-          email: response.email,
-          strategy: response.strategy,
-          telegramId: response.telegramId,
-          walletType: response.walletType,
-          autoSelectProtocols: response.autoSelectProtocols || false,
-          autocompounding: response.autocompounding,
-          omniAccount: response.omniAccount,
-          crosschainStrategy: response.crosschainStrategy,
-          agentName: response.agentName,
-          customization: response.customization,
+          id: convertedResponse.id,
+          address: convertedResponse.address,
+          smartWallet: convertedResponse.smartWallet,
+          chains: convertedResponse.chains || [],
+          protocols: convertedResponse.protocols || [],
+          hasActiveSessionKey: convertedResponse.hasActiveSessionKey || false,
+          email: convertedResponse.email,
+          strategy: convertedResponse.strategy,
+          telegramId: convertedResponse.telegramId,
+          walletType: convertedResponse.walletType,
+          autoSelectProtocols: convertedResponse.autoSelectProtocols || false,
+          autocompounding: convertedResponse.autocompounding,
+          omniAccount: convertedResponse.omniAccount,
+          crosschainStrategy: convertedResponse.crosschainStrategy,
+          agentName: convertedResponse.agentName,
+          customization: convertedResponse.customization,
         },
       };
     } catch (error) {
@@ -1413,10 +1426,15 @@ export class ZyfaiSDK {
         DATA_ENDPOINTS.APY_PER_STRATEGY(crossChain, days, internalStrategyShort)
       );
 
+      // Convert strategy field in each data item from backend format to public format
+      const convertedData = convertStrategiesToPublic(
+        response.data || []
+      ) as any;
+
       return {
         success: true,
         count: response.count || 0,
-        data: response.data || [],
+        data: convertedData,
       };
     } catch (error) {
       throw new Error(
@@ -1623,10 +1641,13 @@ export class ZyfaiSDK {
 
       const response = await this.httpClient.get<any>(endpoint);
 
+      // Convert strategy field in each history entry from backend format to public format
+      const convertedData = convertStrategiesToPublic(response.data || []);
+
       return {
         success: true,
         walletAddress,
-        data: response.data || [],
+        data: convertedData,
         total: response.total || 0,
       };
     } catch (error) {
