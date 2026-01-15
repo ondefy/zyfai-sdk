@@ -133,7 +133,7 @@ deploySafe(
 | ------------- | -------- | -------- | ------------------------------------------------------------------------------- |
 | `userAddress` | string   | ✅       | User's EOA address                                                              |
 | `chainId`     | number   | ✅       | Target chain (8453, 42161, 9745)                                                |
-| `strategy`    | Strategy | ❌       | Strategy selection: `"safe_strategy"` (default) or `"degen_strategy"` (yieldor) |
+| `strategy`    | Strategy | ❌       | Strategy selection: `"conservative"` (default) or `"aggressive"` |
 
 #### Response Type
 
@@ -148,15 +148,15 @@ interface DeploySafeResponse {
 
 **Strategy Options:**
 
-- `"safe_strategy"` (default): Low-risk, stable yield strategy
-- `"degen_strategy"`: High-risk, high-reward strategy (also known as "yieldor" on the frontend)
+- `"conservative"` (default): Low-risk, stable yield strategy
+- `"aggressive"`: High-risk, high-reward strategy
 
 **Note:**
 
 - The backend API proactively checks if the Safe is already deployed before attempting deployment. If it exists, it returns early without making any transactions.
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting issues
-- If no strategy is provided, `"safe_strategy"` is used as the default
+- If no strategy is provided, `"conservative"` is used as the default
 
 #### Example Response (New Deployment)
 
@@ -661,7 +661,7 @@ const daily = await sdk.getDailyEarnings(
 
 ```typescript
 const opportunities = await sdk.getSafeOpportunities(chainId);
-// Returns: { success, chainId, strategyType: "safe", data }
+// Returns: { success, chainId, strategyType: "conservative", data }
 ```
 
 ---
@@ -670,7 +670,7 @@ const opportunities = await sdk.getSafeOpportunities(chainId);
 
 ```typescript
 const strategies = await sdk.getDegenStrategies(chainId);
-// Returns: { success, chainId, strategyType: "degen", data }
+// Returns: { success, chainId, strategyType: "aggressive", data }
 ```
 
 ---
@@ -687,7 +687,7 @@ const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
 ### 20. Get APY Per Strategy
 
 ```typescript
-const apyPerStrategy = await sdk.getAPYPerStrategy(false, "7D", "safe");
+const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative");
 // Returns: { success, count, data }
 ```
 
@@ -759,10 +759,10 @@ const sdk = new ZyfaiSDK(API_KEY);
 await sdk.connectAccount(PRIVATE_KEY, 8453);
 
 const userAddress = "0xUser...";
-// Deploy with default safe strategy
+// Deploy with default conservative strategy
 await sdk.deploySafe(userAddress, 8453);
-// Or deploy with degen strategy (yieldor)
-await sdk.deploySafe(userAddress, 8453, "degen_strategy");
+// Or deploy with aggressive strategy
+await sdk.deploySafe(userAddress, 8453, "aggressive");
 const wallet = await sdk.getSmartWalletAddress(userAddress, 8453);
 console.log("Deposit to:", wallet.address);
 
@@ -809,9 +809,9 @@ const chainId = 8453; // Base
 // 1. Deploy Safe
 const wallet = await sdk.getSmartWalletAddress(userAddress, chainId);
 if (!wallet.isDeployed) {
-  // Deploy with default safe strategy
+  // Deploy with default conservative strategy
   await sdk.deploySafe(userAddress, chainId);
-  // Or deploy with degen strategy: await sdk.deploySafe(userAddress, chainId, "degen_strategy");
+  // Or deploy with aggressive strategy: await sdk.deploySafe(userAddress, chainId, "aggressive");
 }
 
 // 2. Create session key (uses existing authentication)

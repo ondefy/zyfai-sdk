@@ -5,7 +5,7 @@
 export type Address = `0x${string}`;
 export type Hex = `0x${string}`;
 
-export type Strategy = "safe_strategy" | "degen_strategy";
+export type Strategy = "conservative" | "aggressive";
 
 export interface RpcUrlsConfig {
   8453?: string;
@@ -411,14 +411,14 @@ export interface Opportunity {
   tvl?: number;
   asset?: string;
   risk?: string;
-  strategyType: "safe" | "degen";
+  strategyType: "conservative" | "aggressive";
   status?: string;
 }
 
 export interface OpportunitiesResponse {
   success: boolean;
   chainId?: number;
-  strategyType: "safe" | "degen";
+  strategyType: "conservative" | "aggressive";
   data: Opportunity[];
 }
 

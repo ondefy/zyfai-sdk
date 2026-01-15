@@ -65,6 +65,7 @@ import {
   signSessionKey,
   type SigningParams,
 } from "../utils/safe-account";
+import { toInternalStrategy, toPublicStrategy } from "../utils/strategy";
 import { SiweMessage } from "siwe";
 
 export class ZyfaiSDK {
@@ -583,16 +584,16 @@ export class ZyfaiSDK {
    *
    * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
-   * @param strategy - Optional strategy selection: "safe_strategy" (default) or "degen_strategy" (yieldor)
+   * @param strategy - Optional strategy selection: "conservative" (default) or "aggressive"
    * @returns Deployment response with Safe address and transaction hash
    *
    * @example
    * ```typescript
-   * // Deploy with default safe strategy
+   * // Deploy with default conservative strategy
    * await sdk.deploySafe(userAddress, 8453);
    *
-   * // Deploy with degen strategy (yieldor)
-   * await sdk.deploySafe(userAddress, 8453, "degen_strategy");
+   * // Deploy with aggressive strategy
+   * await sdk.deploySafe(userAddress, 8453, "aggressive");
    * ```
    */
   async deploySafe(
@@ -653,6 +654,10 @@ export class ZyfaiSDK {
         };
       }
 
+      const internalStrategy = strategy
+        ? toInternalStrategy(strategy)
+        : "safe_strategy";
+
       const deploymentResult = await deploySafeAccount({
         owner: walletClient,
         safeOwnerAddress: userAddress as Address,
@@ -660,7 +665,7 @@ export class ZyfaiSDK {
         publicClient: chainConfig.publicClient,
         chainId,
         httpClient: this.httpClient,
-        strategy: strategy || "safe_strategy",
+        strategy: internalStrategy,
       });
       // Initialize user after Safe deployment
       try {
@@ -1384,19 +1389,29 @@ export class ZyfaiSDK {
    * Get APY per strategy for a specific chain
    *
    * @param crossChain - Whether to get cross-chain APY (true = omni account, false = simple account)
-   * @param days - Time period: "7D", "14D", or "30D"
-   * @param strategyType - Strategy type: "safe" or "degen"
+   * @param days - Time period: 7, 14, or 30
+   * @param strategy - Strategy type: "conservative" (default) or "aggressive"
    * @returns APY per strategy for a specific chain
    *
    * @example
    * ```typescript
-   * const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "safe");
+   * const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative");
    * console.log("APY per strategy per chain:", apyPerStrategy.data);
    * ```
    */
-  async getAPYPerStrategy(crossChain: boolean = false, days: number = 7, strategy: string = "safe"): Promise<APYPerStrategyResponse> {
+  async getAPYPerStrategy(
+    crossChain: boolean = false,
+    days: number = 7,
+    strategy: Strategy = "conservative"
+  ): Promise<APYPerStrategyResponse> {
     try {
-      const response = await this.httpClient.dataGet<any>(DATA_ENDPOINTS.APY_PER_STRATEGY(crossChain, days, strategy));
+      const internalStrategy = toInternalStrategy(strategy);
+      const internalStrategyShort =
+        internalStrategy === "safe_strategy" ? "safe" : "degen";
+
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.APY_PER_STRATEGY(crossChain, days, internalStrategyShort)
+      );
 
       return {
         success: true,
@@ -1810,10 +1825,10 @@ export class ZyfaiSDK {
   // ============================================================================
 
   /**
-   * Get safe (low-risk) yield opportunities
+   * Get conservative (low-risk) yield opportunities
    *
    * @param chainId - Optional chain ID filter
-   * @returns List of safe yield opportunities
+   * @returns List of conservative yield opportunities
    *
    * @example
    * ```typescript
@@ -1832,7 +1847,7 @@ export class ZyfaiSDK {
       return {
         success: true,
         chainId,
-        strategyType: "safe",
+        strategyType: "conservative",
         data: Array.isArray(data)
           ? data.map((o: any) => ({
               id: o.id,
@@ -1844,7 +1859,7 @@ export class ZyfaiSDK {
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,
-              strategyType: "safe",
+              strategyType: "conservative",
               status: o.status,
             }))
           : [],
@@ -1857,10 +1872,10 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get degen (high-risk, high-reward) yield strategies
+   * Get aggressive (high-risk, high-reward) yield strategies
    *
    * @param chainId - Optional chain ID filter
-   * @returns List of degen strategies
+   * @returns List of aggressive strategies
    *
    * @example
    * ```typescript
@@ -1879,7 +1894,7 @@ export class ZyfaiSDK {
       return {
         success: true,
         chainId,
-        strategyType: "degen",
+        strategyType: "aggressive",
         data: Array.isArray(data)
           ? data.map((o: any) => ({
               id: o.id,
@@ -1891,7 +1906,7 @@ export class ZyfaiSDK {
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,
-              strategyType: "degen",
+              strategyType: "aggressive",
               status: o.status,
             }))
           : [],

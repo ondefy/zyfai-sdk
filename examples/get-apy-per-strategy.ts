@@ -36,7 +36,7 @@ async function main() {
 
   // Use 1 period
     try {
-      const response = await sdk.getAPYPerStrategy(false, 7, "safe");
+      const response = await sdk.getAPYPerStrategy(false, 7, "conservative");
 
       console.log(response);
     } catch (error) {
