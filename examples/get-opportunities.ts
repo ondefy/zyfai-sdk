@@ -1,7 +1,7 @@
 /**
  * Example: Get Yield Opportunities
  *
- * Demonstrates fetching safe and degen yield opportunities
+ * Demonstrates fetching conservative and aggressive yield opportunities
  * Note: This uses the Data API which may require a separate API key
  */
 
@@ -31,21 +31,21 @@ async function main() {
   await sdk.connectAccount(privateKey, chainId);
   console.log("Connected.\n");
 
-  // Get Safe Opportunities
-  console.log(`Fetching SAFE opportunities for chain ${chainId}...`);
+  // Get Conservative Opportunities
+  console.log(`Fetching CONSERVATIVE opportunities for chain ${chainId}...`);
   try {
-    const safeOpps = await sdk.getSafeOpportunities(chainId);
+    const conservativeOpps = await sdk.getConservativeOpportunities(chainId);
 
-    console.log("\nSafe Opportunities (Low Risk):");
+    console.log("\nConservative Opportunities (Low Risk):");
     console.log("=".repeat(70));
-    console.log(`  Chain: ${safeOpps.chainId || "all"}`);
-    console.log(`  Count: ${safeOpps.data.length}\n`);
+    console.log(`  Chain: ${conservativeOpps.chainId || "all"}`);
+    console.log(`  Count: ${conservativeOpps.data.length}\n`);
 
-    if (safeOpps.data.length === 0) {
-      console.log("  No safe opportunities found.");
+    if (conservativeOpps.data.length === 0) {
+      console.log("  No conservative opportunities found.");
     } else {
       // Sort by APY descending
-      const sorted = [...safeOpps.data].sort((a, b) => b.apy - a.apy);
+      const sorted = [...conservativeOpps.data].sort((a, b) => b.apy - a.apy);
       console.log("  Protocol          | Pool                | APY      | TVL");
       console.log("  " + "-".repeat(65));
 
@@ -63,26 +63,26 @@ async function main() {
     }
   } catch (error) {
     console.log(
-      "Failed to fetch safe opportunities:",
+      "Failed to fetch conservative opportunities:",
       (error as Error).message
     );
   }
 
-  // Get Degen Strategies
-  console.log(`\n\nFetching DEGEN strategies for chain ${chainId}...`);
+  // Get Aggressive Opportunities
+  console.log(`\n\nFetching AGGRESSIVE opportunities for chain ${chainId}...`);
   try {
-    const degenStrats = await sdk.getDegenStrategies(chainId);
+    const aggressiveOpps = await sdk.getAggressiveOpportunities(chainId);
 
-    console.log("\nDegen Strategies (High Risk/High Reward):");
+    console.log("\nAggressive Opportunities (High Risk/High Reward):");
     console.log("=".repeat(70));
-    console.log(`  Chain: ${degenStrats.chainId || "all"}`);
-    console.log(`  Count: ${degenStrats.data.length}\n`);
+    console.log(`  Chain: ${aggressiveOpps.chainId || "all"}`);
+    console.log(`  Count: ${aggressiveOpps.data.length}\n`);
 
-    if (degenStrats.data.length === 0) {
-      console.log("  No degen strategies found.");
+    if (aggressiveOpps.data.length === 0) {
+      console.log("  No aggressive opportunities found.");
     } else {
       // Sort by APY descending
-      const sorted = [...degenStrats.data].sort((a, b) => b.apy - a.apy);
+      const sorted = [...aggressiveOpps.data].sort((a, b) => b.apy - a.apy);
       console.log(
         "  Protocol          | Pool                | APY      | Status"
       );
@@ -97,11 +97,14 @@ async function main() {
       });
 
       if (sorted.length > 10) {
-        console.log(`\n  ... and ${sorted.length - 10} more strategies`);
+        console.log(`\n  ... and ${sorted.length - 10} more opportunities`);
       }
     }
   } catch (error) {
-    console.log("Failed to fetch degen strategies:", (error as Error).message);
+    console.log(
+      "Failed to fetch aggressive opportunities:",
+      (error as Error).message
+    );
   }
 }
 

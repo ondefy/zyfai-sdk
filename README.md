@@ -112,11 +112,11 @@ const walletInfo = await sdk.getSmartWalletAddress(userAddress, 8453);
 console.log("Safe Address:", walletInfo.address);
 console.log("Is Deployed:", walletInfo.isDeployed);
 
-// Deploy the Safe with default safe strategy (automatically checks if already deployed)
+// Deploy the Safe with default conservative strategy (automatically checks if already deployed)
 const result = await sdk.deploySafe(userAddress, 8453);
 
-// Or deploy with degen strategy (yieldor)
-const degenResult = await sdk.deploySafe(userAddress, 8453, "degen_strategy");
+// Or deploy with aggressive strategy
+const aggressiveResult = await sdk.deploySafe(userAddress, 8453, "aggressive");
 
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
@@ -129,8 +129,8 @@ if (result.success) {
 
 **Strategy Options:**
 
-- `"safe_strategy"` (default): Low-risk, stable yield strategy
-- `"degen_strategy"`: High-risk, high-reward strategy (also known as "yieldor" on the frontend)
+- `"conservative"` (default): Low-risk, stable yield strategy
+- `"aggressive"`: High-risk, high-reward strategy
 
 ### 2. Multi-Chain Support
 
@@ -280,9 +280,9 @@ Deploy a Safe smart wallet for a user. **Deployment is handled by the backend AP
 
 - `userAddress`: User's EOA address
 - `chainId`: Target chain ID
-- `strategy`: Optional strategy selection (default: `"safe_strategy"`)
-  - `"safe_strategy"`: Low-risk, stable yield strategy (default)
-  - `"degen_strategy"`: High-risk, high-reward strategy (also known as "yieldor" on the frontend)
+- `strategy`: Optional strategy selection (default: `"conservative"`)
+  - `"conservative"`: Low-risk, stable yield strategy (default)
+  - `"aggressive"`: High-risk, high-reward strategy
 
 **Returns:**
 
@@ -578,21 +578,21 @@ console.log("Average Weighted APY:", apyHistory.averageWeightedApy);
 
 ### 10. Opportunities & Strategies
 
-#### Get Safe Opportunities (Low Risk)
+#### Get Conservative Opportunities (Low Risk)
 
 ```typescript
-const safeOpps = await sdk.getSafeOpportunities(8453);
-safeOpps.data.forEach((o) => {
+const conservativeOpps = await sdk.getConservativeOpportunities(8453);
+conservativeOpps.data.forEach((o) => {
   console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
 });
 ```
 
-#### Get Degen Strategies (High Risk)
+#### Get Aggressive Opportunities (High Risk)
 
 ```typescript
-const degenStrats = await sdk.getDegenStrategies(8453);
-degenStrats.data.forEach((s) => {
-  console.log(`${s.protocolName} - ${s.poolName}: ${s.apy}% APY`);
+const aggressiveOpps = await sdk.getAggressiveOpportunities(8453);
+aggressiveOpps.data.forEach((o) => {
+  console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
 });
 ```
 
@@ -602,7 +602,7 @@ degenStrats.data.forEach((s) => {
 
 ```typescript
 // Get same-chain rebalances
-const apyPerStrategy = await sdk.getAPYPerStrategy(false, "7D", "safe");
+const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative");
 console.log("APY per strategy:", apyPerStrategy.data);
 ```
 
@@ -712,11 +712,11 @@ async function main() {
     return;
   }
 
-  // Deploy Safe with default safe strategy
+  // Deploy Safe with default conservative strategy
   const result = await sdk.deploySafe(userAddress, 8453);
 
-  // Or deploy with degen strategy (yieldor)
-  // const result = await sdk.deploySafe(userAddress, 8453, "degen_strategy");
+  // Or deploy with aggressive strategy
+  // const result = await sdk.deploySafe(userAddress, 8453, "aggressive");
 
   if (result.success) {
     console.log("✅ Successfully deployed Safe");

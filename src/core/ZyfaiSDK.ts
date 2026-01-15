@@ -65,6 +65,12 @@ import {
   signSessionKey,
   type SigningParams,
 } from "../utils/safe-account";
+import {
+  toInternalStrategy,
+  toPublicStrategy,
+  convertStrategyToPublic,
+  convertStrategiesToPublic,
+} from "../utils/strategy";
 import { SiweMessage } from "siwe";
 
 export class ZyfaiSDK {
@@ -583,16 +589,16 @@ export class ZyfaiSDK {
    *
    * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
-   * @param strategy - Optional strategy selection: "safe_strategy" (default) or "degen_strategy" (yieldor)
+   * @param strategy - Optional strategy selection: "conservative" (default) or "aggressive"
    * @returns Deployment response with Safe address and transaction hash
    *
    * @example
    * ```typescript
-   * // Deploy with default safe strategy
+   * // Deploy with default conservative strategy
    * await sdk.deploySafe(userAddress, 8453);
    *
-   * // Deploy with degen strategy (yieldor)
-   * await sdk.deploySafe(userAddress, 8453, "degen_strategy");
+   * // Deploy with aggressive strategy
+   * await sdk.deploySafe(userAddress, 8453, "aggressive");
    * ```
    */
   async deploySafe(
@@ -653,6 +659,10 @@ export class ZyfaiSDK {
         };
       }
 
+      const internalStrategy = strategy
+        ? toInternalStrategy(strategy)
+        : "safe_strategy";
+
       const deploymentResult = await deploySafeAccount({
         owner: walletClient,
         safeOwnerAddress: userAddress as Address,
@@ -660,7 +670,7 @@ export class ZyfaiSDK {
         publicClient: chainConfig.publicClient,
         chainId,
         httpClient: this.httpClient,
-        strategy: strategy || "safe_strategy",
+        strategy: internalStrategy,
       });
       // Initialize user after Safe deployment
       try {
@@ -1275,10 +1285,15 @@ export class ZyfaiSDK {
         ENDPOINTS.DATA_POSITION(smartWalletInfo.smartWallet)
       );
 
+      // Convert strategy field in position data from backend format to public format
+      const convertedPositions = response
+        ? [convertStrategyToPublic(response)]
+        : [];
+
       return {
         success: true,
         userAddress,
-        positions: response ? [response] : [],
+        positions: convertedPositions,
       };
     } catch (error) {
       throw new Error(`Failed to get positions: ${(error as Error).message}`);
@@ -1309,25 +1324,28 @@ export class ZyfaiSDK {
 
       const response = await this.httpClient.get<any>(ENDPOINTS.USER_ME);
 
+      // Convert strategy from backend format to public format
+      const convertedResponse = convertStrategyToPublic(response);
+
       return {
         success: true,
         user: {
-          id: response.id,
-          address: response.address,
-          smartWallet: response.smartWallet,
-          chains: response.chains || [],
-          protocols: response.protocols || [],
-          hasActiveSessionKey: response.hasActiveSessionKey || false,
-          email: response.email,
-          strategy: response.strategy,
-          telegramId: response.telegramId,
-          walletType: response.walletType,
-          autoSelectProtocols: response.autoSelectProtocols || false,
-          autocompounding: response.autocompounding,
-          omniAccount: response.omniAccount,
-          crosschainStrategy: response.crosschainStrategy,
-          agentName: response.agentName,
-          customization: response.customization,
+          id: convertedResponse.id,
+          address: convertedResponse.address,
+          smartWallet: convertedResponse.smartWallet,
+          chains: convertedResponse.chains || [],
+          protocols: convertedResponse.protocols || [],
+          hasActiveSessionKey: convertedResponse.hasActiveSessionKey || false,
+          email: convertedResponse.email,
+          strategy: convertedResponse.strategy,
+          telegramId: convertedResponse.telegramId,
+          walletType: convertedResponse.walletType,
+          autoSelectProtocols: convertedResponse.autoSelectProtocols || false,
+          autocompounding: convertedResponse.autocompounding,
+          omniAccount: convertedResponse.omniAccount,
+          crosschainStrategy: convertedResponse.crosschainStrategy,
+          agentName: convertedResponse.agentName,
+          customization: convertedResponse.customization,
         },
       };
     } catch (error) {
@@ -1384,24 +1402,39 @@ export class ZyfaiSDK {
    * Get APY per strategy for a specific chain
    *
    * @param crossChain - Whether to get cross-chain APY (true = omni account, false = simple account)
-   * @param days - Time period: "7D", "14D", or "30D"
-   * @param strategyType - Strategy type: "safe" or "degen"
+   * @param days - Time period: 7, 14, or 30
+   * @param strategy - Strategy type: "conservative" (default) or "aggressive"
    * @returns APY per strategy for a specific chain
    *
    * @example
    * ```typescript
-   * const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "safe");
+   * const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative");
    * console.log("APY per strategy per chain:", apyPerStrategy.data);
    * ```
    */
-  async getAPYPerStrategy(crossChain: boolean = false, days: number = 7, strategy: string = "safe"): Promise<APYPerStrategyResponse> {
+  async getAPYPerStrategy(
+    crossChain: boolean = false,
+    days: number = 7,
+    strategy: Strategy = "conservative"
+  ): Promise<APYPerStrategyResponse> {
     try {
-      const response = await this.httpClient.dataGet<any>(DATA_ENDPOINTS.APY_PER_STRATEGY(crossChain, days, strategy));
+      const internalStrategy = toInternalStrategy(strategy);
+      const internalStrategyShort =
+        internalStrategy === "safe_strategy" ? "safe" : "degen";
+
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.APY_PER_STRATEGY(crossChain, days, internalStrategyShort)
+      );
+
+      // Convert strategy field in each data item from backend format to public format
+      const convertedData = convertStrategiesToPublic(
+        response.data || []
+      ) as any;
 
       return {
         success: true,
         count: response.count || 0,
-        data: response.data || [],
+        data: convertedData,
       };
     } catch (error) {
       throw new Error(
@@ -1608,10 +1641,13 @@ export class ZyfaiSDK {
 
       const response = await this.httpClient.get<any>(endpoint);
 
+      // Convert strategy field in each history entry from backend format to public format
+      const convertedData = convertStrategiesToPublic(response.data || []);
+
       return {
         success: true,
         walletAddress,
-        data: response.data || [],
+        data: convertedData,
         total: response.total || 0,
       };
     } catch (error) {
@@ -1810,18 +1846,20 @@ export class ZyfaiSDK {
   // ============================================================================
 
   /**
-   * Get safe (low-risk) yield opportunities
+   * Get conservative (low-risk) yield opportunities
    *
    * @param chainId - Optional chain ID filter
-   * @returns List of safe yield opportunities
+   * @returns List of conservative yield opportunities
    *
    * @example
    * ```typescript
-   * const opportunities = await sdk.getSafeOpportunities(8453);
+   * const opportunities = await sdk.getConservativeOpportunities(8453);
    * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
    * ```
    */
-  async getSafeOpportunities(chainId?: number): Promise<OpportunitiesResponse> {
+  async getConservativeOpportunities(
+    chainId?: number
+  ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
         DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId)
@@ -1832,7 +1870,7 @@ export class ZyfaiSDK {
       return {
         success: true,
         chainId,
-        strategyType: "safe",
+        strategyType: "conservative",
         data: Array.isArray(data)
           ? data.map((o: any) => ({
               id: o.id,
@@ -1844,7 +1882,7 @@ export class ZyfaiSDK {
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,
-              strategyType: "safe",
+              strategyType: "conservative",
               status: o.status,
             }))
           : [],
@@ -1857,18 +1895,20 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get degen (high-risk, high-reward) yield strategies
+   * Get aggressive (high-risk, high-reward) yield opportunities
    *
    * @param chainId - Optional chain ID filter
-   * @returns List of degen strategies
+   * @returns List of aggressive opportunities
    *
    * @example
    * ```typescript
-   * const strategies = await sdk.getDegenStrategies(8453);
-   * strategies.data.forEach(s => console.log(s.protocolName, s.apy));
+   * const opportunities = await sdk.getAggressiveOpportunities(8453);
+   * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
    * ```
    */
-  async getDegenStrategies(chainId?: number): Promise<OpportunitiesResponse> {
+  async getAggressiveOpportunities(
+    chainId?: number
+  ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
         DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId)
@@ -1879,7 +1919,7 @@ export class ZyfaiSDK {
       return {
         success: true,
         chainId,
-        strategyType: "degen",
+        strategyType: "aggressive",
         data: Array.isArray(data)
           ? data.map((o: any) => ({
               id: o.id,
@@ -1891,7 +1931,7 @@ export class ZyfaiSDK {
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,
-              strategyType: "degen",
+              strategyType: "aggressive",
               status: o.status,
             }))
           : [],
