@@ -78,32 +78,32 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 
 ### Method to API Mapping
 
-| Method                     | API           | Requires Auth |
-| -------------------------- | ------------- | ------------- |
-| `deploySafe`               | Execution API | No            |
-| `getSmartWalletAddress`    | Local         | No            |
-| `createSessionKey`         | Execution API | Yes (SIWE)    |
-| `depositFunds`             | Execution API | Yes (SIWE)    |
-| `withdrawFunds`            | Execution API | Yes (SIWE)    |
-| `getAvailableProtocols`    | Execution API | No            |
-| `getPositions`             | Execution API | No            |
-| `getUserDetails`           | Execution API | No            |
-| `getTVL`                   | Execution API | No            |
-| `getVolume`                | Execution API | No            |
-| `getFirstTopup`            | Execution API | No            |
-| `getHistory`               | Execution API | No            |
-| `getActiveWallets`         | Execution API | No            |
-| `getSmartWalletByEOA`      | Execution API | No            |
-| `getRebalanceFrequency`    | Execution API | No            |
-| `addWalletToSdk`           | Execution API | Yes (SDK Key) |
-| `getOnchainEarnings`       | **Data API**  | Yes (JWT)\*   |
-| `calculateOnchainEarnings` | **Data API**  | Yes (JWT)\*   |
-| `getDailyEarnings`         | **Data API**  | Yes (JWT)\*   |
-| `getDebankPortfolio`       | **Data API**  | Yes (JWT)\*   |
-| `getSafeOpportunities`     | **Data API**  | No            |
-| `getDegenStrategies`       | **Data API**  | No            |
-| `getDailyApyHistory`       | **Data API**  | No            |
-| `getAPYPerStrategy`        | **Data API**  | No            |
+| Method                         | API           | Requires Auth |
+| ------------------------------ | ------------- | ------------- |
+| `deploySafe`                   | Execution API | No            |
+| `getSmartWalletAddress`        | Local         | No            |
+| `createSessionKey`             | Execution API | Yes (SIWE)    |
+| `depositFunds`                 | Execution API | Yes (SIWE)    |
+| `withdrawFunds`                | Execution API | Yes (SIWE)    |
+| `getAvailableProtocols`        | Execution API | No            |
+| `getPositions`                 | Execution API | No            |
+| `getUserDetails`               | Execution API | No            |
+| `getTVL`                       | Execution API | No            |
+| `getVolume`                    | Execution API | No            |
+| `getFirstTopup`                | Execution API | No            |
+| `getHistory`                   | Execution API | No            |
+| `getActiveWallets`             | Execution API | No            |
+| `getSmartWalletByEOA`          | Execution API | No            |
+| `getRebalanceFrequency`        | Execution API | No            |
+| `addWalletToSdk`               | Execution API | Yes (SDK Key) |
+| `getOnchainEarnings`           | **Data API**  | Yes (JWT)\*   |
+| `calculateOnchainEarnings`     | **Data API**  | Yes (JWT)\*   |
+| `getDailyEarnings`             | **Data API**  | Yes (JWT)\*   |
+| `getDebankPortfolio`           | **Data API**  | Yes (JWT)\*   |
+| `getConservativeOpportunities` | **Data API**  | No            |
+| `getAggressiveOpportunities`   | **Data API**  | No            |
+| `getDailyApyHistory`           | **Data API**  | No            |
+| `getAPYPerStrategy`            | **Data API**  | No            |
 
 \* JWT token is automatically forwarded from SIWE authentication
 
@@ -129,10 +129,10 @@ deploySafe(
 
 #### Request Parameters
 
-| Parameter     | Type     | Required | Description                                                                     |
-| ------------- | -------- | -------- | ------------------------------------------------------------------------------- |
-| `userAddress` | string   | ✅       | User's EOA address                                                              |
-| `chainId`     | number   | ✅       | Target chain (8453, 42161, 9745)                                                |
+| Parameter     | Type     | Required | Description                                                      |
+| ------------- | -------- | -------- | ---------------------------------------------------------------- |
+| `userAddress` | string   | ✅       | User's EOA address                                               |
+| `chainId`     | number   | ✅       | Target chain (8453, 42161, 9745)                                 |
 | `strategy`    | Strategy | ❌       | Strategy selection: `"conservative"` (default) or `"aggressive"` |
 
 #### Response Type
@@ -657,19 +657,19 @@ const daily = await sdk.getDailyEarnings(
 
 ---
 
-### 17. Get Safe Opportunities
+### 17. Get Conservative Opportunities
 
 ```typescript
-const opportunities = await sdk.getSafeOpportunities(chainId);
+const opportunities = await sdk.getConservativeOpportunities(chainId);
 // Returns: { success, chainId, strategyType: "conservative", data }
 ```
 
 ---
 
-### 18. Get Degen Strategies
+### 18. Get Aggressive Opportunities
 
 ```typescript
-const strategies = await sdk.getDegenStrategies(chainId);
+const opportunities = await sdk.getAggressiveOpportunities(chainId);
 // Returns: { success, chainId, strategyType: "aggressive", data }
 ```
 

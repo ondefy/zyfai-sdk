@@ -578,21 +578,21 @@ console.log("Average Weighted APY:", apyHistory.averageWeightedApy);
 
 ### 10. Opportunities & Strategies
 
-#### Get Safe Opportunities (Low Risk)
+#### Get Conservative Opportunities (Low Risk)
 
 ```typescript
-const safeOpps = await sdk.getSafeOpportunities(8453);
-safeOpps.data.forEach((o) => {
+const conservativeOpps = await sdk.getConservativeOpportunities(8453);
+conservativeOpps.data.forEach((o) => {
   console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
 });
 ```
 
-#### Get Degen Strategies (High Risk)
+#### Get Aggressive Opportunities (High Risk)
 
 ```typescript
-const degenStrats = await sdk.getDegenStrategies(8453);
-degenStrats.data.forEach((s) => {
-  console.log(`${s.protocolName} - ${s.poolName}: ${s.apy}% APY`);
+const aggressiveOpps = await sdk.getAggressiveOpportunities(8453);
+aggressiveOpps.data.forEach((o) => {
+  console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
 });
 ```
 

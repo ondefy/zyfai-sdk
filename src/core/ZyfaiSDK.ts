@@ -1832,11 +1832,13 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * const opportunities = await sdk.getSafeOpportunities(8453);
+   * const opportunities = await sdk.getConservativeOpportunities(8453);
    * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
    * ```
    */
-  async getSafeOpportunities(chainId?: number): Promise<OpportunitiesResponse> {
+  async getConservativeOpportunities(
+    chainId?: number
+  ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
         DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId)
@@ -1872,18 +1874,20 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get aggressive (high-risk, high-reward) yield strategies
+   * Get aggressive (high-risk, high-reward) yield opportunities
    *
    * @param chainId - Optional chain ID filter
-   * @returns List of aggressive strategies
+   * @returns List of aggressive opportunities
    *
    * @example
    * ```typescript
-   * const strategies = await sdk.getDegenStrategies(8453);
-   * strategies.data.forEach(s => console.log(s.protocolName, s.apy));
+   * const opportunities = await sdk.getAggressiveOpportunities(8453);
+   * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
    * ```
    */
-  async getDegenStrategies(chainId?: number): Promise<OpportunitiesResponse> {
+  async getAggressiveOpportunities(
+    chainId?: number
+  ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
         DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId)
