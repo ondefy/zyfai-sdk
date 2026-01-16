@@ -665,7 +665,7 @@ All examples are available in the `examples/` directory:
 
 ### Opportunities & Rebalancing
 
-18. **`get-opportunities.ts`** - Get safe and degen yield opportunities
+18. **`get-opportunities.ts`** - Get conservative and aggressive yield opportunities
 19. **`get-rebalance-info.ts`** - Get rebalance events and frequency tier
 
 ### Premium Features

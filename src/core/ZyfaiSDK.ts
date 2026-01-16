@@ -1938,7 +1938,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get degen strategies: ${(error as Error).message}`
+        `Failed to get aggressive opportunities: ${(error as Error).message}`
       );
     }
   }
