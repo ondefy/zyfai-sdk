@@ -32,6 +32,7 @@ export interface DeploySafeResponse {
 /** @internal */
 export interface UpdateUserProfileRequest {
   smartWallet?: string;
+  strategy?: string;
   chains?: number[];
   protocols?: string[];
   autoSelectProtocols?: boolean;
@@ -43,6 +44,7 @@ export interface UpdateUserProfileResponse {
   userId: string;
   smartWallet?: Address;
   chains?: number[];
+  strategy?: string;
 }
 
 /** @internal */

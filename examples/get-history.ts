@@ -11,12 +11,11 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
+  const userAddress = process.env.USER_ADDRESS;
 
-  const privateKey = process.env.PRIVATE_KEY;
-
-  if (!apiKey || !privateKey) {
+  if (!apiKey || !userAddress) {
     throw new Error(
-      "Missing env vars. Please set ZYFAI_API_KEY and PRIVATE_KEY."
+      "Missing env vars. Please set ZYFAI_API_KEY and USER_ADDRESS."
     );
   }
 
@@ -26,12 +25,10 @@ async function main() {
     apiKey,
   });
 
-  console.log("SDK initialized. Connecting account...");
-  const connectedEOA = await sdk.connectAccount(privateKey, chainId);
-  console.log(`Connected EOA: ${connectedEOA}\n`);
+  console.log("SDK initialized.\n");
 
-  // Get smart wallet address
-  const walletInfo = await sdk.getSmartWalletAddress(connectedEOA, chainId);
+  // Read-only: derive smart wallet address without connecting a wallet
+  const walletInfo = await sdk.getSmartWalletAddress(userAddress, chainId);
   const smartWallet = walletInfo.address;
   console.log(`Smart Wallet: ${smartWallet}\n`);
 
@@ -59,6 +56,14 @@ async function main() {
       console.log(`     Rebalance: ${tx.rebalance ? "Yes" : "No"}`);
       if (tx.transactionHash) {
         console.log(`     Tx Hash: ${tx.transactionHash.slice(0, 20)}...`);
+      }
+      if (tx.zkProofIpfsHash) {
+        console.log(`     ZK Proof IPFS: ${tx.zkProofIpfsHash}`);
+      }
+      if (tx.validationRegistryTxHash) {
+        console.log(
+          `     Validation Registry Tx: ${tx.validationRegistryTxHash}`
+        );
       }
       if (tx.positions && tx.positions.length > 0) {
         console.log(`     Positions:`);

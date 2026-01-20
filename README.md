@@ -258,6 +258,8 @@ console.log("Disconnected and cleared");
 
 Get the Smart Wallet (Safe) address for a user.
 
+**Note:** This is a **read-only** operation and does **not** require `connectAccount()`.
+
 **Parameters:**
 
 - `userAddress`: User's EOA address
@@ -861,7 +863,7 @@ CHAIN_ID=8453
 
 ### "No account connected" Error
 
-Make sure to call `connectAccount()` before calling other methods that require signing. Note that `connectAccount()` automatically authenticates the user via SIWE.
+Make sure to call `connectAccount()` before calling methods that require **signing or SIWE authentication** (e.g. `deploySafe`, `createSessionKey`, `withdrawFunds`, `updateUserProfile`). Read-only data methods (e.g. `getPositions`, `getHistory`, `getOnchainEarnings`) do not require a connected wallet.
 
 ### "Unsupported chain" Error
 

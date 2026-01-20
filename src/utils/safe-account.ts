@@ -31,11 +31,14 @@ import {
 import type { SupportedChainId } from "../config/chains";
 import { ENDPOINTS } from "../config/endpoints";
 
-export interface SafeAccountConfig {
-  owner: WalletClient;
-  safeOwnerAddress?: Address;
+export interface SafeAccountReadConfig {
+  safeOwnerAddress: Address;
   chain: Chain;
   publicClient: PublicClient;
+}
+
+export interface SafeAccountWriteConfig extends SafeAccountReadConfig {
+  owner: WalletClient;
 }
 
 export interface SafeDeploymentResult {
@@ -53,58 +56,19 @@ const ACCOUNT_SALT = "zyfai";
  * Gets the Safe smart account configuration
  */
 export const getSafeAccount = async (
-  config: SafeAccountConfig
+  config: SafeAccountReadConfig
 ): Promise<SmartAccount> => {
-  const { owner, safeOwnerAddress, publicClient } = config;
+  const { safeOwnerAddress, publicClient } = config;
 
-  if (!owner || !owner.account) {
-    throw new Error("Wallet not connected. Please connect your wallet first.");
+  if (!safeOwnerAddress) {
+    throw new Error("Safe owner address is required");
   }
 
-  // The validator's owners MUST match the Safe's signing owners
-  // When safeOwnerAddress is provided, we validate that it matches the connected wallet
-  // This ensures the signer can actually authorize transactions
-  const signerAddress = owner.account.address;
-
-  if (!signerAddress) {
-    throw new Error("Owner account address is required");
-  }
-
-  // Determine the effective owner address for the Safe
-  // If safeOwnerAddress is provided and different from signer, use it for address calculation
-  // (This allows read-only address calculation without requiring the actual wallet)
-  // For transaction signing, the addresses must match (validated below)
-  const effectiveOwnerAddress = safeOwnerAddress || signerAddress;
-
-  if (!effectiveOwnerAddress) {
-    throw new Error("Address is required");
-  }
-
-  // Ensure addresses are properly formatted (checksummed)
-  const formattedEffectiveAddress = getAddress(effectiveOwnerAddress);
-
-  // If safeOwnerAddress is provided and different from signer, this is likely a read-only operation
-  // (e.g., calculating address for API calls). We allow this for address calculation,
-  // but the signer won't be able to sign transactions for this Safe.
-  const isReadOnly =
-    safeOwnerAddress &&
-    safeOwnerAddress.toLowerCase() !== signerAddress.toLowerCase();
-
-  // Only validate address matching for non-read-only operations
-  // (When we actually need to sign transactions)
-  if (
-    !isReadOnly &&
-    safeOwnerAddress &&
-    safeOwnerAddress.toLowerCase() !== signerAddress.toLowerCase()
-  ) {
-    throw new Error(
-      `Connected wallet address (${signerAddress}) must match the Safe owner address (${safeOwnerAddress}). ` +
-        `Please connect with the correct wallet.`
-    );
-  }
+  // Ensure address is properly formatted (checksummed)
+  const formattedOwnerAddress = getAddress(safeOwnerAddress);
 
   const ownableValidator = getOwnableValidator({
-    owners: [formattedEffectiveAddress], // Use formatted effective owner address for validator
+    owners: [formattedOwnerAddress],
     threshold: 1,
   });
 
@@ -112,7 +76,7 @@ export const getSafeAccount = async (
   const saltHex = fromHex(toHex(ACCOUNT_SALT), "bigint");
 
   const tempOwner = {
-    address: formattedEffectiveAddress,
+    address: formattedOwnerAddress,
     type: "json-rpc" as const,
   };
 
@@ -144,7 +108,7 @@ export const getSafeAccount = async (
  * Gets the deterministic Safe address for an owner
  */
 export const getDeterministicSafeAddress = async (
-  config: SafeAccountConfig
+  config: SafeAccountReadConfig
 ): Promise<Address> => {
   try {
     const safeAccount = await getSafeAccount(config);
@@ -217,7 +181,7 @@ export const getAccountType = async (
   }
 };
 
-export interface DeploySafeAccountConfig extends SafeAccountConfig {
+export interface DeploySafeAccountConfig extends SafeAccountWriteConfig {
   httpClient: any; // HttpClient instance from SDK
   chainId: SupportedChainId;
   strategy?: "safe_strategy" | "degen_strategy";
@@ -299,7 +263,7 @@ export interface SigningParams {
  * Creates a signature that allows the session key to execute transactions on behalf of the Safe
  */
 export const signSessionKey = async (
-  config: SafeAccountConfig,
+  config: SafeAccountWriteConfig,
   sessions: Session[],
   allPublicClients?: PublicClient[],
   signingParams?: SigningParams

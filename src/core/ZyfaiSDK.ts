@@ -229,6 +229,7 @@ export class ZyfaiSDK {
         userId: response.userId || response.id,
         smartWallet: response.smartWallet,
         chains: response.chains,
+        strategy: response.strategy,
       };
     } catch (error) {
       throw new Error(
@@ -564,10 +565,7 @@ export class ZyfaiSDK {
     }
 
     // If not found in API, calculate deterministic Safe address
-    // This requires wallet client for address calculation
-    const walletClient = this.getWalletClient(chainId);
     const safeAddress = await getDeterministicSafeAddress({
-      owner: walletClient,
       safeOwnerAddress: userAddress as Address,
       chain: chainConfig.chain,
       publicClient: chainConfig.publicClient,
@@ -624,7 +622,6 @@ export class ZyfaiSDK {
 
       // Check if Safe is already deployed before attempting deployment
       const safeAddress = await getDeterministicSafeAddress({
-        owner: walletClient,
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
@@ -883,14 +880,6 @@ export class ZyfaiSDK {
         signingParams
       );
 
-      // Get the Safe address
-      const safeAddress = await getDeterministicSafeAddress({
-        owner: walletClient,
-        safeOwnerAddress: userAddress as Address,
-        chain: chainConfig.chain,
-        publicClient: chainConfig.publicClient,
-      });
-
       return {
         success: true,
         signature,
@@ -1030,7 +1019,6 @@ export class ZyfaiSDK {
 
       // Get Safe address
       const safeAddress = await getDeterministicSafeAddress({
-        owner: walletClient,
         safeOwnerAddress: userAddress as Address,
         chain: chainConfig.chain,
         publicClient: chainConfig.publicClient,
@@ -1130,19 +1118,14 @@ export class ZyfaiSDK {
           safeAddress = smartWalletInfo.smartWallet;
         } else {
           // No smart wallet found in API, calculate deterministically
-          const walletClient = this.getWalletClient();
           safeAddress = await getDeterministicSafeAddress({
-            owner: walletClient,
             safeOwnerAddress: userAddress as Address,
             chain: chainConfig.chain,
             publicClient: chainConfig.publicClient,
           });
         }
       } catch {
-        // API call failed, calculate deterministically
-        const walletClient = this.getWalletClient();
         safeAddress = await getDeterministicSafeAddress({
-          owner: walletClient,
           safeOwnerAddress: userAddress as Address,
           chain: chainConfig.chain,
           publicClient: chainConfig.publicClient,
