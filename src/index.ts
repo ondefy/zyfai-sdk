@@ -19,6 +19,9 @@ export {
   type ChainConfig,
 } from "./config/chains";
 
+// Constants
+export { ZYFAI_COLLATERAL_MONITOR } from "./config/constants";
+
 export type {
   // Configuration
   SDKConfig,
