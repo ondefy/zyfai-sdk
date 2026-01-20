@@ -5,6 +5,7 @@
 import { HttpClient } from "../utils/http-client";
 import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT } from "../config/endpoints";
 import { ERC20_ABI } from "../config/abis";
+import { ZYFAI_COLLATERAL_MONITOR } from "../config/constants";
 import type {
   SDKConfig,
   DeploySafeResponse,
@@ -2032,5 +2033,22 @@ export class ZyfaiSDK {
         `Failed to get rebalance frequency: ${(error as Error).message}`
       );
     }
+  }
+
+  /**
+   * Get the Telegram channel URL for monitoring DeFi pool collateral risks and alerts
+   * Developers can use this URL to join the channel and receive real-time updates
+   * on collateral health for integrated DeFi protocols
+   *
+   * @returns Telegram channel URL for collateral monitoring
+   *
+   * @example
+   * ```typescript
+   * const monitorUrl = sdk.getCollateralMonitorUrl();
+   * window.open(monitorUrl, "_blank");
+   * ```
+   */
+  getCollateralMonitorUrl(): string {
+    return ZYFAI_COLLATERAL_MONITOR;
   }
 }
