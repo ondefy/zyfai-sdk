@@ -70,6 +70,7 @@ import {
   toPublicStrategy,
   convertStrategyToPublic,
   convertStrategiesToPublic,
+  isValidPublicStrategy,
 } from "../utils/strategy";
 import { SiweMessage } from "siwe";
 
@@ -218,10 +219,23 @@ export class ZyfaiSDK {
       // Authenticate user first to get JWT token
       await this.authenticateUser();
 
+      // Map public strategy keywords to internal backend values if provided
+      const payload: UpdateUserProfileRequest = { ...request };
+      if (payload.strategy) {
+        if (!isValidPublicStrategy(payload.strategy)) {
+          throw new Error(
+            `Invalid strategy: ${payload.strategy}. Must be "conservative" or "aggressive".`
+          );
+        }
+        payload.strategy = toInternalStrategy(
+          payload.strategy as "conservative" | "aggressive"
+        );
+      }
+
       // Update user profile via API
       const response = await this.httpClient.patch<any>(
         ENDPOINTS.USER_ME,
-        request
+        payload
       );
 
       return {
