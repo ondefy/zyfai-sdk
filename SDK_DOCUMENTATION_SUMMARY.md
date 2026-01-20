@@ -312,6 +312,8 @@ if (result.alreadyActive) {
 
 Retrieve the user's Safe Smart Wallet address for depositing funds.
 
+**Note:** This is a **read-only** call and does **not** require `connectAccount()`.
+
 #### Function Signature
 
 ```typescript
