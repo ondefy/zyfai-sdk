@@ -24,6 +24,7 @@ export const ENDPOINTS = {
   USER_ME: "/users/me",
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
+  LOG_DEPOSIT: "/users/log_deposit",
 
   // Safe Deployment (single endpoint)
   SAFE_DEPLOY: "/users/safe-deploy",
@@ -49,6 +50,10 @@ export const ENDPOINTS = {
   DATA_BY_EOA: (address: string) => `/data/by-eoa?address=${address}`,
   DATA_REBALANCE_FREQUENCY: (walletAddress: string) =>
     `/data/rebalance-frequency?walletAddress=${walletAddress}`,
+
+  // SDK Keys
+  SDK_ALLOWED_WALLETS: "/data/sdk-allowed-wallets",
+  SDK_TVL: "/data/sdk-tvl",
 } as const;
 
 // Data API Endpoints (v2)

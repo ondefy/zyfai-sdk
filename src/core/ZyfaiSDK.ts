@@ -41,6 +41,7 @@ import type {
   AddWalletToSdkResponse,
   RpcUrlsConfig,
   Strategy,
+  SdkKeyTVLResponse,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -49,7 +50,6 @@ import {
   http,
   getAddress,
   type WalletClient,
-  type PublicClient,
 } from "viem";
 import {
   getChainConfig,
@@ -67,7 +67,6 @@ import {
 } from "../utils/safe-account";
 import {
   toInternalStrategy,
-  toPublicStrategy,
   convertStrategyToPublic,
   convertStrategiesToPublic,
   isValidPublicStrategy,
@@ -1068,6 +1067,18 @@ export class ZyfaiSDK {
         hash: txHash,
       });
 
+      // Log deposit to backend
+      try {
+        await this.httpClient.post(ENDPOINTS.LOG_DEPOSIT, {
+          chainId,
+          transaction: txHash,
+          token,
+          amount,
+        });
+      } catch (logError) {
+        console.warn("Failed to log deposit:", (logError as Error).message);
+      }
+
       if (receipt.status !== "success") {
         throw new Error("Deposit transaction failed");
       }
@@ -2030,6 +2041,89 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(
         `Failed to get rebalance frequency: ${(error as Error).message}`
+      );
+    }
+  }
+
+  // ============================================================================
+  // SDK Key Methods
+  // ============================================================================
+
+  /**
+   * Get allowed wallets for the current SDK API key
+   * Returns the list of smart wallet addresses created via this SDK key
+   *
+   * @returns List of allowed wallet addresses with metadata
+   *
+   * @example
+   * ```typescript
+   * const result = await sdk.getSdkAllowedWallets();
+   * console.log("Allowed wallets:", result.allowedWallets);
+   * console.log("Total count:", result.metadata.walletsCount);
+   * ```
+   */
+  async getSdkAllowedWallets(): Promise<{
+    success: boolean;
+    allowedWallets: Address[];
+    metadata: {
+      sdkKeyId: string;
+      clientName: string;
+      walletsCount: number;
+    };
+  }> {
+    try {
+      const response = await this.httpClient.get<any>(
+        ENDPOINTS.SDK_ALLOWED_WALLETS
+      );
+
+      return {
+        success: response.success || true,
+        allowedWallets: response.allowedWallets || [],
+        metadata: response.metadata || {
+          sdkKeyId: "",
+          clientName: "",
+          walletsCount: 0,
+        },
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get SDK allowed wallets: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get total TVL for all wallets under the current SDK API key
+   * This method calculates the total value locked across all wallets created via this SDK key
+   *
+   * @returns SDK key TVL information including allowed wallets and their individual/total TVL
+   *
+   * @example
+   * ```typescript
+   * const sdkTvl = await sdk.getSdkKeyTVL();
+   * console.log("Total TVL across all SDK wallets:", sdkTvl.totalTvl);
+   * console.log("Number of wallets:", sdkTvl.allowedWallets.length);
+   * console.log("TVL by wallet:", sdkTvl.tvlByWallet);
+   * ```
+   */
+  async getSdkKeyTVL(): Promise<SdkKeyTVLResponse> {
+    try {
+      const response = await this.httpClient.get<any>(ENDPOINTS.SDK_TVL);
+
+      return {
+        success: response.success || true,
+        allowedWallets: response.allowedWallets || [],
+        totalTvl: response.totalTvl || 0,
+        tvlByWallet: response.tvlByWallet || [],
+        metadata: response.metadata || {
+          sdkKeyId: "",
+          clientName: "",
+          walletsCount: 0,
+        },
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get SDK key TVL: ${(error as Error).message}`
       );
     }
   }
