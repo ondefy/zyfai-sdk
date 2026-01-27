@@ -1068,6 +1068,18 @@ export class ZyfaiSDK {
         hash: txHash,
       });
 
+      // Log deposit to backend
+      try {
+        await this.httpClient.post(ENDPOINTS.LOG_DEPOSIT, {
+          chainId,
+          transaction: txHash,
+          token,
+          amount,
+        });
+      } catch (logError) {
+        console.warn("Failed to log deposit:", (logError as Error).message);
+      }
+
       if (receipt.status !== "success") {
         throw new Error("Deposit transaction failed");
       }

@@ -24,6 +24,7 @@ export const ENDPOINTS = {
   USER_ME: "/users/me",
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
+  LOG_DEPOSIT: "/users/log_deposit",
 
   // Safe Deployment (single endpoint)
   SAFE_DEPLOY: "/users/safe-deploy",
