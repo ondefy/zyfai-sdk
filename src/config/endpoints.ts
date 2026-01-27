@@ -50,6 +50,10 @@ export const ENDPOINTS = {
   DATA_BY_EOA: (address: string) => `/data/by-eoa?address=${address}`,
   DATA_REBALANCE_FREQUENCY: (walletAddress: string) =>
     `/data/rebalance-frequency?walletAddress=${walletAddress}`,
+
+  // SDK Keys
+  SDK_ALLOWED_WALLETS: "/data/sdk-allowed-wallets",
+  SDK_TVL: "/data/sdk-tvl",
 } as const;
 
 // Data API Endpoints (v2)

@@ -79,6 +79,10 @@ export type {
   APYPerStrategy,
   APYPerStrategyResponse,
 
+  // SDK Key & TVL Types
+  WalletTVL,
+  SdkKeyTVLResponse,
+
   // Protocol Types
   Protocol,
   Pool,

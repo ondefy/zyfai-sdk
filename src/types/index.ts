@@ -478,6 +478,32 @@ export interface AddWalletToSdkResponse {
   message: string;
 }
 
+// ============================================================================
+// SDK Key & TVL Types
+// ============================================================================
+
+export interface WalletTVL {
+  walletAddress: Address;
+  tvl: number;
+  positions?: {
+    chainId: number;
+    protocol: string;
+    amount: number;
+  }[];
+}
+
+export interface SdkKeyTVLResponse {
+  success: boolean;
+  allowedWallets: Address[];
+  totalTvl: number;
+  tvlByWallet: WalletTVL[];
+  metadata?: {
+    sdkKeyId: string;
+    clientName: string;
+    walletsCount: number;
+  };
+}
+
 // Session Types
 
 export interface PolicyData {
