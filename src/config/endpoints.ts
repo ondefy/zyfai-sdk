@@ -54,6 +54,10 @@ export const ENDPOINTS = {
   // SDK Keys
   SDK_ALLOWED_WALLETS: "/data/sdk-allowed-wallets",
   SDK_TVL: "/data/sdk-tvl",
+
+  // Best Opportunity
+  BEST_OPPORTUNITY: (walletAddress: string, chainId: number) =>
+    `/data/best-opportunity?walletAddress=${walletAddress}&chainId=${chainId}`,
 } as const;
 
 // Data API Endpoints (v2)

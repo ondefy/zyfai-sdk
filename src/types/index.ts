@@ -504,6 +504,57 @@ export interface SdkKeyTVLResponse {
   };
 }
 
+// ============================================================================
+// Best Opportunity Types
+// ============================================================================
+
+export interface OpportunityPosition {
+  protocol: string;
+  pool: string;
+  apy: number;
+  tvl?: number;
+}
+
+export interface BestOpportunityDetails {
+  protocol: string;
+  pool: string;
+  apy: number;
+  tvl: number;
+  zyfiTvl?: number;
+  poolApy?: number;
+  rewardsApy?: number;
+  protocolApy?: number;
+}
+
+export interface BestOpportunityResponse {
+  success: boolean;
+  error?: string;
+  wallet?: Address;
+  chainId?: number;
+  strategy?: string;
+  token?: {
+    symbol: string;
+    address: string;
+    decimals: number;
+  };
+  currentPosition?: OpportunityPosition | null;
+  bestOpportunity?: BestOpportunityDetails | null;
+  shouldRebalance?: boolean;
+  apyImprovement?: number | null;
+  allOpportunities?: Array<{
+    protocol: string;
+    pool: string;
+    apy: number;
+    tvl: number;
+    zyfiTvl?: number;
+  }>;
+  userConfig?: {
+    autoSelectProtocols: boolean;
+    enabledProtocols: string[];
+  };
+  enabledChains?: number[];
+}
+
 // Session Types
 
 export interface PolicyData {
