@@ -42,6 +42,7 @@ import type {
   RpcUrlsConfig,
   Strategy,
   SdkKeyTVLResponse,
+  BestOpportunityResponse,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -2124,6 +2125,48 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(
         `Failed to get SDK key TVL: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get the best yield opportunity for a registered wallet.
+   *
+   * Returns the highest-APY opportunity available based on the wallet's strategy
+   * and enabled protocols. This reflects what the rebalance engine would select.
+   *
+   * @param walletAddress - The smart wallet address (must be registered)
+   * @param chainId - The chain ID to check opportunities on
+   * @returns Best opportunity details with comparison to current position
+   *
+   * @example
+   * ```typescript
+   * const result = await sdk.getBestOpportunity(walletAddress, 8453);
+   *
+   * console.log("Current position:", result.currentPosition);
+   * console.log("Best opportunity:", result.bestOpportunity);
+   * console.log("Should rebalance:", result.shouldRebalance);
+   * console.log("APY improvement:", result.apyImprovement);
+   *
+   * // List all available opportunities
+   * result.allOpportunities?.forEach(opp => {
+   *   console.log(`${opp.protocol} - ${opp.pool}: ${opp.apy}%`);
+   * });
+   * ```
+   */
+  async getBestOpportunity(
+    walletAddress: Address,
+    chainId: SupportedChainId
+  ): Promise<BestOpportunityResponse> {
+    try {
+      const response = await this.httpClient.get<BestOpportunityResponse>(
+        ENDPOINTS.BEST_OPPORTUNITY(walletAddress, chainId)
+      );
+
+      return response;
+    } catch (error) {
+      throw new Error(
+        `Failed to get best opportunity: ${(error as Error).message}`
       );
     }
   }

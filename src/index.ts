@@ -83,6 +83,11 @@ export type {
   WalletTVL,
   SdkKeyTVLResponse,
 
+  // Best Opportunity Types
+  OpportunityPosition,
+  BestOpportunityDetails,
+  BestOpportunityResponse,
+
   // Protocol Types
   Protocol,
   Pool,
