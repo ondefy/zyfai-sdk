@@ -29,6 +29,10 @@ export const ENDPOINTS = {
   // Safe Deployment (single endpoint)
   SAFE_DEPLOY: "/users/safe-deploy",
 
+  // Identity Registration
+  AGENT_TOKEN_URI: "/users/me/agent-token-uri",
+  REGISTER_IDENTITY: "/users/me/register-identity",
+
   // Session Keys
   SESSION_KEYS_CONFIG: "/session-keys/config",
   SESSION_KEYS_ADD: "/session-keys/add",

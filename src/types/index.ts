@@ -25,6 +25,7 @@ export interface DeploySafeResponse {
   safeAddress: Address;
   txHash: string;
   status: "deployed" | "failed";
+  identityRegistered?: boolean;
 }
 
 // Internal types - used by SDK implementation
@@ -553,6 +554,24 @@ export interface BestOpportunityResponse {
     enabledProtocols: string[];
   };
   enabledChains?: number[];
+}
+
+// ============================================================================
+// Identity Registration Types
+// ============================================================================
+
+export interface CreateAgentTokenUriResponse {
+  tokenUri: string;
+  ipfsHash: string;
+  gatewayUrl: string;
+}
+
+export interface RegisterIdentityResponse {
+  success: boolean;
+  txHash?: string;
+  status: "registered" | "pending_signature" | "failed";
+  tokenUri?: string;
+  error?: string;
 }
 
 // Session Types
