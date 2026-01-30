@@ -43,6 +43,8 @@ import type {
   Strategy,
   SdkKeyTVLResponse,
   BestOpportunityResponse,
+  CreateAgentTokenUriResponse,
+  RegisterIdentityResponse,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -694,11 +696,21 @@ export class ZyfaiSDK {
         );
       }
 
+      // Register identity on-chain (non-blocking, supported chains only)
+      let identityRegistered: boolean | undefined;
+      if (ZyfaiSDK.IDENTITY_REGISTRY_CHAINS.includes(chainId)) {
+        identityRegistered = await this.registerIdentityAfterDeploy(
+          userAddress,
+          chainId
+        );
+      }
+
       return {
         success: true,
         safeAddress: deploymentResult.safeAddress,
         txHash: deploymentResult.txHash || "0x0",
         status: "deployed",
+        identityRegistered,
       };
     } catch (error) {
       console.error("Safe deployment failed:", error);
@@ -2168,6 +2180,159 @@ export class ZyfaiSDK {
       throw new Error(
         `Failed to get best opportunity: ${(error as Error).message}`
       );
+    }
+  }
+
+  // ============================================================================
+  // Identity Registration Methods
+  // ============================================================================
+
+  private static readonly IDENTITY_REGISTRY_CHAINS: number[] = [8453, 42161];
+
+  /**
+   * Register the agent on the on-chain Identity Registry.
+   *
+   * This uploads agent metadata to IPFS and registers the agent via a
+   * two-phase UserOp flow (prepare hash -> sign -> execute).
+   *
+   * Supported chains: Base (8453) and Arbitrum (42161).
+   *
+   * @param userAddress - User's EOA address
+   * @param chainId - Target chain ID (must be 8453 or 42161)
+   * @param options - Optional registration options
+   * @param options.agentName - Custom agent name for the identity card
+   * @param options.description - Custom description for the identity card
+   * @returns Registration response with transaction hash and status
+   *
+   * @example
+   * ```typescript
+   * const result = await sdk.registerIdentity(userAddress, 8453, {
+   *   agentName: "My Yield Agent",
+   * });
+   * console.log("Registered:", result.status);
+   * console.log("TX:", result.txHash);
+   * ```
+   */
+  async registerIdentity(
+    userAddress: string,
+    chainId: SupportedChainId,
+    options?: {
+      agentName?: string;
+      description?: string;
+    }
+  ): Promise<RegisterIdentityResponse> {
+    try {
+      if (!userAddress) {
+        throw new Error("User address is required");
+      }
+
+      if (!ZyfaiSDK.IDENTITY_REGISTRY_CHAINS.includes(chainId)) {
+        throw new Error(
+          `Identity Registry is not supported on chain ${chainId}. Supported chains: ${ZyfaiSDK.IDENTITY_REGISTRY_CHAINS.join(", ")}`
+        );
+      }
+
+      await this.authenticateUser();
+
+      const walletClient = this.getWalletClient(chainId);
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
+
+      // Get the Safe address for this user
+      const safeAddress = await getDeterministicSafeAddress({
+        safeOwnerAddress: userAddress as Address,
+        chain: chainConfig.chain,
+        publicClient: chainConfig.publicClient,
+      });
+
+      // Step 1: Create agent token URI via IPFS
+      const tokenUriResponse =
+        await this.httpClient.post<CreateAgentTokenUriResponse>(
+          ENDPOINTS.AGENT_TOKEN_URI,
+          {
+            smartWallet: safeAddress,
+            agentName: options?.agentName,
+            description: options?.description,
+          }
+        );
+
+      if (!tokenUriResponse.tokenUri) {
+        throw new Error("Failed to create agent token URI");
+      }
+
+      // Step 2: Prepare the UserOp (get hash to sign)
+      const prepareResponse = await this.httpClient.post<{
+        success: boolean;
+        userOpHashToSign?: Hex;
+        status: string;
+        txHash?: string;
+        error?: string;
+      }>(`${ENDPOINTS.REGISTER_IDENTITY}?chainId=${chainId}`, {
+        tokenUri: tokenUriResponse.tokenUri,
+      });
+
+      if (!prepareResponse.userOpHashToSign) {
+        // If no hash returned, registration may have completed or failed
+        return {
+          success: prepareResponse.success || false,
+          txHash: prepareResponse.txHash as Hex | undefined,
+          status: (prepareResponse.status as RegisterIdentityResponse["status"]) || "failed",
+          tokenUri: tokenUriResponse.tokenUri,
+          error: prepareResponse.error,
+        };
+      }
+
+      // Step 3: Sign the hash with the user's wallet
+      const userOpSignature = await walletClient.signMessage({
+        account: walletClient.account!,
+        message: { raw: prepareResponse.userOpHashToSign },
+      });
+
+      // Step 4: Execute the registration with the signature
+      const executeResponse = await this.httpClient.post<{
+        success: boolean;
+        txHash?: string;
+        status: string;
+        error?: string;
+      }>(`${ENDPOINTS.REGISTER_IDENTITY}?chainId=${chainId}`, {
+        tokenUri: tokenUriResponse.tokenUri,
+        userOpSignature,
+      });
+
+      return {
+        success: executeResponse.success || false,
+        txHash: executeResponse.txHash as Hex | undefined,
+        status: (executeResponse.status as RegisterIdentityResponse["status"]) || "failed",
+        tokenUri: tokenUriResponse.tokenUri,
+        error: executeResponse.error,
+      };
+    } catch (error) {
+      throw new Error(
+        `Identity registration failed: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Register identity after Safe deployment (non-blocking).
+   * Silently skips unsupported chains and catches all errors.
+   */
+  private async registerIdentityAfterDeploy(
+    userAddress: string,
+    chainId: SupportedChainId
+  ): Promise<boolean> {
+    try {
+      if (!ZyfaiSDK.IDENTITY_REGISTRY_CHAINS.includes(chainId)) {
+        return false;
+      }
+
+      const result = await this.registerIdentity(userAddress, chainId);
+      return result.success && result.status === "registered";
+    } catch (error) {
+      console.warn(
+        "Identity registration after deployment failed (non-blocking):",
+        (error as Error).message
+      );
+      return false;
     }
   }
 }
