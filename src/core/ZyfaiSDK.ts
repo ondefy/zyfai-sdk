@@ -1983,6 +1983,192 @@ export class ZyfaiSDK {
     }
   }
 
+  /**
+   * Get active conservative opportunities (status = "live") with risk and utilization data
+   * Returns pool info, liquidity depth (true if > 1M), utilization rate, stability metrics, avg APY, and collateral
+   *
+   * @param chainId - Optional chain ID filter
+   * @returns Active conservative opportunities with risk data
+   *
+   * @example
+   * ```typescript
+   * const opps = await sdk.getActiveConservativeOppsRisk(8453);
+   * console.log(JSON.stringify(opps, null, 2));
+   * ```
+   */
+  async getActiveConservativeOppsRisk(chainId?: number): Promise<any> {
+    try {
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId)
+      );
+
+      const data = response.data || response || [];
+      const active = Array.isArray(data)
+        ? data
+            .filter((o: any) => o.status === "live")
+            .map((o: any) => {
+              const tvl = o.tvl || 0;
+              const liquidity = o.liquidity || 0;
+              const utilizationRate =
+                tvl > 0 ? (tvl - liquidity) / tvl : 0;
+
+              return {
+                poolName: o.pool_name,
+                protocolName: o.protocol_name,
+                chainId: o.chain_id,
+                liquidityDepth: liquidity > 10_000_000 ? "deep" : liquidity > 1_000_000 ? "moderate" : "shallow",
+                utilizationRate: Math.round(utilizationRate * 10000) / 100,
+                tvlStability: o.isTvlStable ?? null,
+                apyStability: o.isApyStable30Days ?? null,
+                tvlApyCombinedRisk: o.isApyTvlStable ?? null,
+                avgCombinedApy7d: o.averageCombinedApy7Days ?? null,
+                avgCombinedApy15d: o.averageCombinedApy15Days ?? null,
+                avgCombinedApy30d: o.averageCombinedApy30Days ?? null,
+                collateralSymbols: o.collateral_symbols || [],
+              };
+            })
+        : [];
+
+      return active;
+    } catch (error) {
+      throw new Error(
+        `Failed to get active conservative opportunities risk: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get active aggressive opportunities (status = "live") with risk and utilization data
+   * Returns pool info, liquidity depth (true if > 1M), utilization rate, stability metrics, avg APY, and collateral
+   *
+   * @param chainId - Optional chain ID filter
+   * @returns Active aggressive opportunities with risk data
+   *
+   * @example
+   * ```typescript
+   * const opps = await sdk.getActiveAggressiveOppsRisk(8453);
+   * console.log(JSON.stringify(opps, null, 2));
+   * ```
+   */
+  async getActiveAggressiveOppsRisk(chainId?: number): Promise<any> {
+    try {
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId)
+      );
+
+      const data = response.data || response || [];
+      const active = Array.isArray(data)
+        ? data
+            .filter((o: any) => o.status === "live")
+            .map((o: any) => {
+              const tvl = o.tvl || 0;
+              const liquidity = o.liquidity || 0;
+              const utilizationRate =
+                tvl > 0 ? (tvl - liquidity) / tvl : 0;
+
+              return {
+                poolName: o.pool_name,
+                protocolName: o.protocol_name,
+                chainId: o.chain_id,
+                liquidityDepth: liquidity > 10_000_000 ? "deep" : liquidity > 1_000_000 ? "moderate" : "shallow",
+                utilizationRate: Math.round(utilizationRate * 10000) / 100,
+                tvlStability: o.isTvlStable ?? null,
+                apyStability: o.isApyStable30Days ?? null,
+                tvlApyCombinedRisk: o.isApyTvlStable ?? null,
+                avgCombinedApy7d: o.averageCombinedApy7Days ?? null,
+                avgCombinedApy15d: o.averageCombinedApy15Days ?? null,
+                avgCombinedApy30d: o.averageCombinedApy30Days ?? null,
+                collateralSymbols: o.collateral_symbols || [],
+              };
+            })
+        : [];
+
+      return active;
+    } catch (error) {
+      throw new Error(
+        `Failed to get active aggressive opportunities risk: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get conservative pool status with derived health, risk, APY trend, and yield consistency
+   * Builds on getActiveConservativeOppsRisk and computes higher-level status indicators
+   *
+   * @param chainId - Optional chain ID filter
+   * @returns Conservative pools with status data
+   */
+  async getConservativePoolStatus(chainId?: number): Promise<any> {
+    const pools = await this.getActiveConservativeOppsRisk(chainId);
+    return pools.map((p: any) => this.derivePoolStatus(p));
+  }
+
+  /**
+   * Get aggressive pool status with derived health, risk, APY trend, and yield consistency
+   * Builds on getActiveAggressiveOppsRisk and computes higher-level status indicators
+   *
+   * @param chainId - Optional chain ID filter
+   * @returns Aggressive pools with status data
+   */
+  async getAggressivePoolStatus(chainId?: number): Promise<any> {
+    const pools = await this.getActiveAggressiveOppsRisk(chainId);
+    return pools.map((p: any) => this.derivePoolStatus(p));
+  }
+
+  private derivePoolStatus(p: any) {
+    // Risk level: count negative signals
+    let riskSignals = 0;
+    if (p.tvlStability === false) riskSignals++;
+    if (p.apyStability === false) riskSignals++;
+    if (p.tvlApyCombinedRisk === false) riskSignals++;
+    if (p.liquidityDepth === "shallow") riskSignals++;
+    if (p.utilizationRate > 90) riskSignals++;
+
+    const riskLevel =
+      riskSignals >= 3 ? "high" : riskSignals >= 1 ? "medium" : "low";
+
+    // Health score: combine stability flags + liquidity
+    const stabilityScore =
+      (p.tvlStability === true ? 1 : 0) +
+      (p.apyStability === true ? 1 : 0) +
+      (p.tvlApyCombinedRisk === true ? 1 : 0);
+    const liquidityBonus = p.liquidityDepth === "deep" ? 1 : p.liquidityDepth === "moderate" ? 0.5 : 0;
+    const healthTotal = stabilityScore + liquidityBonus;
+
+    const healthScore =
+      healthTotal >= 3 ? "healthy" : healthTotal >= 1.5 ? "moderate" : "risky";
+
+    // APY trend: compare 7d vs 30d
+    const apy7d = p.avgCombinedApy7d;
+    const apy30d = p.avgCombinedApy30d;
+    let apyTrend: string = "stable";
+    if (apy7d != null && apy30d != null && apy30d !== 0) {
+      const change = (apy7d - apy30d) / apy30d;
+      if (change > 0.1) apyTrend = "rising";
+      else if (change < -0.1) apyTrend = "falling";
+    }
+
+    // Yield consistency: spread between 7d and 30d
+    let yieldConsistency: string = "consistent";
+    if (apy7d != null && apy30d != null && apy30d !== 0) {
+      const spread = Math.abs(apy7d - apy30d) / apy30d;
+      if (spread > 0.3) yieldConsistency = "volatile";
+      else if (spread > 0.1) yieldConsistency = "mixed";
+    }
+
+    return {
+      poolName: p.poolName,
+      protocolName: p.protocolName,
+      chainId: p.chainId,
+      healthScore,
+      riskLevel,
+      apyTrend,
+      yieldConsistency,
+      liquidityDepth: p.liquidityDepth,
+      avgCombinedApy7d: p.avgCombinedApy7d,
+    };
+  }
+
   // ============================================================================
   // APY History Methods (Data API v2)
   // ============================================================================
