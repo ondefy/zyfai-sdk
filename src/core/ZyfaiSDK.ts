@@ -253,6 +253,37 @@ export class ZyfaiSDK {
   }
 
   /**
+   * Pause the agent by clearing all protocols
+   * Sets the user's protocols to an empty array, effectively pausing automated operations
+   *
+   * @returns Response indicating success and updated user details
+   *
+   * @example
+   * ```typescript
+   * const sdk = new ZyfaiSDK({ apiKey: 'your-api-key' });
+   *
+   * // Connect account first
+   * await sdk.connectAccount();
+   *
+   * // Pause the agent
+   * const result = await sdk.pauseAgent();
+   * console.log('Agent paused:', result.success);
+   * ```
+   */
+  async pauseAgent(): Promise<UpdateUserProfileResponse> {
+    try {
+      // Update user profile with empty protocols array
+      const response = await this.updateUserProfile({
+        protocols: [],
+      });
+
+      return response;
+    } catch (error) {
+      throw new Error(`Failed to pause agent: ${(error as Error).message}`);
+    }
+  }
+
+  /**
    * Initialize user after Safe deployment
    * This method is automatically called after deploySafe to initialize user state
    *

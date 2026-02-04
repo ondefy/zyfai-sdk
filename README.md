@@ -466,7 +466,31 @@ The SDK provides access to various analytics and data endpoints:
 const user = await sdk.getUserDetails();
 console.log("Smart Wallet:", user.user.smartWallet);
 console.log("Active Chains:", user.user.chains);
+console.log("Active Protocols:", user.user.protocols);
 ```
+
+#### Pause Agent
+
+Pause the agent by clearing all protocols. This effectively stops automated operations:
+
+```typescript
+// Pause the agent (clears all protocols)
+const result = await sdk.pauseAgent();
+
+if (result.success) {
+  console.log("Agent paused successfully");
+  console.log("User ID:", result.userId);
+}
+
+// Verify the agent is paused
+const userDetails = await sdk.getUserDetails();
+console.log("Active protocols:", userDetails.user.protocols.length); // Should be 0
+```
+
+**Note**:
+- User must be authenticated (automatically done via `connectAccount()`)
+- This sets the user's protocols to an empty array
+- To resume operations, call `updateUserProfile()` with the desired protocols
 
 #### Get TVL & Volume
 
@@ -653,26 +677,27 @@ All examples are available in the `examples/` directory:
 7. **`get-protocols.ts`** - Fetch available protocols for a chain
 8. **`get-positions.ts`** - Get active positions for a wallet
 9. **`get-user-details.ts`** - Get authenticated user details
-10. **`get-tvl-volume.ts`** - Get TVL and trading volume
-11. **`get-active-wallets.ts`** - Get active wallets by chain
-12. **`get-smart-wallets-by-eoa.ts`** - Get smart wallets by EOA
-13. **`get-first-topup.ts`** - Get first deposit information
-14. **`get-history.ts`** - Get transaction history
+10. **`pause-agent.ts`** - Pause agent by clearing all protocols
+11. **`get-tvl-volume.ts`** - Get TVL and trading volume
+12. **`get-active-wallets.ts`** - Get active wallets by chain
+13. **`get-smart-wallets-by-eoa.ts`** - Get smart wallets by EOA
+14. **`get-first-topup.ts`** - Get first deposit information
+15. **`get-history.ts`** - Get transaction history
 
 ### Analytics & Earnings
 
-15. **`get-onchain-earnings.ts`** - Get/calculate onchain earnings
-16. **`get-daily-earnings.ts`** - Get daily earnings breakdown
-17. **`get-apy-history.ts`** - Get daily APY history with weighted averages
+16. **`get-onchain-earnings.ts`** - Get/calculate onchain earnings
+17. **`get-daily-earnings.ts`** - Get daily earnings breakdown
+18. **`get-apy-history.ts`** - Get daily APY history with weighted averages
 
 ### Opportunities & Rebalancing
 
-18. **`get-opportunities.ts`** - Get conservative and aggressive yield opportunities
-19. **`get-rebalance-info.ts`** - Get rebalance events and frequency tier
+19. **`get-opportunities.ts`** - Get conservative and aggressive yield opportunities
+20. **`get-rebalance-info.ts`** - Get rebalance events and frequency tier
 
 ### Premium Features
 
-20. **`get-debank-portfolio.ts`** - Get Debank multi-chain portfolio
+21. **`get-debank-portfolio.ts`** - Get Debank multi-chain portfolio
 
 ### Quick Start: Run the End-to-End Example
 
