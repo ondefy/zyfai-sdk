@@ -303,6 +303,10 @@ export class ZyfaiSDK {
    * ```
    */
   async enableSplitting(minSplits: number = 1): Promise<UpdateUserProfileResponse> {
+    if (minSplits > 4) {
+      throw new Error("minSplits cannot exceed 4");
+    }
+
     try {
       const response = await this.updateUserProfile({
         splitting: true,
