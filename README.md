@@ -492,6 +492,54 @@ console.log("Active protocols:", userDetails.user.protocols.length); // Should b
 - This sets the user's protocols to an empty array
 - To resume operations, call `updateUserProfile()` with the desired protocols
 
+#### Splitting Management
+
+Control how deposits are split across multiple protocols for diversification.
+
+**Enable Splitting:**
+
+```typescript
+// Enable splitting with minimum 3 protocols
+const result = await sdk.enableSplitting(3);
+
+if (result.success) {
+  console.log("Splitting enabled with min splits: 3");
+}
+
+// Verify splitting is enabled
+const userDetails = await sdk.getUserDetails();
+console.log("Splitting enabled:", userDetails.user.splitting); // true
+console.log("Min splits:", userDetails.user.minSplits); // 3
+```
+
+**Disable Splitting:**
+
+```typescript
+// Disable splitting
+const result = await sdk.disableSplitting();
+
+if (result.success) {
+  console.log("Splitting disabled");
+}
+```
+
+**Update Minimum Splits:**
+
+```typescript
+// Update minimum number of protocols to split across
+const result = await sdk.updateMinSplits(5);
+
+if (result.success) {
+  console.log("Minimum splits updated to 5");
+}
+```
+
+**Note**:
+- User must be authenticated (automatically done via `connectAccount()`)
+- When splitting is enabled, deposits are distributed across multiple protocols based on `minSplits`
+- `minSplits` must be at least 1
+- Splitting helps with diversification and risk management
+
 #### Get TVL & Volume
 
 ```typescript

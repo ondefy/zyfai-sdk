@@ -36,6 +36,9 @@ export interface UpdateUserProfileRequest {
   chains?: number[];
   protocols?: string[];
   autoSelectProtocols?: boolean;
+  customization?: Record<string, string[]>;
+  splitting?: boolean;
+  minSplits?: number;
 }
 
 /** @internal */
@@ -190,6 +193,8 @@ export interface UserDetails {
   crosschainStrategy?: boolean;
   agentName?: string;
   customization?: Record<string, string[]>;
+  splitting?: boolean;
+  minSplits?: number;
 }
 
 export interface UserDetailsResponse {
