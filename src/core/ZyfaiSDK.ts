@@ -284,6 +284,103 @@ export class ZyfaiSDK {
   }
 
   /**
+   * Enable splitting for the user's account
+   * When enabled, deposits are split across multiple protocols based on minSplits setting
+   *
+   * @param minSplits - Optional minimum number of protocols to split across (default: 3)
+   * @returns Response indicating success and updated user details
+   *
+   * @example
+   * ```typescript
+   * const sdk = new ZyfaiSDK({ apiKey: 'your-api-key' });
+   *
+   * // Connect account first
+   * await sdk.connectAccount(privateKey, chainId);
+   *
+   * // Enable splitting with minimum 3 protocols
+   * const result = await sdk.enableSplitting(3);
+   * console.log('Splitting enabled:', result.success);
+   * ```
+   */
+  async enableSplitting(minSplits: number = 3): Promise<UpdateUserProfileResponse> {
+    try {
+      const response = await this.updateUserProfile({
+        splitting: true,
+        minSplits,
+      });
+
+      return response;
+    } catch (error) {
+      throw new Error(`Failed to enable splitting: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Disable splitting for the user's account
+   * When disabled, deposits will not be split across multiple protocols
+   *
+   * @returns Response indicating success and updated user details
+   *
+   * @example
+   * ```typescript
+   * const sdk = new ZyfaiSDK({ apiKey: 'your-api-key' });
+   *
+   * // Connect account first
+   * await sdk.connectAccount(privateKey, chainId);
+   *
+   * // Disable splitting
+   * const result = await sdk.disableSplitting();
+   * console.log('Splitting disabled:', result.success);
+   * ```
+   */
+  async disableSplitting(): Promise<UpdateUserProfileResponse> {
+    try {
+      const response = await this.updateUserProfile({
+        splitting: false,
+      });
+
+      return response;
+    } catch (error) {
+      throw new Error(`Failed to disable splitting: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Update the minimum number of splits for the user's account
+   * This controls across how many protocols deposits should be distributed
+   *
+   * @param minSplits - Minimum number of protocols to split across
+   * @returns Response indicating success and updated user details
+   *
+   * @example
+   * ```typescript
+   * const sdk = new ZyfaiSDK({ apiKey: 'your-api-key' });
+   *
+   * // Connect account first
+   * await sdk.connectAccount(privateKey, chainId);
+   *
+   * // Update minimum splits to 5
+   * const result = await sdk.updateMinSplits(5);
+   * console.log('Min splits updated:', result.success);
+   * ```
+   */
+  async updateMinSplits(minSplits: number): Promise<UpdateUserProfileResponse> {
+    try {
+      if (minSplits < 1) {
+        throw new Error('minSplits must be at least 1');
+      }
+
+      const response = await this.updateUserProfile({
+        minSplits,
+      });
+
+      return response;
+    } catch (error) {
+      throw new Error(`Failed to update min splits: ${(error as Error).message}`);
+    }
+  }
+
+  /**
    * Initialize user after Safe deployment
    * This method is automatically called after deploySafe to initialize user state
    *
