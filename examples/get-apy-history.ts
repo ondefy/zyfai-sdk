@@ -14,6 +14,7 @@ async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
 
   const privateKey = process.env.PRIVATE_KEY;
+  const userAddress = process.env.USER_EOA;
 
   if (!apiKey || !privateKey) {
     throw new Error(
@@ -27,12 +28,12 @@ async function main() {
     apiKey,
   });
 
-  console.log("SDK initialized. Connecting account...");
-  const connectedEOA = await sdk.connectAccount(privateKey, chainId);
-  console.log(`Connected EOA: ${connectedEOA}\n`);
+  // console.log("SDK initialized. Connecting account...");
+  // const connectedEOA = await sdk.connectAccount(privateKey, chainId);
+  // console.log(`Connected EOA: ${connectedEOA}\n`);
 
   // Get smart wallet address
-  const walletInfo = await sdk.getSmartWalletAddress(connectedEOA, chainId);
+  const walletInfo = await sdk.getSmartWalletAddress(userAddress ?? "", chainId);
   const smartWallet = walletInfo.address;
   console.log(`Smart Wallet: ${smartWallet}\n`);
 

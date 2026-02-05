@@ -302,7 +302,7 @@ export class ZyfaiSDK {
    * console.log('Splitting enabled:', result.success);
    * ```
    */
-  async enableSplitting(minSplits: number = 3): Promise<UpdateUserProfileResponse> {
+  async enableSplitting(minSplits: number = 1): Promise<UpdateUserProfileResponse> {
     try {
       const response = await this.updateUserProfile({
         splitting: true,
@@ -1483,6 +1483,8 @@ export class ZyfaiSDK {
           crosschainStrategy: convertedResponse.crosschainStrategy,
           agentName: convertedResponse.agentName,
           customization: convertedResponse.customization,
+          splitting: convertedResponse.splitting,
+          minSplits: convertedResponse.minSplits,
         },
       };
     } catch (error) {
