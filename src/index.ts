@@ -88,6 +88,10 @@ export type {
   BestOpportunityDetails,
   BestOpportunityResponse,
 
+  // Identity Registration Types
+  CreateAgentTokenUriResponse,
+  RegisterIdentityResponse,
+
   // Protocol Types
   Protocol,
   Pool,
