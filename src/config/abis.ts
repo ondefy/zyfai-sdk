@@ -2,6 +2,8 @@
  * Smart Contract ABIs
  */
 
+import { parseAbi } from "viem";
+
 /**
  * ERC20 Token Standard ABI
  * Contains essential functions for token interactions
@@ -73,3 +75,17 @@ export const ERC20_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
 ] as const;
+
+/**
+ * Identity Registry ABI (ERC-8004)
+ * Contract: 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
+ * Used for registering agents on the identity registry
+ */
+export const IDENTITY_REGISTRY_ABI = parseAbi([
+  'function register() external returns (uint256 agentId)',
+  'function register(string tokenUri) external returns (uint256 agentId)',
+  'function register(string tokenUri, (string key, bytes value)[] metadata) external returns (uint256 agentId)',
+]);
+
+export const IDENTITY_REGISTRY_ADDRESS =
+  "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" as const;

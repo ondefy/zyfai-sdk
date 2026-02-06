@@ -560,6 +560,21 @@ export interface BestOpportunityResponse {
   enabledChains?: number[];
 }
 
+// ============================================================================
+// Agent Identity Registry Types
+// ============================================================================
+
+export interface AgentTokenUriResponse {
+  tokenUri: string;
+}
+
+export interface RegisterAgentResponse {
+  success: boolean;
+  txHash: string;
+  chainId: number;
+  smartWallet: string;
+}
+
 // Session Types
 
 export interface PolicyData {

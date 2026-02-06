@@ -58,6 +58,9 @@ export const ENDPOINTS = {
   // Best Opportunity
   BEST_OPPORTUNITY: (walletAddress: string, chainId: number) =>
     `/data/best-opportunity?walletAddress=${walletAddress}&chainId=${chainId}`,
+
+  // Agent Identity Registry
+  AGENT_TOKEN_URI: "/users/me/agent-token-uri",
 } as const;
 
 // Data API Endpoints (v2)

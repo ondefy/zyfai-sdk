@@ -4,7 +4,7 @@
 
 import { HttpClient } from "../utils/http-client";
 import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT } from "../config/endpoints";
-import { ERC20_ABI } from "../config/abis";
+import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS } from "../config/abis";
 import type {
   SDKConfig,
   DeploySafeResponse,
@@ -43,6 +43,8 @@ import type {
   Strategy,
   SdkKeyTVLResponse,
   BestOpportunityResponse,
+  AgentTokenUriResponse,
+  RegisterAgentResponse,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -50,6 +52,7 @@ import {
   custom,
   http,
   getAddress,
+  encodeFunctionData,
   type WalletClient,
 } from "viem";
 import {
@@ -2301,6 +2304,111 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(
         `Failed to get best opportunity: ${(error as Error).message}`
+      );
+    }
+  }
+
+  // ============================================================================
+  // Agent Identity Registry
+  // ============================================================================
+
+  /**
+   * Supported chain IDs for the Identity Registry (ERC-8004)
+   */
+  private static readonly IDENTITY_REGISTRY_CHAIN_IDS = [8453, 42161] as const;
+
+  /**
+   * Check if a chain ID supports the Identity Registry
+   */
+  private isSupportedIdentityRegistryChain(
+    chainId: number
+  ): chainId is 8453 | 42161 {
+    return (
+      ZyfaiSDK.IDENTITY_REGISTRY_CHAIN_IDS as readonly number[]
+    ).includes(chainId);
+  }
+
+  /**
+   * Register an agent on the Identity Registry (ERC-8004)
+   *
+   * Fetches a tokenUri from the Zyfai API for the given smart wallet,
+   * then calls `register(tokenUri)` on the Identity Registry contract.
+   *
+   * @param smartWallet - The smart wallet address to register as an agent
+   * @param chainId - Chain ID to register on (only Base 8453 and Arbitrum 42161 supported)
+   * @returns Response with transaction hash and registration details
+   *
+   * @example
+   * ```typescript
+   * const sdk = new ZyfaiSDK({ apiKey: "your-api-key" });
+   * await sdk.connectAccount(privateKey, 8453);
+   *
+   * const result = await sdk.registerAgentOnIdentityRegistry("0xSmartWallet", 8453);
+   * console.log("Tx hash:", result.txHash);
+   * ```
+   */
+  async registerAgentOnIdentityRegistry(
+    smartWallet: string,
+    chainId: SupportedChainId
+  ): Promise<RegisterAgentResponse> {
+    if (!smartWallet) {
+      throw new Error("Smart wallet address is required");
+    }
+
+    if (!this.isSupportedIdentityRegistryChain(chainId)) {
+      throw new Error(
+        `Chain ${chainId} is not supported for Identity Registry. Supported chains: Base (8453), Arbitrum (42161)`
+      );
+    }
+
+    try {
+      // Step 1: Get tokenUri from the API
+      const tokenUriResponse =
+        await this.httpClient.post<AgentTokenUriResponse>(
+          ENDPOINTS.AGENT_TOKEN_URI,
+          { smartWallet }
+        );
+
+      if (!tokenUriResponse.tokenUri) {
+        throw new Error("API did not return a tokenUri");
+      }
+
+      // Step 2: Encode the register(tokenUri) call
+      const callData = encodeFunctionData({
+        abi: IDENTITY_REGISTRY_ABI,
+        functionName: "register",
+        args: [tokenUriResponse.tokenUri],
+      });
+
+      // Step 3: Send the transaction from the connected wallet
+      const walletClient = this.getWalletClient(chainId);
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
+
+      const txHash = await walletClient.sendTransaction({
+        to: IDENTITY_REGISTRY_ADDRESS,
+        data: callData,
+        chain: chainConfig.chain,
+        account: walletClient.account!,
+      });
+
+      // Step 4: Wait for confirmation
+      const receipt = await chainConfig.publicClient.waitForTransactionReceipt({
+        hash: txHash,
+      });
+
+      if (receipt.status !== "success") {
+        throw new Error("Identity Registry registration transaction failed");
+      }
+
+      return {
+        success: true,
+        txHash,
+        chainId,
+        smartWallet,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to register agent on Identity Registry: ${(error as Error).message}`
       );
     }
   }
