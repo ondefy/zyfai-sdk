@@ -2412,4 +2412,50 @@ export class ZyfaiSDK {
       );
     }
   }
+
+  // ============================================================================
+  // Rewards Claiming
+  // ============================================================================
+
+  /**
+   * Manually trigger rewards claiming for a wallet
+   *
+   * This endpoint triggers the backend to claim any available rewards from supported
+   * DeFi protocols (Merkl, Morpho, Moonwell, Silo) for the specified wallet.
+   *
+   * Rewards are automatically claimed when autocompounding is enabled, but this method
+   * allows manual triggering of the claim process.
+   *
+   * @param walletAddress - The smart wallet address to claim rewards for
+   * @returns Response indicating success and wallet address
+   *
+   * @example
+   * ```typescript
+   * const sdk = new ZyfaiSDK({ apiKey: "your-api-key" });
+   *
+   * // Claim rewards for a wallet
+   * const result = await sdk.claimRewards("0xSmartWallet...");
+   * console.log("Rewards claimed:", result.success);
+   * ```
+   */
+  async claimRewards(walletAddress: string): Promise<ClaimRewardsResponse> {
+    if (!walletAddress) {
+      throw new Error("Wallet address is required");
+    }
+
+    try {
+      const response = await this.httpClient.get<ClaimRewardsResponse>(
+        ENDPOINTS.MANUAL_CLAIM_REWARDS(walletAddress)
+      );
+
+      return {
+        success: response.success,
+        walletAddress: response.walletAddress,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to claim rewards: ${(error as Error).message}`
+      );
+    }
+  }
 }

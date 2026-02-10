@@ -91,6 +91,9 @@ export type {
   // Agent Identity Registry Types
   RegisterAgentResponse,
 
+  // Rewards Types
+  ClaimRewardsResponse,
+
   // Protocol Types
   Protocol,
   Pool,

@@ -575,6 +575,15 @@ export interface RegisterAgentResponse {
   smartWallet: string;
 }
 
+// ============================================================================
+// Rewards Claiming Types
+// ============================================================================
+
+export interface ClaimRewardsResponse {
+  success: boolean;
+  walletAddress: string;
+}
+
 // Session Types
 
 export interface PolicyData {

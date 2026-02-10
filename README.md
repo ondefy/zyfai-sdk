@@ -650,6 +650,26 @@ const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
 console.log("Average Weighted APY:", apyHistory.averageWeightedApy);
 ```
 
+#### Claim Rewards
+
+Manually trigger rewards claiming for a wallet. Rewards are automatically claimed when autocompounding is enabled, but this method allows manual triggering:
+
+```typescript
+// Claim rewards for a specific wallet
+const result = await sdk.claimRewards("0xSmartWallet...");
+
+if (result.success) {
+  console.log("Rewards claimed successfully");
+  console.log("Wallet:", result.walletAddress);
+}
+```
+
+**Note**:
+- Claims rewards from all supported DeFi protocols (Merkl, Morpho, Moonwell, Silo)
+- Rewards must exceed the minimum threshold (2 USDC)
+- Works across all supported chains (Base, Arbitrum, Plasma, Sonic)
+- Automatic claiming happens when autocompounding is enabled
+
 ### 10. Opportunities & Strategies
 
 #### Get Conservative Opportunities (Low Risk)

@@ -61,6 +61,10 @@ export const ENDPOINTS = {
 
   // Agent Identity Registry
   AGENT_TOKEN_URI: "/users/me/agent-token-uri",
+
+  // Rewards
+  MANUAL_CLAIM_REWARDS: (walletAddress: string) =>
+    `/admin/manual-claim-rewards?walletAddress=${walletAddress}`,
 } as const;
 
 // Data API Endpoints (v2)
