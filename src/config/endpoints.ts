@@ -61,6 +61,9 @@ export const ENDPOINTS = {
 
   // Agent Identity Registry
   AGENT_TOKEN_URI: "/users/me/agent-token-uri",
+
+  // Fee Split Configuration
+  FEE_SPLIT: (walletAddress: string) => `/data/fee-split/${walletAddress}`,
 } as const;
 
 // Data API Endpoints (v2)

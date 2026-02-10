@@ -91,6 +91,11 @@ export type {
   // Agent Identity Registry Types
   RegisterAgentResponse,
 
+  // Fee Split Types
+  FeeSplitConfig,
+  FeeSplitResponse,
+  GetFeeSplitResponse,
+
   // Protocol Types
   Protocol,
   Pool,

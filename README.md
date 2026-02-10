@@ -693,7 +693,54 @@ console.log(result.message); // "Wallet successfully added to allowed list"
 
 **Note**: This method is only available when using an SDK API key (starts with "zyfai\_"). Regular API keys cannot use this endpoint.
 
-### 13. Portfolio (Premium)
+### 13. Fee Split Configuration
+
+Configure fee splitting to share performance fees between the Zyfai vault and a secondary wallet (e.g., SDK developer's wallet).
+
+#### Set Fee Split
+
+```typescript
+// Set 40% fee split to SDK developer's wallet
+const result = await sdk.setFeeSplit(
+  "0xSmartWallet...",
+  "0xSDKDeveloperWallet...",
+  4000 // 4000 basis points = 40%
+);
+
+if (result.success) {
+  console.log("Fee split configured:", result.data.splitPercentage);
+  console.log("Split wallet:", result.data.feeSplitWallet);
+}
+```
+
+#### Get Fee Split Configuration
+
+```typescript
+const config = await sdk.getFeeSplit("0xSmartWallet...");
+console.log("Current split wallet:", config.data.feeSplitWallet);
+console.log("Current split ratio:", config.data.feeSplitRatio);
+console.log("Split percentage:", config.data.splitPercentage);
+```
+
+#### Disable Fee Split
+
+```typescript
+// Send all fees to Zyfai vault
+const result = await sdk.setFeeSplit(
+  "0xSmartWallet...",
+  null,
+  0
+);
+```
+
+**Notes**:
+- Fee split ratio is in basis points (100 bp = 1%, 10000 bp = 100%)
+- Valid range: 0-10000 basis points
+- Fees are only charged on earnings, not principal
+- Performance fee split happens automatically on withdrawals
+- Set `feeSplitWallet` to `null` and ratio to `0` to disable splitting
+
+### 14. Portfolio (Premium)
 
 #### Get Debank Portfolio (Multi-chain)
 
@@ -746,6 +793,10 @@ All examples are available in the `examples/` directory:
 ### Premium Features
 
 21. **`get-debank-portfolio.ts`** - Get Debank multi-chain portfolio
+
+### SDK Developer Features
+
+22. **`fee-split.ts`** - Configure fee splitting for revenue sharing
 
 ### Quick Start: Run the End-to-End Example
 

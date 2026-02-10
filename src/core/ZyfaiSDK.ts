@@ -45,6 +45,8 @@ import type {
   BestOpportunityResponse,
   AgentTokenUriResponse,
   RegisterAgentResponse,
+  FeeSplitResponse,
+  GetFeeSplitResponse,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -2410,6 +2412,109 @@ export class ZyfaiSDK {
       throw new Error(
         `Failed to register agent on Identity Registry: ${(error as Error).message}`
       );
+    }
+  }
+
+  // ============================================================================
+  // Fee Split Configuration Methods
+  // ============================================================================
+
+  /**
+   * Configure fee split for a wallet
+   * Allows SDK developers to receive a portion of performance fees by splitting
+   * fees between the Zyfai vault and a secondary wallet.
+   *
+   * @param walletAddress - The smart wallet address to configure fee split for
+   * @param feeSplitWallet - The secondary wallet address to receive split fees
+   * @param feeSplitRatio - The ratio in basis points (0-10000, e.g., 4000 = 40% to secondary wallet)
+   * @returns Fee split configuration response
+   *
+   * @example
+   * ```typescript
+   * // Set 40% fee split to SDK developer's wallet
+   * const result = await sdk.setFeeSplit(
+   *   "0xSmartWallet...",
+   *   "0xSDKDeveloperWallet...",
+   *   4000 // 40% to SDK developer
+   * );
+   * console.log("Fee split configured:", result.data.splitPercentage);
+   * ```
+   *
+   * @example
+   * ```typescript
+   * // Disable fee split (send all fees to Zyfai vault)
+   * const result = await sdk.setFeeSplit(
+   *   "0xSmartWallet...",
+   *   null,
+   *   0
+   * );
+   * ```
+   */
+  async setFeeSplit(
+    walletAddress: string,
+    feeSplitWallet: string | null,
+    feeSplitRatio: number
+  ): Promise<FeeSplitResponse> {
+    try {
+      if (!walletAddress) {
+        throw new Error("Wallet address is required");
+      }
+
+      // Validate ratio is within valid range
+      if (feeSplitRatio < 0 || feeSplitRatio > 10000) {
+        throw new Error(
+          "Fee split ratio must be between 0 and 10000 basis points"
+        );
+      }
+
+      // Normalize addresses
+      const normalizedWallet = getAddress(walletAddress);
+      const normalizedSplitWallet = feeSplitWallet
+        ? getAddress(feeSplitWallet)
+        : null;
+
+      const response = await this.httpClient.post<FeeSplitResponse>(
+        ENDPOINTS.FEE_SPLIT(normalizedWallet),
+        {
+          feeSplitWallet: normalizedSplitWallet,
+          feeSplitRatio,
+        }
+      );
+
+      return response;
+    } catch (error) {
+      throw new Error(`Failed to set fee split: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get current fee split configuration for a wallet
+   *
+   * @param walletAddress - The smart wallet address to query
+   * @returns Current fee split configuration
+   *
+   * @example
+   * ```typescript
+   * const config = await sdk.getFeeSplit("0xSmartWallet...");
+   * console.log("Current split wallet:", config.data.feeSplitWallet);
+   * console.log("Current split ratio:", config.data.splitPercentage);
+   * ```
+   */
+  async getFeeSplit(walletAddress: string): Promise<GetFeeSplitResponse> {
+    try {
+      if (!walletAddress) {
+        throw new Error("Wallet address is required");
+      }
+
+      const normalizedWallet = getAddress(walletAddress);
+
+      const response = await this.httpClient.get<GetFeeSplitResponse>(
+        ENDPOINTS.FEE_SPLIT(normalizedWallet)
+      );
+
+      return response;
+    } catch (error) {
+      throw new Error(`Failed to get fee split: ${(error as Error).message}`);
     }
   }
 }

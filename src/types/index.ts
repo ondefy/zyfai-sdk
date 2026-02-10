@@ -575,6 +575,28 @@ export interface RegisterAgentResponse {
   smartWallet: string;
 }
 
+// ============================================================================
+// Fee Split Types
+// ============================================================================
+
+export interface FeeSplitConfig {
+  walletAddress: Address;
+  feeSplitWallet: Address | null;
+  feeSplitRatio: number;
+  splitPercentage: string;
+}
+
+export interface FeeSplitResponse {
+  success: boolean;
+  message?: string;
+  data: FeeSplitConfig;
+}
+
+export interface GetFeeSplitResponse {
+  success: boolean;
+  data: FeeSplitConfig;
+}
+
 // Session Types
 
 export interface PolicyData {
