@@ -108,13 +108,11 @@ async function main() {
     splitting: true,
     minSplits: 3, // Split positions across at least 3 protocols
     autocompounding: true,
-    executorProxy: true,
     agentName: "DeFi Yield Optimizer",
   });
   console.log("✅ Advanced features configured:");
   console.log("   - Position splitting: enabled (min 3 splits)");
   console.log("   - Auto-compounding: enabled");
-  console.log("   - Executor proxy: enabled");
   console.log("   - Agent name: DeFi Yield Optimizer\n");
 
   // ===========================================================================
@@ -158,7 +156,6 @@ async function main() {
     crosschainStrategy: true,
     omniAccount: true,
     autocompounding: true,
-    executorProxy: true,
     agentName: "Complete DeFi Agent",
   });
 
