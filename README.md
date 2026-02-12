@@ -462,12 +462,39 @@ The SDK provides access to various analytics and data endpoints:
 
 #### Get User Details
 
+Fetch complete authenticated user profile including smart wallet, chains, protocols, and all configuration settings:
+
 ```typescript
 const user = await sdk.getUserDetails();
+
 console.log("Smart Wallet:", user.user.smartWallet);
 console.log("Active Chains:", user.user.chains);
 console.log("Active Protocols:", user.user.protocols);
+console.log("Strategy:", user.user.strategy); // "conservative" | "aggressive"
+console.log("Has Active Session:", user.user.hasActiveSessionKey);
+
+// Feature flags
+console.log("Auto-compounding:", user.user.autocompounding);
+console.log("Auto-select Protocols:", user.user.autoSelectProtocols);
+console.log("Omni Account:", user.user.omniAccount);
+console.log("Cross-chain Strategy:", user.user.crosschainStrategy);
+console.log("Executor Proxy:", user.user.executorProxy);
+console.log("Splitting:", user.user.splitting);
+console.log("Min Splits:", user.user.minSplits);
+
+// Optional fields
+console.log("Email:", user.user.email);
+console.log("Telegram ID:", user.user.telegramId);
+console.log("Agent Name:", user.user.agentName);
+console.log("Wallet Type:", user.user.walletType);
 ```
+
+**Available Fields:**
+- **Core Info**: `id`, `address`, `smartWallet`, `chains`, `protocols`
+- **Strategy**: `strategy` (conservative or aggressive)
+- **Session**: `hasActiveSessionKey` (boolean)
+- **Features**: `autocompounding`, `autoSelectProtocols`, `omniAccount`, `crosschainStrategy`, `executorProxy`, `splitting`, `minSplits`
+- **Optional**: `email`, `telegramId`, `agentName`, `walletType`, `customization`, `registered`
 
 #### Pause Agent
 
@@ -726,7 +753,8 @@ All examples are available in the `examples/` directory:
 8. **`get-positions.ts`** - Get active positions for a wallet
 9. **`get-user-details.ts`** - Get authenticated user details
 10. **`pause-agent.ts`** - Pause agent by clearing all protocols
-11. **`get-tvl-volume.ts`** - Get TVL and trading volume
+11. **`update-profile-with-protocols.ts`** - Configure user profile with protocols, chains, and advanced features
+12. **`get-tvl-volume.ts`** - Get TVL and trading volume
 12. **`get-active-wallets.ts`** - Get active wallets by chain
 13. **`get-smart-wallets-by-eoa.ts`** - Get smart wallets by EOA
 14. **`get-first-topup.ts`** - Get first deposit information

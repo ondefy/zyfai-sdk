@@ -247,6 +247,16 @@ export class ZyfaiSDK {
         smartWallet: response.smartWallet,
         chains: response.chains,
         strategy: response.strategy,
+        protocols: response.protocols,
+        autoSelectProtocols: response.autoSelectProtocols,
+        omniAccount: response.omniAccount,
+        autocompounding: response.autocompounding,
+        agentName: response.agentName,
+        crosschainStrategy: response.crosschainStrategy,
+        executorProxy: response.executorProxy,
+        splitting: response.splitting,
+        minSplits: response.minSplits,
+        customization: response.customization,
       };
     } catch (error) {
       throw new Error(
@@ -1490,8 +1500,10 @@ export class ZyfaiSDK {
           crosschainStrategy: convertedResponse.crosschainStrategy,
           agentName: convertedResponse.agentName,
           customization: convertedResponse.customization,
+          executorProxy: convertedResponse.executorProxy,
           splitting: convertedResponse.splitting,
           minSplits: convertedResponse.minSplits,
+          registered: convertedResponse.registered,
         },
       };
     } catch (error) {

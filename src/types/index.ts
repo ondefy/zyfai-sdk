@@ -36,9 +36,14 @@ export interface UpdateUserProfileRequest {
   chains?: number[];
   protocols?: string[];
   autoSelectProtocols?: boolean;
-  customization?: Record<string, string[]>;
+  omniAccount?: boolean;
+  autocompounding?: boolean;
+  agentName?: string;
+  crosschainStrategy?: boolean;
+  executorProxy?: boolean;
   splitting?: boolean;
   minSplits?: number;
+  customization?: Record<string, any>;
 }
 
 /** @internal */
@@ -48,6 +53,16 @@ export interface UpdateUserProfileResponse {
   smartWallet?: Address;
   chains?: number[];
   strategy?: string;
+  protocols?: string[];
+  autoSelectProtocols?: boolean;
+  omniAccount?: boolean;
+  autocompounding?: boolean;
+  agentName?: string;
+  crosschainStrategy?: boolean;
+  executorProxy?: boolean;
+  splitting?: boolean;
+  minSplits?: number;
+  customization?: Record<string, any>;
 }
 
 /** @internal */
@@ -192,9 +207,11 @@ export interface UserDetails {
   omniAccount?: boolean;
   crosschainStrategy?: boolean;
   agentName?: string;
-  customization?: Record<string, string[]>;
+  customization?: Record<string, any>;
+  executorProxy?: boolean;
   splitting?: boolean;
   minSplits?: number;
+  registered?: boolean;
 }
 
 export interface UserDetailsResponse {
