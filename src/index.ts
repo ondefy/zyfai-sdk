@@ -91,6 +91,13 @@ export type {
   // Agent Identity Registry Types
   RegisterAgentResponse,
 
+  // Customization Types
+  CustomizationConfig,
+  CustomizeBatchRequest,
+  CustomizeBatchResponse,
+  GetPoolsResponse,
+  GetSelectedPoolsResponse,
+
   // Protocol Types
   Protocol,
   Pool,

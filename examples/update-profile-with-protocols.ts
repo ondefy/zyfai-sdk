@@ -4,9 +4,11 @@
  * This example demonstrates how to configure your user profile with:
  * - Strategy selection (conservative/aggressive)
  * - Protocol selection and configuration
- * - Chain configuration
  * - Advanced features (splitting, cross-chain, etc.)
  * - Custom protocol/pool configuration
+ *
+ * Note: Smart wallet address and chains are set during backend initialization
+ * and cannot be updated via the SDK.
  *
  * Run: npx tsx examples/update-profile-with-protocols.ts
  */
@@ -80,21 +82,21 @@ async function main() {
   console.log("✅ Protocols configured\n");
 
   // ===========================================================================
-  // Example 4: Multi-Chain Configuration
+  // Example 4: Enable Cross-Chain Features
   // ===========================================================================
-  console.log("🌐 Step 4: Configure Multiple Chains");
+  console.log("🌐 Step 4: Enable Cross-Chain Features");
   console.log("─".repeat(50));
 
+  // Note: Chains are configured during backend initialization
+  // Here we enable cross-chain features for your configured chains
   await sdk.updateUserProfile({
-    chains: [8453, 42161], // Base and Arbitrum
     crosschainStrategy: true,
     omniAccount: true,
   });
-  console.log("✅ Multi-chain configuration enabled:");
-  console.log("   - Base (8453)");
-  console.log("   - Arbitrum (42161)");
+  console.log("✅ Cross-chain features enabled:");
   console.log("   - Cross-chain strategy: enabled");
-  console.log("   - Omni-account: enabled\n");
+  console.log("   - Omni-account: enabled");
+  console.log("   - Operates on your configured chains (set via backend)\n");
 
   // ===========================================================================
   // Example 5: Enable Advanced Features
@@ -149,7 +151,6 @@ async function main() {
 
   await sdk.updateUserProfile({
     strategy: "aggressive",
-    chains: [8453, 42161, 9745], // Base, Arbitrum, Plasma
     protocols: allProtocolIds,
     autoSelectProtocols: true, // Let engine choose best protocols
     splitting: true,
@@ -163,7 +164,6 @@ async function main() {
 
   console.log("✅ Complete profile configured:");
   console.log(`   - Strategy: aggressive`);
-  console.log(`   - Chains: Base, Arbitrum, Plasma`);
   console.log(`   - Protocols: ${allProtocolIds.length} protocols`);
   console.log(`   - Auto-select: enabled`);
   console.log(`   - All advanced features: enabled\n`);
@@ -180,8 +180,8 @@ async function main() {
   console.log("Current Profile:");
   console.log(`   - ID: ${user.id}`);
   console.log(`   - Strategy: ${user.strategy}`);
-  console.log(`   - Smart Wallet: ${user.smartWallet}`);
-  console.log(`   - Chains: ${user.chains.join(", ")}`);
+  console.log(`   - Smart Wallet: ${user.smartWallet} (set via backend)`);
+  console.log(`   - Chains: ${user.chains.join(", ")} (set via backend)`);
   console.log(`   - Protocols: ${user.protocols.length} configured`);
   console.log(`   - Auto-select protocols: ${user.autoSelectProtocols}`);
   console.log(`   - Splitting: ${user.splitting || false}`);
@@ -210,9 +210,10 @@ async function main() {
    - Use autoSelectProtocols: false with specific protocols array for manual control
 
 3. Multi-Chain:
-   - Configure multiple chains for broader opportunities
-   - Enable crosschainStrategy to allow rebalancing across chains
+   - Chains are configured during backend initialization
+   - Enable crosschainStrategy to allow rebalancing across your configured chains
    - Enable omniAccount for unified account management
+   - View configured chains with getUserDetails()
 
 4. Position Splitting:
    - Enable splitting to distribute funds across multiple protocols

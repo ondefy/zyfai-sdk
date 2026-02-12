@@ -61,6 +61,13 @@ export const ENDPOINTS = {
 
   // Agent Identity Registry
   AGENT_TOKEN_URI: "/users/me/agent-token-uri",
+
+  // Customization
+  CUSTOMIZE_BATCH: "/customization/customize-batch",
+  CUSTOMIZATION_POOLS: (protocolId: string, strategy?: string) =>
+    `/customization/pools?protocolId=${protocolId}${strategy ? `&strategy=${strategy}` : ""}`,
+  CUSTOMIZATION_SELECTED_POOLS: (protocolId: string, chainId: number) =>
+    `/customization/selected-pools?protocolId=${protocolId}&chainId=${chainId}`,
 } as const;
 
 // Data API Endpoints (v2)
