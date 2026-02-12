@@ -832,6 +832,11 @@ export class ZyfaiSDK {
         httpClient: this.httpClient,
         strategy: internalStrategy,
       });
+
+      // Reset session key status since deploying a new Safe invalidates
+      // any previously active session key on the backend
+      this.hasActiveSessionKey = false;
+
       // Initialize user after Safe deployment
       try {
         await this.initializeUser(deploymentResult.safeAddress, chainId);
