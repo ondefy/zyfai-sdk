@@ -45,6 +45,10 @@ import type {
   BestOpportunityResponse,
   AgentTokenUriResponse,
   RegisterAgentResponse,
+  CustomizationConfig,
+  CustomizeBatchResponse,
+  GetPoolsResponse,
+  GetSelectedPoolsResponse,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -247,6 +251,16 @@ export class ZyfaiSDK {
         smartWallet: response.smartWallet,
         chains: response.chains,
         strategy: response.strategy,
+        protocols: response.protocols,
+        autoSelectProtocols: response.autoSelectProtocols,
+        omniAccount: response.omniAccount,
+        autocompounding: response.autocompounding,
+        agentName: response.agentName,
+        crosschainStrategy: response.crosschainStrategy,
+        executorProxy: response.executorProxy,
+        splitting: response.splitting,
+        minSplits: response.minSplits,
+        customization: response.customization,
       };
     } catch (error) {
       throw new Error(
@@ -1490,8 +1504,10 @@ export class ZyfaiSDK {
           crosschainStrategy: convertedResponse.crosschainStrategy,
           agentName: convertedResponse.agentName,
           customization: convertedResponse.customization,
+          executorProxy: convertedResponse.executorProxy,
           splitting: convertedResponse.splitting,
           minSplits: convertedResponse.minSplits,
+          registered: convertedResponse.registered,
         },
       };
     } catch (error) {
@@ -2490,6 +2506,155 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(
         `Failed to get best opportunity: ${(error as Error).message}`
+      );
+    }
+  }
+
+  // ============================================================================
+  // Protocol/Pool Customization
+  // ============================================================================
+
+  /**
+   * Configure protocol and pool customizations in batch.
+   *
+   * Allows granular control over which pools to use for each protocol on each chain.
+   * This is useful for advanced users who want to target specific pools with desired APY/risk profiles.
+   *
+   * @param customizations - Array of customization configurations
+   * @returns Response indicating success
+   *
+   * @example
+   * ```typescript
+   * // Configure multiple protocols across different chains
+   * await sdk.customizeBatch([
+   *   {
+   *     protocolId: "protocol-uuid-1",
+   *     pools: ["USDC Pool", "WETH Pool"],
+   *     chainId: 8453,  // Base
+   *     autoselect: false
+   *   },
+   *   {
+   *     protocolId: "protocol-uuid-1",
+   *     pools: ["USDC Vault"],
+   *     chainId: 42161,  // Arbitrum
+   *     autoselect: false
+   *   },
+   *   {
+   *     protocolId: "protocol-uuid-2",
+   *     pools: [],  // Empty array when autoselect is true
+   *     chainId: 8453,
+   *     autoselect: true  // Let engine auto-select best pools
+   *   }
+   * ]);
+   * ```
+   */
+  async customizeBatch(
+    customizations: CustomizationConfig[]
+  ): Promise<CustomizeBatchResponse> {
+    try {
+      // Authenticate user first to get JWT token
+      await this.authenticateUser();
+
+      const response = await this.httpClient.post<CustomizeBatchResponse>(
+        ENDPOINTS.CUSTOMIZE_BATCH,
+        customizations
+      );
+
+      return response;
+    } catch (error) {
+      throw new Error(
+        `Failed to save customizations: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get available pools for a protocol.
+   *
+   * Returns the list of pools available for a given protocol, optionally filtered by strategy.
+   *
+   * @param protocolId - The protocol UUID
+   * @param strategy - Optional strategy filter ("conservative" or "aggressive")
+   * @returns List of available pool names
+   *
+   * @example
+   * ```typescript
+   * // Get all available pools for a protocol
+   * const pools = await sdk.getAvailablePools("protocol-uuid");
+   * console.log("Available pools:", pools.pools);
+   *
+   * // Get pools for conservative strategy only
+   * const conservativePools = await sdk.getAvailablePools(
+   *   "protocol-uuid",
+   *   "conservative"
+   * );
+   * ```
+   */
+  async getAvailablePools(
+    protocolId: string,
+    strategy?: "conservative" | "aggressive"
+  ): Promise<GetPoolsResponse> {
+    try {
+      // Map public strategy to internal if provided
+      let internalStrategy: string | undefined;
+      if (strategy) {
+        if (!isValidPublicStrategy(strategy)) {
+          throw new Error(
+            `Invalid strategy: ${strategy}. Must be "conservative" or "aggressive".`
+          );
+        }
+        internalStrategy = toInternalStrategy(strategy);
+      }
+
+      const response = await this.httpClient.get<GetPoolsResponse>(
+        ENDPOINTS.CUSTOMIZATION_POOLS(protocolId, internalStrategy)
+      );
+
+      return response;
+    } catch (error) {
+      throw new Error(
+        `Failed to get available pools: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get currently selected pools for a protocol on a specific chain.
+   *
+   * Returns the pools that are currently configured for the authenticated user
+   * for a given protocol and chain combination.
+   *
+   * @param protocolId - The protocol UUID
+   * @param chainId - The chain ID
+   * @returns Currently selected pools and autoselect status
+   *
+   * @example
+   * ```typescript
+   * const selected = await sdk.getSelectedPools(
+   *   "protocol-uuid",
+   *   8453  // Base
+   * );
+   *
+   * console.log("Selected pools:", selected.pools);
+   * console.log("Autoselect enabled:", selected.autoselect);
+   * ```
+   */
+  async getSelectedPools(
+    protocolId: string,
+    chainId: number
+  ): Promise<GetSelectedPoolsResponse> {
+    try {
+      // Authenticate user first to get JWT token
+      await this.authenticateUser();
+
+      const response = await this.httpClient.get<GetSelectedPoolsResponse>(
+        ENDPOINTS.CUSTOMIZATION_SELECTED_POOLS(protocolId, chainId)
+      );
+
+      return response;
+    } catch (error) {
+      throw new Error(
+        `Failed to get selected pools: ${(error as Error).message}`
       );
     }
   }

@@ -31,14 +31,17 @@ export interface DeploySafeResponse {
 
 /** @internal */
 export interface UpdateUserProfileRequest {
-  smartWallet?: string;
   strategy?: string;
-  chains?: number[];
   protocols?: string[];
   autoSelectProtocols?: boolean;
-  customization?: Record<string, string[]>;
+  omniAccount?: boolean;
+  autocompounding?: boolean;
+  agentName?: string;
+  crosschainStrategy?: boolean;
+  executorProxy?: boolean;
   splitting?: boolean;
   minSplits?: number;
+  customization?: Record<string, any>;
 }
 
 /** @internal */
@@ -48,6 +51,16 @@ export interface UpdateUserProfileResponse {
   smartWallet?: Address;
   chains?: number[];
   strategy?: string;
+  protocols?: string[];
+  autoSelectProtocols?: boolean;
+  omniAccount?: boolean;
+  autocompounding?: boolean;
+  agentName?: string;
+  crosschainStrategy?: boolean;
+  executorProxy?: boolean;
+  splitting?: boolean;
+  minSplits?: number;
+  customization?: Record<string, any>;
 }
 
 /** @internal */
@@ -192,9 +205,11 @@ export interface UserDetails {
   omniAccount?: boolean;
   crosschainStrategy?: boolean;
   agentName?: string;
-  customization?: Record<string, string[]>;
+  customization?: Record<string, any>;
+  executorProxy?: boolean;
   splitting?: boolean;
   minSplits?: number;
+  registered?: boolean;
 }
 
 export interface UserDetailsResponse {
@@ -573,6 +588,36 @@ export interface RegisterAgentResponse {
   txHash: string;
   chainId: number;
   smartWallet: string;
+}
+
+// ============================================================================
+// Customization Types
+// ============================================================================
+
+export interface CustomizationConfig {
+  protocolId: string;
+  pools: string[];
+  chainId: number;
+  autoselect: boolean;
+}
+
+export interface CustomizeBatchRequest {
+  customizations: CustomizationConfig[];
+}
+
+export interface CustomizeBatchResponse {
+  success: boolean;
+}
+
+export interface GetPoolsResponse {
+  success: boolean;
+  pools: string[];
+}
+
+export interface GetSelectedPoolsResponse {
+  success: boolean;
+  pools: string[];
+  autoselect: boolean;
 }
 
 // Session Types
