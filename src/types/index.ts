@@ -38,7 +38,6 @@ export interface UpdateUserProfileRequest {
   autocompounding?: boolean;
   agentName?: string;
   crosschainStrategy?: boolean;
-  executorProxy?: boolean;
   splitting?: boolean;
   minSplits?: number;
   customization?: Record<string, any>;
