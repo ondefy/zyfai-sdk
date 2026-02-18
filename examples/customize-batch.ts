@@ -36,7 +36,7 @@ async function main() {
   console.log("📋 Step 1: Get Available Protocols");
   console.log("─".repeat(50));
 
-  const protocolsResponse = await sdk.getProtocols(chainId);
+  const protocolsResponse = await sdk.getAvailableProtocols(chainId);
   console.log(`Found ${protocolsResponse.protocols.length} protocols on chain ${chainId}\n`);
 
   // Select a few protocols for demonstration

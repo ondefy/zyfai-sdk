@@ -90,12 +90,13 @@ export class ZyfaiSDK {
   private currentProvider: any = null;
   private currentChainId: SupportedChainId | null = null;
   private rpcUrls?: RpcUrlsConfig;
+  private referralSource?: string;
 
   constructor(config: SDKConfig | string) {
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, rpcUrls } = sdkConfig;
+    const { apiKey, rpcUrls, referralSource } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
@@ -103,6 +104,7 @@ export class ZyfaiSDK {
 
     this.httpClient = new HttpClient(apiKey);
     this.rpcUrls = rpcUrls;
+    this.referralSource = referralSource;
   }
 
   /**
@@ -177,6 +179,7 @@ export class ZyfaiSDK {
         {
           message: messageObj,
           signature,
+          referralSource: this.referralSource,
         },
         // Set Origin header in Node.js to match message.uri (required by backend validation)
         isNodeJs

@@ -15,7 +15,7 @@ async function main() {
 
   if (!apiKey) {
     throw new Error(
-      "Missing env vars. Please set ZYFAI_API_KEY, BUNDLER_API_KEY, and PRIVATE_KEY."
+      "Missing env vars. Please set ZYFAI_API_KEY and PRIVATE_KEY."
     );
   }
 

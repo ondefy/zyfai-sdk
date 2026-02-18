@@ -16,6 +16,7 @@ export interface RpcUrlsConfig {
 export interface SDKConfig {
   apiKey: string;
   rpcUrls?: RpcUrlsConfig;
+  referralSource?: string;
 }
 
 // Response Types
