@@ -47,6 +47,8 @@ async function main() {
     try {
       const response = await sdk.getDailyApyHistory(smartWallet, period);
 
+      console.log('apy history response:', response);
+
       console.log(`  Wallet: ${response.walletAddress}`);
       console.log(`  Requested Days: ${response.requestedDays || period}`);
       console.log(`  Actual Days: ${response.totalDays}`);

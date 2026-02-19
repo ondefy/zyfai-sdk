@@ -332,6 +332,7 @@ export class ZyfaiSDK {
 
       const convertedStrategy = toInternalStrategy(strategy as "conservative" | "aggressive");
 
+
       // If user has no chains configured, use all supported chains
       const chains: number[] =
         userChains && userChains.length > 0 ? userChains : [8453, 42161];
@@ -342,13 +343,25 @@ export class ZyfaiSDK {
       );
 
       // Filter protocols by user's chains and strategy
+      // - safe_strategy: only protocols that support safe_strategy
+      // - degen_strategy: all protocols (safe + degen)
       const filteredProtocolIds = allProtocols
         .filter((protocol: Protocol) => {
           const hasMatchingChain = protocol.chains.some((chain: number) =>
             chains.includes(chain)
           );
-          const hasMatchingStrategy = protocol.strategies?.includes(convertedStrategy);
-          return hasMatchingChain && hasMatchingStrategy;
+          if (!hasMatchingChain) {
+            return false;
+          }
+          // Degen users get access to ALL protocols (safe + degen)
+          if (convertedStrategy === "degen_strategy") {
+            return (
+              protocol.strategies?.includes("safe_strategy") ||
+              protocol.strategies?.includes("degen_strategy")
+            );
+          }
+          // Safe users only get safe_strategy protocols
+          return protocol.strategies?.includes("safe_strategy");
         })
         .map((protocol: Protocol) => protocol.id);
 

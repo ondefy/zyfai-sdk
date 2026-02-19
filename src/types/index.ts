@@ -253,8 +253,8 @@ export interface APYPerStrategy {
   total_rebalances: number;
   created_at: string;
   strategy: string;
-  average_apy_without_fee: number;
-  average_apy_with_rzfi_without_fee: number;
+  average_apy_with_fee: number;
+  average_apy_with_rzfi_with_fee: number;
 }
 
 export interface APYPerStrategyResponse {
