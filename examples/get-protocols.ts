@@ -28,6 +28,7 @@ async function main() {
 
   const protocols = response.protocols || [];
   console.log(`Found ${protocols.length} protocols:\n`);
+  console.log(protocols);
 
   if (protocols.length === 0) {
     console.log("No protocols returned from the API.");

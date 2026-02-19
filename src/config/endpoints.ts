@@ -34,7 +34,7 @@ export const ENDPOINTS = {
   SESSION_KEYS_ADD: "/session-keys/add",
 
   // Protocols
-  PROTOCOLS: (chainId: number) => `/protocols?chainId=${chainId}`,
+  PROTOCOLS: (chainId?: number) => chainId ? `/protocols?chainId=${chainId}` : "/protocols",
 
   // Data (v1)
   DATA_POSITION: (walletAddress: string) =>
@@ -54,10 +54,6 @@ export const ENDPOINTS = {
   // SDK Keys
   SDK_ALLOWED_WALLETS: "/data/sdk-allowed-wallets",
   SDK_TVL: "/data/sdk-tvl",
-
-  // Best Opportunity
-  BEST_OPPORTUNITY: (walletAddress: string, chainId: number) =>
-    `/data/best-opportunity?walletAddress=${walletAddress}&chainId=${chainId}`,
 
   // Agent Identity Registry
   AGENT_TOKEN_URI: "/users/me/agent-token-uri",

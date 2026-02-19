@@ -52,7 +52,7 @@ async function main() {
       console.log(`  Actual Days: ${response.totalDays}`);
       console.log(
         `  Average Weighted APY: ${
-          response.averageWeightedApy?.toFixed(4) || "n/a"
+          response.weightedApyWithRzfiAfterFee?.toFixed(4) || "n/a"
         }%`
       );
 

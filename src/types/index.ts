@@ -463,7 +463,8 @@ export interface DailyApyHistoryResponse {
   history: Record<string, DailyApyEntry>;
   totalDays: number;
   requestedDays?: number;
-  averageWeightedApy?: number;
+  weightedApyWithRzfiAfterFee?: number;
+  weightedApyAfterFee?: number;
 }
 
 // ============================================================================
