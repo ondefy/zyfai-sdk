@@ -79,6 +79,7 @@ import {
   convertStrategyToPublic,
   convertStrategiesToPublic,
   isValidPublicStrategy,
+  convertStrategiesToPublicAndNaming,
 } from "../utils/strategy";
 import { SiweMessage } from "siwe";
 
@@ -1670,7 +1671,7 @@ export class ZyfaiSDK {
       );
 
       // Convert strategy field in each data item from backend format to public format
-      const convertedData = convertStrategiesToPublic(
+      const convertedData = convertStrategiesToPublicAndNaming(
         response.data || []
       ) as any;
 

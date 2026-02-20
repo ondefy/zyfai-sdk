@@ -25,6 +25,8 @@ async function main() {
 
   console.log(`Fetching positions for ${connected}…`);
   const response = await sdk.getPositions(connected, chainId);
+  
+  console.log('response:', response);
 
   const positions = (response as any)?.positions ?? [];
   console.log(`Positions count: ${positions.length}`);
