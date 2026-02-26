@@ -49,32 +49,6 @@ async function main() {
 
       console.log('apy history response:', response);
 
-      console.log(`  Wallet: ${response.walletAddress}`);
-      console.log(`  Requested Days: ${response.requestedDays || period}`);
-      console.log(`  Actual Days: ${response.totalDays}`);
-      console.log(
-        `  Average Weighted APY: ${
-          response.weightedApyWithRzfiAfterFee?.toFixed(4) || "n/a"
-        }%`
-      );
-
-      const historyEntries = Object.entries(response.history || {});
-      if (historyEntries.length > 0) {
-        console.log(`\n  Daily Breakdown (last 5 days):`);
-        historyEntries.slice(-5).forEach(([date, entry]) => {
-          const apy =
-            typeof entry === "object" && entry.apy
-              ? entry.apy.toFixed(2)
-              : "n/a";
-          const weighted =
-            typeof entry === "object" && entry.weightedApy
-              ? entry.weightedApy.toFixed(2)
-              : "n/a";
-          console.log(`    ${date}: APY ${apy}%, Weighted ${weighted}%`);
-        });
-      } else {
-        console.log("  No APY history data available.");
-      }
     } catch (error) {
       console.log(`  Failed: ${(error as Error).message}`);
     }

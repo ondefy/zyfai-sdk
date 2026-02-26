@@ -158,10 +158,13 @@ export interface Position {
   hasActiveSessionKey?: boolean;
   hasBalance?: boolean;
   newSessionKeyAvailable?: boolean;
-  hasStaleBalance?: string[];
   contracts?: Address[];
   omniAccount?: boolean;
   crosschainStrategy?: boolean;
+  staleBalances?: string[];
+  splitting?: boolean;
+  minSplits?: number;
+  executorProxy?: boolean;
 }
 
 export interface PositionSlot {
