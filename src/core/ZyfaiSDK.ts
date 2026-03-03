@@ -1648,18 +1648,22 @@ export class ZyfaiSDK {
    * @param crossChain - Whether to get cross-chain APY (true = omni account, false = simple account)
    * @param days - Time period: 7, 14, or 30
    * @param strategy - Strategy type: "conservative" (default) or "aggressive"
+   * @param chainId - Optional chain ID filter
+   * @param tokenSymbol - Optional token symbol filter (e.g. "USDC", "WETH", "WBTC")
    * @returns APY per strategy for a specific chain
    *
    * @example
    * ```typescript
-   * const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative");
+   * const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative", 8453, "USDC");
    * console.log("APY per strategy per chain:", apyPerStrategy.data);
    * ```
    */
   async getAPYPerStrategy(
     crossChain: boolean = false,
     days: number = 7,
-    strategy: Strategy = "conservative"
+    strategy: Strategy = "conservative",
+    chainId?: number,
+    tokenSymbol?: string
   ): Promise<APYPerStrategyResponse> {
     try {
       const internalStrategy = toInternalStrategy(strategy);
@@ -1667,7 +1671,13 @@ export class ZyfaiSDK {
         internalStrategy === "safe_strategy" ? "safe" : "degen";
 
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.APY_PER_STRATEGY(crossChain, days, internalStrategyShort)
+        DATA_ENDPOINTS.APY_PER_STRATEGY({
+          isCrossChain: crossChain,
+          days,
+          strategy: internalStrategyShort,
+          chainId,
+          tokenSymbol,
+        })
       );
 
       // Convert strategy field in each data item from backend format to public format
@@ -1907,12 +1917,12 @@ export class ZyfaiSDK {
    * Get onchain earnings for a wallet
    *
    * @param walletAddress - Smart wallet address
-   * @returns Onchain earnings data including total, current, and lifetime
+   * @returns Onchain earnings data with per-token breakdowns
    *
    * @example
    * ```typescript
    * const earnings = await sdk.getOnchainEarnings("0x...");
-   * console.log("Total earnings:", earnings.data.totalEarnings);
+   * console.log("Total USDC:", earnings.data.totalEarningsByToken["USDC"]);
    * ```
    */
   async getOnchainEarnings(
@@ -1931,15 +1941,12 @@ export class ZyfaiSDK {
         success: true,
         data: {
           walletAddress,
-          totalEarnings: response.total_earnings || response.totalEarnings || 0,
-          currentEarnings:
-            response.current_earnings || response.currentEarnings || 0,
-          lifetimeEarnings:
-            response.lifetime_earnings || response.lifetimeEarnings || 0,
-          unrealizedEarnings: response.unrealized_earnings,
-          currentEarningsByChain: response.current_earnings_by_chain,
-          unrealizedEarningsByChain: response.unrealized_earnings_by_chain,
+          totalEarningsByToken: response.total_earnings_by_token || {},
+          lifetimeEarningsByToken: response.lifetime_earnings_by_token || {},
+          currentEarningsByChain: response.current_earnings_by_chain || {},
+          unrealizedEarnings: response.unrealized_earnings || {},
           lastCheckTimestamp: response.last_check_timestamp,
+          lastLogDate: response.last_log_date,
         },
       };
     } catch (error) {
@@ -1954,12 +1961,12 @@ export class ZyfaiSDK {
    * This triggers a recalculation of earnings on the backend
    *
    * @param walletAddress - Smart wallet address
-   * @returns Updated onchain earnings data
+   * @returns Updated onchain earnings data with per-token breakdowns
    *
    * @example
    * ```typescript
    * const earnings = await sdk.calculateOnchainEarnings("0x...");
-   * console.log("Calculated earnings:", earnings.data.totalEarnings);
+   * console.log("Total USDC:", earnings.data.totalEarningsByToken["USDC"]);
    * ```
    */
   async calculateOnchainEarnings(
@@ -1981,12 +1988,12 @@ export class ZyfaiSDK {
         success: true,
         data: {
           walletAddress,
-          totalEarnings: data.total_earnings || data.totalEarnings || 0,
-          currentEarnings: data.current_earnings || data.currentEarnings || 0,
-          lifetimeEarnings:
-            data.lifetime_earnings || data.lifetimeEarnings || 0,
-          unrealizedEarnings: data.unrealized_earnings,
+          totalEarningsByToken: data.total_earnings_by_token || {},
+          lifetimeEarningsByToken: data.lifetime_earnings_by_token || {},
+          currentEarningsByChain: data.current_earnings_by_chain || {},
+          unrealizedEarnings: data.unrealized_earnings || {},
           lastCheckTimestamp: data.last_check_timestamp,
+          lastLogDate: data.last_log_date,
         },
       };
     } catch (error) {
@@ -2007,7 +2014,7 @@ export class ZyfaiSDK {
    * @example
    * ```typescript
    * const daily = await sdk.getDailyEarnings("0x...", "2024-01-01", "2024-01-31");
-   * daily.data.forEach(d => console.log(d.date, d.earnings));
+   * daily.data.forEach(d => console.log(d.snapshot_date, d.total_earnings_by_token));
    * ```
    */
   async getDailyEarnings(
@@ -2093,20 +2100,22 @@ export class ZyfaiSDK {
    * Get conservative (low-risk) yield opportunities
    *
    * @param chainId - Optional chain ID filter
+   * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
    * @returns List of conservative yield opportunities
    *
    * @example
    * ```typescript
-   * const opportunities = await sdk.getConservativeOpportunities(8453);
+   * const opportunities = await sdk.getConservativeOpportunities(8453, "USDC");
    * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
    * ```
    */
   async getConservativeOpportunities(
-    chainId?: number
+    chainId?: number,
+    asset?: string
   ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId)
+        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId, asset)
       );
 
       const data = response.data || response || [];
@@ -2142,20 +2151,22 @@ export class ZyfaiSDK {
    * Get aggressive (high-risk, high-reward) yield opportunities
    *
    * @param chainId - Optional chain ID filter
+   * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
    * @returns List of aggressive opportunities
    *
    * @example
    * ```typescript
-   * const opportunities = await sdk.getAggressiveOpportunities(8453);
+   * const opportunities = await sdk.getAggressiveOpportunities(8453, "WETH");
    * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
    * ```
    */
   async getAggressiveOpportunities(
-    chainId?: number
+    chainId?: number,
+    asset?: string
   ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId)
+        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId, asset)
       );
 
       const data = response.data || response || [];
@@ -2192,6 +2203,7 @@ export class ZyfaiSDK {
    * Returns pool info, liquidity depth (true if > 1M), utilization rate, stability metrics, avg APY, and collateral
    *
    * @param chainId - Optional chain ID filter
+   * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
    * @returns Active conservative opportunities with risk data
    *
    * @example
@@ -2200,10 +2212,10 @@ export class ZyfaiSDK {
    * console.log(JSON.stringify(opps, null, 2));
    * ```
    */
-  async getActiveConservativeOppsRisk(chainId?: number): Promise<any> {
+  async getActiveConservativeOppsRisk(chainId?: number, asset?: string): Promise<any> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId)
+        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId, asset)
       );
 
       const data = response.data || response || [];
@@ -2246,6 +2258,7 @@ export class ZyfaiSDK {
    * Returns pool info, liquidity depth (true if > 1M), utilization rate, stability metrics, avg APY, and collateral
    *
    * @param chainId - Optional chain ID filter
+   * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
    * @returns Active aggressive opportunities with risk data
    *
    * @example
@@ -2254,10 +2267,10 @@ export class ZyfaiSDK {
    * console.log(JSON.stringify(opps, null, 2));
    * ```
    */
-  async getActiveAggressiveOppsRisk(chainId?: number): Promise<any> {
+  async getActiveAggressiveOppsRisk(chainId?: number, asset?: string): Promise<any> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId)
+        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId, asset)
       );
 
       const data = response.data || response || [];
@@ -2300,10 +2313,11 @@ export class ZyfaiSDK {
    * Builds on getActiveConservativeOppsRisk and computes higher-level status indicators
    *
    * @param chainId - Optional chain ID filter
+   * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
    * @returns Conservative pools with status data
    */
-  async getConservativePoolStatus(chainId?: number): Promise<any> {
-    const pools = await this.getActiveConservativeOppsRisk(chainId);
+  async getConservativePoolStatus(chainId?: number, asset?: string): Promise<any> {
+    const pools = await this.getActiveConservativeOppsRisk(chainId, asset);
     return pools.map((p: any) => this.derivePoolStatus(p));
   }
 
@@ -2312,10 +2326,11 @@ export class ZyfaiSDK {
    * Builds on getActiveAggressiveOppsRisk and computes higher-level status indicators
    *
    * @param chainId - Optional chain ID filter
+   * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
    * @returns Aggressive pools with status data
    */
-  async getAggressivePoolStatus(chainId?: number): Promise<any> {
-    const pools = await this.getActiveAggressiveOppsRisk(chainId);
+  async getAggressivePoolStatus(chainId?: number, asset?: string): Promise<any> {
+    const pools = await this.getActiveAggressiveOppsRisk(chainId, asset);
     return pools.map((p: any) => this.derivePoolStatus(p));
   }
 
@@ -2382,12 +2397,12 @@ export class ZyfaiSDK {
    *
    * @param walletAddress - Smart wallet address
    * @param days - Period: "7D", "14D", or "30D" (default: "7D")
-   * @returns Daily APY history with weighted averages
+   * @returns Daily APY history with per-position breakdowns and weighted averages
    *
    * @example
    * ```typescript
    * const apyHistory = await sdk.getDailyApyHistory("0x...", "30D");
-   * console.log("Average APY:", apyHistory.averageWeightedApy);
+   * console.log("Weighted APY after fee:", apyHistory.weightedApyAfterFee);
    * ```
    */
   async getDailyApyHistory(

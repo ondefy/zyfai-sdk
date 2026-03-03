@@ -645,21 +645,26 @@ history.data.forEach((tx) => console.log(tx.type, tx.amount));
 
 #### Get Onchain Earnings
 
+Earnings are returned per-token (multi-asset support).
+
 ```typescript
 const earnings = await sdk.getOnchainEarnings(walletAddress);
-console.log("Total Earnings:", earnings.data.totalEarnings);
-console.log("Current Earnings:", earnings.data.currentEarnings);
-console.log("Lifetime Earnings:", earnings.data.lifetimeEarnings);
+// Per-token earnings: { "USDC": "0.020667", "WETH": "0.000009" }
+console.log("Total by token:", earnings.data.totalEarningsByToken);
+console.log("Lifetime by token:", earnings.data.lifetimeEarningsByToken);
+console.log("By chain:", earnings.data.currentEarningsByChain);
 ```
 
 #### Calculate Onchain Earnings (Refresh)
 
 ```typescript
 const updated = await sdk.calculateOnchainEarnings(walletAddress);
-console.log("Updated earnings:", updated.data.totalEarnings);
+console.log("Updated earnings:", updated.data.totalEarningsByToken);
 ```
 
 #### Get Daily Earnings
+
+Daily earnings snapshots with per-token breakdowns.
 
 ```typescript
 const daily = await sdk.getDailyEarnings(
@@ -667,14 +672,19 @@ const daily = await sdk.getDailyEarnings(
   "2024-01-01",
   "2024-01-31"
 );
-daily.data.forEach((d) => console.log(d.date, d.earnings));
+daily.data.forEach((d) => {
+  console.log(d.snapshot_date, d.total_earnings_by_token);
+});
 ```
 
 #### Get Daily APY History
 
+Returns per-position APY breakdowns with weighted averages.
+
 ```typescript
 const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
-console.log("Average Weighted APY:", apyHistory.averageWeightedApy);
+console.log("Weighted APY after fee:", apyHistory.weightedApyAfterFee);
+// history is keyed by date, each entry has positions[], weighted_apy, fee, etc.
 ```
 
 ### 10. Opportunities & Strategies
@@ -682,7 +692,8 @@ console.log("Average Weighted APY:", apyHistory.averageWeightedApy);
 #### Get Conservative Opportunities (Low Risk)
 
 ```typescript
-const conservativeOpps = await sdk.getConservativeOpportunities(8453);
+// Filter by chain and/or asset
+const conservativeOpps = await sdk.getConservativeOpportunities(8453, "USDC");
 conservativeOpps.data.forEach((o) => {
   console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
 });
@@ -691,7 +702,8 @@ conservativeOpps.data.forEach((o) => {
 #### Get Aggressive Opportunities (High Risk)
 
 ```typescript
-const aggressiveOpps = await sdk.getAggressiveOpportunities(8453);
+// Filter by chain and/or asset
+const aggressiveOpps = await sdk.getAggressiveOpportunities(8453, "WETH");
 aggressiveOpps.data.forEach((o) => {
   console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
 });
@@ -702,8 +714,8 @@ aggressiveOpps.data.forEach((o) => {
 #### Get APY Per Strategy
 
 ```typescript
-// Get same-chain rebalances
-const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative");
+// Get same-chain rebalances, optionally filter by chainId and tokenSymbol
+const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative", 8453, "USDC");
 console.log("APY per strategy:", apyPerStrategy.data);
 ```
 

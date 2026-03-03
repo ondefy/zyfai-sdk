@@ -54,6 +54,7 @@ export type {
   HistoryResponse,
 
   // Earnings Types
+  TokenEarnings,
   OnchainEarnings,
   OnchainEarningsResponse,
   DailyEarning,
@@ -69,6 +70,7 @@ export type {
   OpportunitiesResponse,
 
   // APY History Types
+  ApyPosition,
   DailyApyEntry,
   DailyApyHistoryResponse,
 

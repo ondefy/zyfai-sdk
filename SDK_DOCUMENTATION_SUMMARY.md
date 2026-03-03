@@ -629,24 +629,30 @@ const history = await sdk.getHistory(walletAddress, chainId, {
 
 ### 14. Get Onchain Earnings
 
+Earnings are returned per-token (multi-asset: USDC, WETH, WBTC, etc.).
+
 ```typescript
 const earnings = await sdk.getOnchainEarnings(walletAddress);
-// Returns: { success, data: { walletAddress, totalEarnings, currentEarnings, lifetimeEarnings, ... } }
+// Returns: { success, data: { walletAddress, totalEarningsByToken, lifetimeEarningsByToken, currentEarningsByChain, unrealizedEarnings, lastCheckTimestamp?, lastLogDate? } }
+// TokenEarnings = Record<string, string>, e.g. { "USDC": "0.020667", "WETH": "0.000009" }
 ```
 
 ---
 
 ### 15. Calculate Onchain Earnings
 
-Trigger recalculation of earnings.
+Trigger recalculation of earnings. Returns same per-token structure.
 
 ```typescript
 const updated = await sdk.calculateOnchainEarnings(walletAddress);
+// Returns: same shape as getOnchainEarnings
 ```
 
 ---
 
 ### 16. Get Daily Earnings
+
+Daily snapshots with per-token breakdowns.
 
 ```typescript
 const daily = await sdk.getDailyEarnings(
@@ -654,7 +660,8 @@ const daily = await sdk.getDailyEarnings(
   "2024-01-01",
   "2024-01-31"
 );
-// Returns: { success, walletAddress, data, count, filters }
+// Returns: { success, walletAddress, data: DailyEarning[], count, filters }
+// DailyEarning fields: snapshot_date, current_earnings_by_token, lifetime_earnings_by_token, unrealized_earnings_by_token, total_earnings_by_token, daily_*_delta_by_token
 ```
 
 ---
@@ -662,7 +669,8 @@ const daily = await sdk.getDailyEarnings(
 ### 17. Get Conservative Opportunities
 
 ```typescript
-const opportunities = await sdk.getConservativeOpportunities(chainId);
+const opportunities = await sdk.getConservativeOpportunities(chainId, asset);
+// chainId?: number, asset?: string (e.g. "USDC", "WETH")
 // Returns: { success, chainId, strategyType: "conservative", data }
 ```
 
@@ -671,7 +679,8 @@ const opportunities = await sdk.getConservativeOpportunities(chainId);
 ### 18. Get Aggressive Opportunities
 
 ```typescript
-const opportunities = await sdk.getAggressiveOpportunities(chainId);
+const opportunities = await sdk.getAggressiveOpportunities(chainId, asset);
+// chainId?: number, asset?: string (e.g. "USDC", "WETH")
 // Returns: { success, chainId, strategyType: "aggressive", data }
 ```
 
@@ -679,9 +688,12 @@ const opportunities = await sdk.getAggressiveOpportunities(chainId);
 
 ### 19. Get Daily APY History
 
+Returns per-position APY breakdowns with weighted averages.
+
 ```typescript
 const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
-// Returns: { success, walletAddress, history, totalDays, averageWeightedApy }
+// Returns: { success, walletAddress, history: Record<string, DailyApyEntry>, totalDays, requestedDays?, weightedApyWithRzfiAfterFee?, weightedApyAfterFee? }
+// DailyApyEntry: { positions: ApyPosition[], weighted_apy, fee, weighted_apy_after_fee, rzfi_merkl_apr, final_weighted_apy }
 ```
 
 ---
@@ -689,8 +701,10 @@ const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
 ### 20. Get APY Per Strategy
 
 ```typescript
-const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative");
+// Optionally filter by chainId and tokenSymbol (e.g. "USDC", "WETH", "WBTC")
+const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative", 8453, "USDC");
 // Returns: { success, count, data }
+// Data includes: token_symbol, average_apy_without_fee, average_apy_with_rzfi_without_fee, events_average_apy
 ```
 
 ---
