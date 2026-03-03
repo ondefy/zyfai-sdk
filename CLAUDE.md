@@ -4,147 +4,261 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TypeScript SDK (`@zyfai/sdk`) for Zyfai Yield Optimization Engine. Enables deployment of Safe smart wallets with ERC-4337 account abstraction, session key management, and DeFi yield optimization across multiple protocols and chains.
+TypeScript SDK for Zyfai Yield Optimization Engine. Enables deployment of Safe smart wallets with ERC-4337 account abstraction, session key management, and DeFi yield optimization across multiple protocols and chains.
 
 ## Commands
 
+### Development
 ```bash
-npm run build          # Build SDK (tsup -> dist/ with CJS + ESM + .d.ts)
-npm run dev            # Watch mode
-npm run lint           # ESLint (note: no .eslintrc config file exists yet)
-npm test               # Jest (note: no test files or jest.config exist yet)
-npm run docs           # Generate TypeDoc API docs
+# Build the SDK (creates dist/ with CJS + ESM)
+npm run build
 
-# Documentation site (website/ uses pnpm, not npm)
-npm run docs:dev       # Start Docusaurus dev server
+# Watch mode for development
+npm run dev
+
+# Run linter
+npm run lint
+
+# Run tests
+npm test
+
+# Generate documentation
+npm run docs
+npm run docs:watch     # Watch mode
+npm run docs:json      # Generate JSON API docs
+```
+
+### Documentation Site (website/)
+```bash
+npm run docs:dev       # Start dev server
 npm run docs:build     # Build documentation site
+npm run docs:serve     # Serve built docs
+```
 
-# Run examples (requires .env with ZYFAI_API_KEY and PRIVATE_KEY)
+### Testing with Examples
+```bash
+# Run any example file (requires .env with ZYFAI_API_KEY and PRIVATE_KEY)
 npx tsx examples/end-to-end.ts
+npx tsx examples/basic-usage.ts
 ```
 
 ## Architecture
 
 ### Core Design Pattern
 
-The SDK uses **explicit parameter-based design**:
+The SDK uses an **explicit parameter-based design**:
 - All methods require explicit `userAddress` and `chainId` parameters
 - Connected wallet/private key is used **only for signing transactions**
 - One SDK instance can manage multiple users
+- Separates concerns: SDK initialization → wallet connection → method calls with explicit parameters
 
+**Example:**
 ```typescript
-const sdk = new ZyfaiSDK({ apiKey: "..." });
+// Wallet is for signing only
+await sdk.connectAccount("0xPrivateKey", 42161);
 
-// Step 1: Connect account (two overloads)
-await sdk.connectAccount("0xPrivateKey", 42161);  // Private key + chainId (required)
-await sdk.connectAccount(walletProvider);           // Browser provider (chainId auto-detected)
-
-// Step 2: Methods take explicit user addresses - never infer from wallet state
+// Methods take explicit user addresses
 await sdk.deploySafe(userAddress, chainId);
 await sdk.getPositions(userAddress);
 ```
 
 ### Multi-Backend Architecture
 
-The SDK communicates with **two separate API backends** (see `src/config/endpoints.ts` and `src/utils/http-client.ts`):
+The SDK communicates with **two separate API backends**:
 
-1. **Execution API (v1)** at `https://api.zyf.ai/api/v1` -- Safe deployment, transactions, session keys, SIWE auth, positions, history. Requires JWT for authenticated endpoints.
+1. **Execution API (v1)** at `https://api.zyf.ai/api/v1`
+   - Safe deployment, transactions, session keys
+   - User authentication (SIWE)
+   - Protocol data, positions, history
+   - Requires JWT token for authenticated endpoints
 
-2. **Data API (v2)** at `https://defiapi.zyf.ai/api/v2` -- Analytics, earnings, opportunities, APY, Debank portfolio, rebalance info.
+2. **Data API (v2)** at `https://defiapi.zyf.ai/api/v2`
+   - Analytics and earnings calculations
+   - Opportunities and APY data
+   - Debank portfolio integration
+   - Rebalance information
 
-Both use the same API key (`X-API-Key` header). The HttpClient class manages two separate axios instances with interceptors for auth token injection.
+Both APIs use the same API key. Execution API requires SIWE authentication for user-specific operations.
 
-### Key Files
+### Directory Structure
 
-| File | Lines | Role |
-|------|-------|------|
-| `src/core/ZyfaiSDK.ts` | ~2800 | Main SDK class with 30+ public methods (needs refactoring, target <800 lines) |
-| `src/utils/http-client.ts` | ~260 | Dual axios client for Execution + Data APIs |
-| `src/utils/safe-account.ts` | ~330 | Safe wallet deployment, deterministic addresses, session key signing |
-| `src/utils/strategy.ts` | ~100 | Strategy name conversion between public/internal APIs |
-| `src/config/endpoints.ts` | ~116 | All API endpoint path definitions |
-| `src/config/chains.ts` | ~120 | Chain configs, custom Plasma chain definition |
-| `src/config/abis.ts` | ~90 | Smart contract ABIs (ERC20, Identity Registry) |
-| `src/types/index.ts` | ~660 | All TypeScript interfaces and types |
+```
+src/
+├── core/
+│   └── ZyfaiSDK.ts           # Main SDK class (2173 lines)
+├── utils/
+│   ├── safe-account.ts       # Safe wallet deployment, session key signing
+│   ├── http-client.ts        # Dual HTTP client (Execution + Data API)
+│   └── strategy.ts           # Strategy conversion (conservative/aggressive ↔️ safe/degen)
+├── config/
+│   ├── chains.ts             # Chain configs (Arbitrum, Base, Plasma)
+│   ├── endpoints.ts          # API endpoint definitions for both backends
+│   └── abis.ts               # Smart contract ABIs (ERC20)
+├── types/
+│   └── index.ts              # All TypeScript types and interfaces
+└── index.ts                  # Public API exports
+```
+
+### Key Technologies
+
+- **viem** (v2.0+): Ethereum interactions, wallet clients, public clients
+- **permissionless** (v0.2.38+): ERC-4337 account abstraction (Safe deployment)
+- **@rhinestone/module-sdk** (v0.2.10+): Session key management for Safe
+- **siwe**: Sign-In with Ethereum authentication
+- **axios**: HTTP client for both API backends
 
 ### Supported Chains
 
 | Chain | ID | Default Token |
 |-------|-----|--------------|
-| Base (default) | 8453 | USDC (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`) |
-| Arbitrum | 42161 | USDC (`0xaf88d065e77c8cc2239327c5edb3a432268e5831`) |
-| Plasma | 9745 | USDT (`0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb`) |
+| Base | 8453 | USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) |
+| Arbitrum | 42161 | USDC (0xaf88d065e77c8cc2239327c5edb3a432268e5831) |
+| Plasma | 9745 | USDT (0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb) |
 
-Plasma is a custom chain definition (not in viem/chains). See `src/config/chains.ts`.
+Default chain: Base (8453)
 
-### Key Dependencies
+## Code Organization Principles
 
-- **viem** (v2.0+): Ethereum interactions -- **peer dependency** (must be installed by consumer)
-- **permissionless** (v0.2.38+): ERC-4337 account abstraction, Safe deployment via ERC-7579 launchpad
-- **@rhinestone/module-sdk** (v0.2.10+): Session key management for Safe smart accounts
-- **siwe** (v3.0.0): Sign-In with Ethereum authentication
-- **axios**: HTTP client for both API backends
+### Import Rules (CRITICAL)
 
-## Critical Conventions
+- **ALL imports MUST be at the top of the file** - no exceptions
+- **NEVER use dynamic imports** (`await import()`) inside functions
+- **NEVER define inline imports** between functions
+- Import order:
+  1. External dependencies (npm packages)
+  2. Internal utilities and helpers
+  3. Configuration and constants
+  4. Types (using `import type`)
 
-### Strategy Naming (IMPORTANT)
+### Modularity Requirements
 
-Public SDK uses `"conservative"` / `"aggressive"`. Internal API uses `"safe_strategy"` / `"degen_strategy"`.
+- ABIs go in `src/config/abis.ts`
+- Constants go in `src/config/constants.ts`
+- Utilities go in `src/utils/`
+- Types go in `src/types/`
+- Main SDK class should stay under 800 lines (currently 2173 - needs refactoring)
+- Extract reusable logic to utility functions
+- Use single responsibility principle
 
-**Always convert at the boundary:**
-- Use `toInternalStrategy()` and `toPublicStrategy()` from `src/utils/strategy.ts`
-- Never pass public strategy names directly to API calls
-
-### Import Rules
-
-- **ALL imports MUST be at the top of the file** -- no dynamic imports, no inline imports between functions
-- Order: external packages, internal utils, config/constants, types (using `import type`)
-
-### Documentation Requirements
-
-**When making ANY code changes, update BOTH:**
-1. **README.md** -- User-facing documentation with examples
-2. **SDK_DOCUMENTATION_SUMMARY.md** -- Reference documentation
-
-Never create additional documentation files (no ARCHITECTURE.md, CHANGELOG.md, etc.).
-
-### Style
-
-- **NEVER use emojis** anywhere in code, logs, comments, or error messages
-- Use double quotes for strings
-- Functional patterns preferred over classes (except main SDK class)
-- Descriptive variable names with auxiliary verbs (`isLoading`, `hasError`)
-- JSDoc comments for all public methods
-- Response types: `{ success: boolean, ... }` pattern
-- Guard clauses and early returns for error conditions
-
-### Naming
+### Naming Conventions
 
 - Files: `lowercase-with-dashes.ts`
 - Functions: `camelCase`
 - Types/Interfaces: `PascalCase`
 - Constants: `SCREAMING_SNAKE_CASE`
 
-### Modularity
+### Strategy Naming
 
-- ABIs in `src/config/abis.ts`, constants in `src/config/constants.ts`
-- Utilities in `src/utils/`, types in `src/types/`
-- Main SDK class target: <800 lines. Utility files: <500 lines
-- Extract reusable logic to utility functions
+Public SDK uses "conservative" and "aggressive". Internal API uses "safe" and "degen".
 
-### Git
+**Always convert strategies at the boundary:**
+- SDK methods accept: `"conservative" | "aggressive"`
+- API expects: `"safe" | "degen"`
+- Use `toInternalStrategy()` and `convertStrategyToPublic()` from `src/utils/strategy.ts`
 
-- Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`
-- First line under 72 characters
+## Common Operations
 
-## Key Flows
+### Safe Wallet Deployment Flow
 
-### Authentication: `connectAccount()` triggers SIWE auth automatically. JWT stored in HttpClient. Browser uses `window.location.origin` for SIWE domain; Node.js uses API endpoint URL. `disconnectAccount()` clears all auth state.
+1. User calls `sdk.connectAccount()` → SIWE authentication happens automatically
+2. SDK stores JWT token for authenticated endpoints
+3. `deploySafe(userAddress, chainId, strategy)`:
+   - Calculates deterministic Safe address using CREATE2
+   - Checks if already deployed (early return if yes)
+   - Sends deployment request to backend API
+   - Backend handles all RPC calls and bundler interactions
+4. After deployment, Safe address is predictable and deterministic
 
-### Safe Deployment: `deploySafe(userAddress, chainId, strategy)` calculates deterministic Safe address via CREATE2, checks if already deployed (early return), then sends deployment request to backend. Uses `permissionless` with Safe v1.4.1 and entry point 0.7.
+### Session Key Flow
 
-### Session Keys: `createSessionKey(userAddress, chainId)` checks for existing active key (early return), fetches config from API, signs using `@rhinestone/module-sdk`, activates via API. Tracks state to avoid duplicates.
+1. User must call `connectAccount()` first (for SIWE auth)
+2. `createSessionKey(userAddress, chainId)`:
+   - Checks if user already has active session key (returns early if yes)
+   - Fetches optimal session configuration from API
+   - Signs session key using `@rhinestone/module-sdk`
+   - Calls API to activate session key immediately
+   - Tracks session state to avoid duplicate creation
 
-### Deposits: Frontend sends ERC20 transfer to Safe address, then SDK calls `/users/log_deposit`. Token auto-selected by chain.
+### Deposit/Withdraw Flow
 
-### Withdrawals: SDK calls `/users/withdraw` or `/users/partial-withdraw`. Backend processes asynchronously -- tx hash may not be immediately available. Track via `getHistory()`.
+**Deposit:**
+- Frontend user sends ERC20 transfer to Safe address
+- SDK calls `/users/log_deposit` to register the deposit
+- Token addresses are auto-selected based on chain (USDC for Base/Arbitrum, USDT for Plasma)
+
+**Withdraw:**
+- SDK calls `/users/withdraw` or `/users/partial-withdraw`
+- Backend processes withdrawal asynchronously
+- Transaction hash may not be immediately available
+- Use `getHistory()` to track withdrawal status
+
+## Important Implementation Details
+
+### Authentication
+
+- `connectAccount()` automatically performs SIWE authentication
+- JWT token is stored in HttpClient and used for authenticated endpoints
+- Browser: Uses `window.location.origin` for SIWE domain
+- Node.js: Uses API endpoint URL for SIWE domain
+- `disconnectAccount()` clears wallet, auth state, and JWT token
+
+### RPC Configuration
+
+SDK uses default public RPCs. Users can override by passing `rpcUrls` in constructor:
+```typescript
+new ZyfaiSDK({
+  apiKey: "...",
+  rpcUrls: {
+    8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY",
+    42161: "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY",
+  }
+});
+```
+
+### Error Handling Patterns
+
+- Use early returns for error conditions
+- Implement guard clauses at function start
+- Validate inputs before executing logic
+- Never swallow errors silently
+- Return `{ success: boolean, ... }` response types
+
+## Testing & Examples
+
+20+ example files in `examples/` directory demonstrate all SDK features:
+- Core: `end-to-end.ts`, `basic-usage.ts`, `deploy-safe.ts`
+- Session Keys: `create-session-key.ts`
+- Funds: `deposit.ts`, `withdraw.ts`, `deposit-withdraw.ts`
+- Data: `get-positions.ts`, `get-protocols.ts`, `get-history.ts`
+- Analytics: `get-onchain-earnings.ts`, `get-daily-earnings.ts`, `get-apy-history.ts`
+- Opportunities: `get-opportunities.ts`, `get-apy-per-strategy.ts`
+
+## Documentation Requirements
+
+**CRITICAL:** When making ANY code changes, you MUST update BOTH:
+1. **README.md** - User-facing documentation with examples
+2. **SDK_DOCUMENTATION_SUMMARY.md** - Reference documentation
+
+Never create additional documentation files (no ARCHITECTURE.md, CHANGELOG.md, etc.).
+
+## Style Guidelines
+
+- **NEVER use emojis** anywhere in code, logs, comments, or error messages
+- Use double quotes for strings
+- Functional programming patterns preferred over classes (except main SDK class)
+- Descriptive variable names with auxiliary verbs (`isLoading`, `hasError`)
+- JSDoc comments for all public methods
+
+## Git Conventions
+
+- Use conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`
+- Keep first line under 72 characters
+- Provide context in commit body when needed
+
+## Security
+
+- Never log or expose private keys
+- Validate all user inputs
+- Use type guards for external data
+- Sanitize error messages (don't expose internal details)
+- Never commit `.env` files or API keys
