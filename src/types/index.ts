@@ -156,7 +156,7 @@ export interface staleBalances {
   isPending: boolean;
 }
 
-export interface Position {
+export interface Portfolio {
   user?: string;
   eoa?: Address;
   chains?: number[];
@@ -193,7 +193,7 @@ export interface PositionSlot {
 export interface PortfolioResponse {
   success: boolean;
   userAddress: string;
-  portfolio: Position;
+  portfolio: Portfolio;
 }
 
 // ============================================================================
