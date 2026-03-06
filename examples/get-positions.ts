@@ -27,38 +27,28 @@ async function main() {
   const response = await sdk.getPositions(connected, chainId);
   
   console.log('response:', response);
+  console.log('response.portfolio.staleBalances:', response.portfolio?.staleBalances);
 
-  const positions = (response as any)?.positions ?? [];
-  console.log(`Positions count: ${positions.length}`);
+  const portfolio = response?.portfolio;
+  console.log(`Portfolio found: ${portfolio ? "Yes" : "No"}`);
 
-  if (positions.length === 0) {
+  if (!portfolio) {
     console.log("No active positions found.");
+    return;
   }
 
-  positions.forEach((position: any, index: number) => {
-    console.log(`\n--- Position ${index + 1} ---`);
-    console.log(`EOA: ${position.eoa ?? "n/a"}`);
-    console.log(`Smart Wallet: ${position.smartWallet ?? "n/a"}`);
-    console.log(`Chains: ${position.chains?.join(", ") ?? "unknown"}`);
-    console.log(`Strategy: ${position.strategy ?? "n/a"}`);
+  const slots = portfolio.positions ?? [];
+  slots.forEach((slot: any, slotIndex: number) => {
+    console.log(`  Slot ${slotIndex + 1}:`);
+    console.log(`    Chain: ${slot.chain ?? "n/a"}`);
+    console.log(`    Protocol: ${slot.protocol_name ?? slot.protocol_id}`);
+    console.log(`    Pool: ${slot.pool ?? "n/a"}`);
+    console.log(`    Token: ${slot.token_symbol ?? "n/a"}`);
     console.log(
-      `Has Active Session Key: ${position.hasActiveSessionKey ?? false}`
+      `    Underlying Amount: ${slot.underlyingAmount ?? slot.amount ?? "0"}`
     );
-    console.log(`Omni Account: ${position.omniAccount ?? false}`);
-
-    const slots = position.positions ?? [];
-    slots.forEach((slot: any, slotIndex: number) => {
-      console.log(`  Slot ${slotIndex + 1}:`);
-      console.log(`    Chain: ${slot.chain ?? "n/a"}`);
-      console.log(`    Protocol: ${slot.protocol_name ?? slot.protocol_id}`);
-      console.log(`    Pool: ${slot.pool ?? "n/a"}`);
-      console.log(`    Token: ${slot.token_symbol ?? "n/a"}`);
-      console.log(
-        `    Underlying Amount: ${slot.underlyingAmount ?? slot.amount ?? "0"}`
-      );
-      console.log(`    Pool APY: ${slot.pool_apy ?? "n/a"}%`);
-      console.log(`    Pool TVL: $${slot.pool_tvl ?? "n/a"}`);
-    });
+    console.log(`    Pool APY: ${slot.pool_apy ?? "n/a"}%`);
+    console.log(`    Pool TVL: $${slot.pool_tvl ?? "n/a"}`);
   });
 }
 

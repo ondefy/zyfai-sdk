@@ -148,20 +148,28 @@ export interface ProtocolsResponse {
   protocols: Protocol[];
 }
 
+
+export interface staleBalances {
+  chainId: number;
+  tokenSymbol: string;
+  balance: string;
+  isPending: boolean;
+}
+
 export interface Position {
   user?: string;
   eoa?: Address;
   chains?: number[];
   strategy?: string;
   smartWallet?: Address;
-  positions: PositionSlot[];
+  positions?: PositionSlot[];
   hasActiveSessionKey?: boolean;
   hasBalance?: boolean;
   newSessionKeyAvailable?: boolean;
   contracts?: Address[];
   omniAccount?: boolean;
   crosschainStrategy?: boolean;
-  staleBalances?: string[];
+  staleBalances?: staleBalances[];
   splitting?: boolean;
   minSplits?: number;
   executorProxy?: boolean;
@@ -182,10 +190,10 @@ export interface PositionSlot {
   pool_tvl?: number;
 }
 
-export interface PositionsResponse {
+export interface PortfolioResponse {
   success: boolean;
   userAddress: string;
-  positions: Position[];
+  portfolio: Position;
 }
 
 // ============================================================================

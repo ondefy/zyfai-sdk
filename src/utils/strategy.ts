@@ -1,3 +1,5 @@
+import { staleBalances } from "../types";
+
 export type PublicStrategy = "conservative" | "aggressive";
 export type InternalStrategy = "safe_strategy" | "degen_strategy";
 
@@ -40,19 +42,40 @@ export function convertStrategyToPublic<T extends { strategy?: string }>(
   obj: T
 ): T {
   if (!obj.strategy) {
-    return obj;
+    // Remove hasStaleBalance if it exists
+    const result = { ...obj };
+    if ('hasStaleBalance' in result) {
+      delete (result as any).hasStaleBalance;
+    }
+    return result;
   }
 
   try {
-    return {
+    const result = {
       ...obj,
       strategy: toPublicStrategy(
         obj.strategy as InternalStrategy | "safe" | "degen"
       ),
     };
+    
+    // Remove hasStaleBalance if it exists
+    if ('hasStaleBalance' in result) {
+      delete (result as any).hasStaleBalance;
+    }
+
+    // Remove staleBalances which are not in pending status
+    if ('staleBalances' in result) {
+      result.staleBalances = (result.staleBalances as staleBalances[])?.filter((staleBalance: staleBalances) => staleBalance.balance !== '0x0');
+    }
+    
+    return result;
   } catch {
-    // If conversion fails, keep original value
-    return obj;
+    // If conversion fails, keep original value but still remove hasStaleBalance
+    const result = { ...obj };
+    if ('hasStaleBalance' in result) {
+      delete (result as any).hasStaleBalance;
+    }
+    return result;
   }
 }
 

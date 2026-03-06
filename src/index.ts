@@ -33,7 +33,7 @@ export type {
   SessionKeyResponse,
   SmartWalletResponse,
   ProtocolsResponse,
-  PositionsResponse,
+  PortfolioResponse,
   DepositResponse,
   WithdrawResponse,
   AddWalletToSdkResponse,

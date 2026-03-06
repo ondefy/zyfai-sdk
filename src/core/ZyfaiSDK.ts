@@ -16,7 +16,7 @@ import type {
   DepositResponse,
   WithdrawResponse,
   ProtocolsResponse,
-  PositionsResponse,
+  PortfolioResponse,
   UpdateUserProfileRequest,
   UpdateUserProfileResponse,
   InitializeUserResponse,
@@ -1499,7 +1499,7 @@ export class ZyfaiSDK {
   async getPositions(
     userAddress: string,
     chainId?: SupportedChainId
-  ): Promise<PositionsResponse> {
+  ): Promise<PortfolioResponse> {
     try {
       if (!userAddress) {
         throw new Error("User address is required");
@@ -1516,7 +1516,7 @@ export class ZyfaiSDK {
         return {
           success: true,
           userAddress,
-          positions: [],
+          portfolio: {},
         };
       }
 
@@ -1526,14 +1526,14 @@ export class ZyfaiSDK {
       );
 
       // Convert strategy field in position data from backend format to public format
-      const convertedPositions = response
-        ? [convertStrategyToPublic(response)]
-        : [];
+      const convertedPosition = response
+        ? convertStrategyToPublic(response)
+        : undefined;
 
       return {
         success: true,
         userAddress,
-        positions: convertedPositions,
+        portfolio: convertedPosition,
       };
     } catch (error) {
       throw new Error(`Failed to get positions: ${(error as Error).message}`);
