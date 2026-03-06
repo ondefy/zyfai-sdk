@@ -101,7 +101,7 @@ export type {
   // Protocol Types
   Protocol,
   Pool,
-  Position,
+  Portfolio,
   PositionSlot,
 
   // Session Types
