@@ -14,6 +14,7 @@ import type {
   Session,
   SessionKeyResponse,
   DepositResponse,
+  LogDepositResponse,
   WithdrawResponse,
   ProtocolsResponse,
   PortfolioResponse,
@@ -1323,6 +1324,82 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(`Deposit failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Log a deposit that was executed client-side
+   *
+   * Use this method when you execute the deposit transaction yourself (e.g., with Privy,
+   * sponsored transactions, or any custom wallet implementation) and need to register
+   * the deposit with the Zyfai backend for tracking and yield optimization.
+   *
+   * This is useful for partners who:
+   * - Use sponsored/gasless transactions (Privy, Biconomy, etc.)
+   * - Have custom wallet implementations
+   * - Need more control over transaction execution
+   *
+   * Token is automatically selected based on chain if not provided:
+   * - Base (8453) and Arbitrum (42161): USDC
+   * - Plasma (9745): USDT
+   *
+   * @param chainId - Chain ID where the deposit was made
+   * @param txHash - Transaction hash of the deposit
+   * @param amount - Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals)
+   * @param tokenAddress - Optional: Token address (auto-selected based on chain if not provided)
+   * @returns Log deposit response with success status
+   *
+   * @example
+   * ```typescript
+   * // Execute deposit with Privy (sponsored transaction)
+   * const txHash = await privyWallet.sendTransaction({
+   *   to: safeAddress,
+   *   data: transferData,
+   * });
+   *
+   * // Log the deposit to Zyfai backend
+   * const result = await sdk.logDeposit(
+   *   8453,           // chainId
+   *   txHash,         // transaction hash from Privy
+   *   "100000000"     // 100 USDC
+   * );
+   * console.log(result.success); // true
+   * ```
+   */
+  async logDeposit(
+    chainId: SupportedChainId,
+    txHash: string,
+    amount: string,
+    tokenAddress?: string
+  ): Promise<LogDepositResponse> {
+    try {
+      if (!isSupportedChain(chainId)) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+      }
+
+      if (!txHash || !txHash.startsWith("0x")) {
+        throw new Error("Valid transaction hash is required");
+      }
+
+      if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+        throw new Error("Valid amount is required");
+      }
+
+      const token = tokenAddress || getDefaultTokenAddress(chainId);
+
+      await this.httpClient.post(ENDPOINTS.LOG_DEPOSIT, {
+        chainId,
+        transaction: txHash,
+        token,
+        amount,
+      });
+
+      return {
+        success: true,
+        message: "Deposit logged successfully",
+      };
+    } catch (error) {
+      throw new Error(`Log deposit failed: ${(error as Error).message}`);
     }
   }
 

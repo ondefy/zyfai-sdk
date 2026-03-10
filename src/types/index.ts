@@ -497,6 +497,11 @@ export interface DepositResponse {
   amount: string;
 }
 
+export interface LogDepositResponse {
+  success: boolean;
+  message: string;
+}
+
 export interface WithdrawResponse {
   success: boolean;
   message: string;

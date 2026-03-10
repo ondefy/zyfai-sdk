@@ -385,6 +385,43 @@ if (result.success) {
 - Token address is automatically selected based on chain (USDC for Base/Arbitrum, USDT for Plasma)
 - The SDK automatically authenticates via SIWE before logging the deposit with Zyfai's API, so no extra steps are required on your end once the transfer confirms
 
+#### Log External Deposit (For Sponsored Transactions)
+
+If you execute deposits client-side (e.g., with Privy, Biconomy, or other sponsored/gasless transaction providers), use `logDeposit` to register the deposit with Zyfai's backend:
+
+```typescript
+// 1. Execute deposit with your own wallet implementation (e.g., Privy)
+const txHash = await privyWallet.sendTransaction({
+  to: safeAddress,
+  data: transferData, // ERC20 transfer encoded data
+});
+
+// 2. Log the deposit to Zyfai backend for tracking and yield optimization
+const result = await sdk.logDeposit(
+  8453,           // chainId
+  txHash,         // transaction hash from your wallet
+  "100000000"     // 100 USDC (6 decimals)
+);
+
+if (result.success) {
+  console.log("Deposit logged successfully");
+}
+```
+
+**When to use `logDeposit`:**
+
+- You use sponsored/gasless transactions (Privy, Biconomy, Gelato, etc.)
+- You have a custom wallet implementation
+- You need more control over transaction execution
+- You want to pay gas fees for your users
+
+**Parameters:**
+
+- `chainId`: Chain ID where the deposit was made
+- `txHash`: Transaction hash of the deposit (must start with "0x")
+- `amount`: Amount in least decimal units
+- `tokenAddress` (optional): Token address (auto-selected based on chain if not provided)
+
 ### 5. Withdraw Funds
 
 Initiate a withdrawal from your Safe. **Note: Withdrawals are processed asynchronously by the backend.**

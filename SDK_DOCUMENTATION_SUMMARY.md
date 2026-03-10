@@ -84,6 +84,7 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 | `getSmartWalletAddress`        | Local         | No            |
 | `createSessionKey`             | Execution API | Yes (SIWE)    |
 | `depositFunds`                 | Execution API | Yes (SIWE)    |
+| `logDeposit`                   | Execution API | Yes (SIWE)    |
 | `withdrawFunds`                | Execution API | Yes (SIWE)    |
 | `getAvailableProtocols`        | Execution API | No            |
 | `getPositions`                 | Execution API | No            |
@@ -392,7 +393,72 @@ interface DepositResponse {
 }
 ```
 
-### 5. Get Available Protocols
+### 5. Log External Deposit
+
+Register a deposit that was executed client-side (e.g., with Privy, Biconomy, or other sponsored/gasless transaction providers).
+
+#### Function Signature
+
+```typescript
+logDeposit(
+  chainId: number,
+  txHash: string,
+  amount: string,
+  tokenAddress?: string
+): Promise<LogDepositResponse>
+```
+
+#### Request Parameters
+
+| Parameter      | Type   | Required | Description                                                                    |
+| -------------- | ------ | -------- | ------------------------------------------------------------------------------ |
+| `chainId`      | number | Yes      | Chain ID where the deposit was made                                            |
+| `txHash`       | string | Yes      | Transaction hash of the deposit (must start with "0x")                         |
+| `amount`       | string | Yes      | Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals) |
+| `tokenAddress` | string | No       | Token address (auto-selected based on chain if not provided)                   |
+
+#### Response Type
+
+```typescript
+interface LogDepositResponse {
+  success: boolean;
+  message: string;
+}
+```
+
+#### When to Use
+
+Use `logDeposit` when you:
+
+- Use sponsored/gasless transactions (Privy, Biconomy, Gelato, etc.)
+- Have a custom wallet implementation
+- Need more control over transaction execution
+- Want to pay gas fees for your users
+
+#### Usage Example
+
+```typescript
+// 1. Execute deposit with your own wallet implementation (e.g., Privy)
+const txHash = await privyWallet.sendTransaction({
+  to: safeAddress,
+  data: transferData, // ERC20 transfer encoded data
+});
+
+// 2. Log the deposit to Zyfai backend for tracking and yield optimization
+const result = await sdk.logDeposit(
+  8453,           // chainId
+  txHash,         // transaction hash from your wallet
+  "100000000"     // 100 USDC (6 decimals)
+);
+
+if (result.success) {
+  console.log("Deposit logged successfully");
+}
+```
+
+---
+
+### 6. Get Available Protocols
 
 Retrieve all available DeFi protocols and pools for a specific chain.
 
@@ -442,7 +508,7 @@ interface ProtocolsResponse {
 
 ---
 
-### 6. Get Positions
+### 7. Get Positions
 
 Retrieve all active DeFi positions for a user.
 
@@ -493,7 +559,7 @@ interface PositionsResponse {
 
 ---
 
-### 7. Withdraw Funds
+### 8. Withdraw Funds
 
 Initiate a full or partial withdrawal from active positions to user's EOA. **Note: Withdrawals are processed asynchronously by the backend.**
 Funds are always withdrawn to the Safe owner's address (userAddress).
@@ -538,7 +604,7 @@ interface WithdrawResponse {
 
 ---
 
-### 8. Get User Details
+### 9. Get User Details
 
 Retrieve authenticated user details.
 
@@ -568,7 +634,7 @@ interface UserDetailsResponse {
 
 ---
 
-### 9. Get TVL & Volume
+### 10. Get TVL & Volume
 
 ```typescript
 // Get total value locked
@@ -582,7 +648,7 @@ const volume = await sdk.getVolume();
 
 ---
 
-### 10. Get Active Wallets
+### 11. Get Active Wallets
 
 ```typescript
 const wallets = await sdk.getActiveWallets(chainId);
@@ -591,7 +657,7 @@ const wallets = await sdk.getActiveWallets(chainId);
 
 ---
 
-### 11. Get Smart Wallets by EOA
+### 12. Get Smart Wallets by EOA
 
 Get the smart wallet address associated with an EOA address.
 
@@ -604,7 +670,7 @@ const result = await sdk.getSmartWalletByEOA(eoaAddress);
 
 ---
 
-### 12. Get First Topup
+### 13. Get First Topup
 
 ```typescript
 const firstTopup = await sdk.getFirstTopup(walletAddress, chainId);
