@@ -679,12 +679,13 @@ daily.data.forEach((d) => {
 
 #### Get Daily APY History
 
-Returns per-position APY breakdowns with weighted averages.
+Returns per-position APY breakdowns with per-token weighted averages.
 
 ```typescript
 const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
+// Per-token weighted APY: { "USDC": 4.64, "WETH": 1.94 }
 console.log("Weighted APY after fee:", apyHistory.weightedApyAfterFee);
-// history is keyed by date, each entry has positions[], weighted_apy, fee, etc.
+// Each date entry has positions (with tokenSymbol), and per-token weighted_apy, fee, etc.
 ```
 
 ### 10. Opportunities & Strategies

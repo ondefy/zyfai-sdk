@@ -106,7 +106,7 @@ export const DATA_ENDPOINTS = {
 
   // APY History
   DAILY_APY_HISTORY_WEIGHTED: (walletAddress: string, days?: string) =>
-    `/daily-apy-history/weighted/${walletAddress}${
+    `/daily-apy-history/weighted-multi-asset/${walletAddress}${
       days ? `?days=${days}` : ""
     }`,
 

@@ -70,6 +70,7 @@ export type {
   OpportunitiesResponse,
 
   // APY History Types
+  TokenApy,
   ApyPosition,
   DailyApyEntry,
   DailyApyHistoryResponse,

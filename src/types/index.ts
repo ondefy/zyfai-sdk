@@ -464,15 +464,19 @@ export interface ApyPosition {
   protocol: string;
   pool: string;
   strategy: string;
+  tokenSymbol?: string;
 }
+
+// Per-token APY values: { "USDC": 5.05, "WETH": 1.58 }
+export type TokenApy = Record<string, number>;
 
 export interface DailyApyEntry {
   positions: ApyPosition[];
-  weighted_apy: number;
-  fee: number;
-  weighted_apy_after_fee: number;
-  rzfi_merkl_apr: number;
-  final_weighted_apy: number;
+  weighted_apy: TokenApy;
+  fee: TokenApy;
+  weighted_apy_after_fee: TokenApy;
+  rzfi_merkl_apr: TokenApy;
+  final_weighted_apy: TokenApy;
 }
 
 export interface DailyApyHistoryResponse {
@@ -481,8 +485,8 @@ export interface DailyApyHistoryResponse {
   history: Record<string, DailyApyEntry>;
   totalDays: number;
   requestedDays?: number;
-  weightedApyWithRzfiAfterFee?: number;
-  weightedApyAfterFee?: number;
+  weightedApyWithRzfiAfterFee?: TokenApy;
+  weightedApyAfterFee?: TokenApy;
 }
 
 // ============================================================================

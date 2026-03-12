@@ -2402,7 +2402,7 @@ export class ZyfaiSDK {
    * @example
    * ```typescript
    * const apyHistory = await sdk.getDailyApyHistory("0x...", "30D");
-   * console.log("Weighted APY after fee:", apyHistory.weightedApyAfterFee);
+   * console.log("Weighted APY after fee:", apyHistory.weightedApyAfterFee); // { "USDC": 4.64, "WETH": 1.94 }
    * ```
    */
   async getDailyApyHistory(
