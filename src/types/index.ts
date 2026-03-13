@@ -36,18 +36,26 @@ export interface UpdateUserProfileRequest {
   protocols?: string[];
   autoSelectProtocols?: boolean;
   omniAccount?: boolean;
+  chains?: number[];
   autocompounding?: boolean;
   agentName?: string;
   crosschainStrategy?: boolean;
   splitting?: boolean;
   minSplits?: number;
-  customization?: Record<string, any>;
+  asset?: "usdc" | "eth";
 }
 
 /** @internal */
+export interface UpdateUserProfileInternalRequest {
+  omniAccount?: boolean;
+  chains?: number[];
+  agentName?: string;
+  customization?: Record<string, any>;
+  assetTypeSettings?: AssetTypeSettings;
+}
+
 export interface UpdateUserProfileResponse {
   success: boolean;
-  userId: string;
   smartWallet?: Address;
   chains?: number[];
   strategy?: string;
@@ -58,9 +66,11 @@ export interface UpdateUserProfileResponse {
   agentName?: string;
   crosschainStrategy?: boolean;
   executorProxy?: boolean;
+  hasActiveSessionKey?: boolean;
   splitting?: boolean;
   minSplits?: number;
   customization?: Record<string, any>;
+  asset?: "usdc" | "eth";
 }
 
 /** @internal */
@@ -173,6 +183,20 @@ export interface Portfolio {
   splitting?: boolean;
   minSplits?: number;
   executorProxy?: boolean;
+  assetTypeSettings?: AssetTypeSettings;
+}
+
+export interface AssetTypeSettings {
+  [assetType: string]: {
+    rebalanceStrategy?: string;
+    autocompounding?: boolean;
+    crosschainStrategy?: boolean;
+    splitting?: boolean;
+    minSplits?: number;
+    chains?: number[];
+    autoSelectProtocols?: boolean;
+    protocols?: string[];
+  };
 }
 
 export interface PositionSlot {
@@ -200,51 +224,14 @@ export interface PortfolioResponse {
 // User Types
 // ============================================================================
 
-export interface UserDetails {
-  id: string;
-  address: string;
-  smartWallet: string;
-  chains: number[];
-  protocols: Protocol[];
-  hasActiveSessionKey: boolean;
-  email?: string;
-  strategy?: string;
-  telegramId?: string;
-  walletType?: string;
-  autoSelectProtocols: boolean;
-  autocompounding?: boolean;
-  omniAccount?: boolean;
-  crosschainStrategy?: boolean;
-  agentName?: string;
-  customization?: Record<string, any>;
-  executorProxy?: boolean;
-  splitting?: boolean;
-  minSplits?: number;
-  registered?: boolean;
-}
-
-export interface UserDetailsResponse {
-  success: boolean;
-  user: UserDetails;
-}
 
 // ============================================================================
 // TVL & Volume Types
 // ============================================================================
 
-export interface TVLBreakdown {
-  chain_id: number;
-  protocol_id: string | null;
-  protocol_name: string | null;
-  pool: string | null;
-  total_balance: number;
-}
-
 export interface TVLResponse {
   success: boolean;
   totalTvl: number;
-  byChain?: Record<number, number>;
-  breakdown?: TVLBreakdown[];
 }
 
 // ============================================================================
@@ -264,8 +251,12 @@ export interface APYPerStrategy {
   total_rebalances: number;
   created_at: string;
   strategy: string;
+  token_symbol?: string;
   average_apy_with_fee: number;
   average_apy_with_rzfi_with_fee: number;
+  average_apy_without_fee?: number;
+  average_apy_with_rzfi_without_fee?: number;
+  events_average_apy?: Record<string, number>;
 }
 
 export interface APYPerStrategyResponse {
@@ -364,15 +355,17 @@ export interface HistoryResponse {
 // Onchain Earnings Types
 // ============================================================================
 
+// Token-keyed earnings: { "USDC": "0.020667", "WETH": "0.000009..." }
+export type TokenEarnings = Record<string, string>;
+
 export interface OnchainEarnings {
   walletAddress: string;
-  totalEarnings: number;
-  currentEarnings: number;
-  lifetimeEarnings: number;
-  unrealizedEarnings?: number;
-  currentEarningsByChain?: Record<string, number>;
-  unrealizedEarningsByChain?: Record<string, number>;
+  totalEarningsByToken: TokenEarnings;
+  lifetimeEarningsByToken: TokenEarnings;
+  currentEarningsByChain: Record<string, TokenEarnings>;
+  unrealizedEarnings: Record<string, TokenEarnings>;
   lastCheckTimestamp?: string;
+  lastLogDate?: Record<string, string | null>;
 }
 
 export interface OnchainEarningsResponse {
@@ -383,14 +376,14 @@ export interface OnchainEarningsResponse {
 export interface DailyEarning {
   wallet_address?: string;
   snapshot_date: string;
-  total_current_earnings: number;
-  total_lifetime_earnings: number;
-  total_unrealized_earnings: number;
-  total_earnings: number;
-  daily_current_delta: number;
-  daily_lifetime_delta: number;
-  daily_unrealized_delta: number;
-  daily_total_delta: number;
+  current_earnings_by_token: TokenEarnings;
+  lifetime_earnings_by_token: TokenEarnings;
+  unrealized_earnings_by_token: TokenEarnings;
+  total_earnings_by_token: TokenEarnings;
+  daily_current_delta_by_token: TokenEarnings;
+  daily_lifetime_delta_by_token: TokenEarnings;
+  daily_unrealized_delta_by_token: TokenEarnings;
+  daily_total_delta_by_token: TokenEarnings;
   created_at?: string;
 }
 
@@ -459,13 +452,26 @@ export interface OpportunitiesResponse {
 // Daily APY History Types
 // ============================================================================
 
-export interface DailyApyEntry {
-  date: string;
+export interface ApyPosition {
   apy: number;
-  weightedApy?: number;
-  balance?: number;
-  protocol?: string;
-  pool?: string;
+  balance: number;
+  chainId: number;
+  protocol: string;
+  pool: string;
+  strategy: string;
+  tokenSymbol?: string;
+}
+
+// Per-token APY values: { "USDC": 5.05, "WETH": 1.58 }
+export type TokenApy = Record<string, number>;
+
+export interface DailyApyEntry {
+  positions: ApyPosition[];
+  weighted_apy: TokenApy;
+  fee: TokenApy;
+  weighted_apy_after_fee: TokenApy;
+  rzfi_merkl_apr: TokenApy;
+  final_weighted_apy: TokenApy;
 }
 
 export interface DailyApyHistoryResponse {
@@ -474,8 +480,8 @@ export interface DailyApyHistoryResponse {
   history: Record<string, DailyApyEntry>;
   totalDays: number;
   requestedDays?: number;
-  weightedApyWithRzfiAfterFee?: number;
-  weightedApyAfterFee?: number;
+  weightedApyWithRzfiAfterFee?: TokenApy;
+  weightedApyAfterFee?: TokenApy;
 }
 
 // ============================================================================

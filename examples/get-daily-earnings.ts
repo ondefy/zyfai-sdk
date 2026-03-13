@@ -61,30 +61,14 @@ async function main() {
     if (response.data.length === 0) {
       console.log("  No daily earnings data found.");
     } else {
-      let totalDelta = 0;
-      console.log(
-        "  Date       | Total Earnings | Daily Delta  | Lifetime     | Unrealized"
-      );
-      console.log("  " + "-".repeat(72));
-
       response.data.forEach((day: any) => {
-        totalDelta += day.daily_total_delta || 0;
         const date = day.snapshot_date || "n/a";
-        const total = (day.total_earnings || 0).toFixed(4).padStart(10);
-        const delta = (day.daily_total_delta || 0).toFixed(4).padStart(10);
-        const lifetime = (day.total_lifetime_earnings || 0)
-          .toFixed(4)
-          .padStart(10);
-        const unrealized = (day.total_unrealized_earnings || 0)
-          .toFixed(4)
-          .padStart(10);
-        console.log(
-          `  ${date} | $${total} | $${delta} | $${lifetime} | $${unrealized}`
-        );
+        console.log(`\n  ${date}:`);
+        console.log("    Total Earnings by Token:", JSON.stringify(day.total_earnings_by_token));
+        console.log("    Daily Total Delta by Token:", JSON.stringify(day.daily_total_delta_by_token));
+        console.log("    Lifetime by Token:", JSON.stringify(day.lifetime_earnings_by_token));
+        console.log("    Unrealized by Token:", JSON.stringify(day.unrealized_earnings_by_token));
       });
-
-      console.log("  " + "-".repeat(72));
-      console.log(`  Total Daily Delta: $${totalDelta.toFixed(4)}`);
     }
   } catch (error) {
     console.log("\nFailed to fetch daily earnings:", (error as Error).message);

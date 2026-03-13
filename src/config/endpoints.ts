@@ -41,8 +41,8 @@ export const ENDPOINTS = {
     `/data/position?walletAddress=${walletAddress}`,
   DATA_HISTORY: (walletAddress: string, chainId: SupportedChainId) =>
     `/data/history?walletAddress=${walletAddress}&chainId=${chainId}`,
-  DATA_TVL: "/data/tvl",
-  DATA_VOLUME: "/data/volume",
+  DATA_TVL: "/data/usd-tvl",
+  DATA_VOLUME: (assetType: "usdc" | "eth") => `/data/volume?assetType=${assetType}`,
   DATA_FIRST_TOPUP: (walletAddress: string, chainId: number) =>
     `/data/first-topup?walletAddress=${walletAddress}&chainId=${chainId}`,
   DATA_ACTIVE_WALLETS: (chainId: number) =>
@@ -73,44 +73,63 @@ export const DATA_ENDPOINTS = {
 
   // Earnings
   ONCHAIN_EARNINGS: (walletAddress: string) =>
-    `/usercheck/onchain-earnings?walletAddress=${walletAddress}`,
-  CALCULATE_ONCHAIN_EARNINGS: "/usercheck/calculate-onchain-earnings",
+    `/onchain-earnings/onchain-earnings?walletAddress=${walletAddress}`,
+  CALCULATE_ONCHAIN_EARNINGS: "/onchain-earnings/calculate-onchain-earnings",
   DAILY_EARNINGS: (
     walletAddress: string,
     startDate?: string,
     endDate?: string
   ) => {
-    let url = `/usercheck/daily-earnings?walletAddress=${walletAddress}`;
+    let url = `/onchain-earnings/daily-earnings?walletAddress=${walletAddress}`;
     if (startDate) url += `&startDate=${startDate}`;
     if (endDate) url += `&endDate=${endDate}`;
     return url;
   },
 
-  // Portfolio
-  DEBANK_PORTFOLIO_MULTICHAIN: (address: string) =>
-    `/debank/portfolio/multichain/${address}`,
-
   // Opportunities
-  OPPORTUNITIES_SAFE: (chainId?: number) =>
-    chainId ? `/opportunities/safe?chainId=${chainId}` : "/opportunities/safe",
-  OPPORTUNITIES_DEGEN: (chainId?: number) =>
-    chainId
-      ? `/opportunities/degen-strategies?chainId=${chainId}`
-      : "/opportunities/degen-strategies",
+  OPPORTUNITIES_SAFE: (chainId?: number, asset?: string, status?: string) => {
+    const params: string[] = [];
+    if (chainId !== undefined) params.push(`chainId=${chainId}`);
+    if (asset) params.push(`asset=${asset}`);
+    if (status) params.push(`status=${status}`);
+    return params.length > 0 ? `/opportunities/safe?${params.join("&")}` : "/opportunities/safe";
+  },
+  OPPORTUNITIES_DEGEN: (chainId?: number, asset?: string, status?: string) => {
+    const params: string[] = [];
+    if (chainId !== undefined) params.push(`chainId=${chainId}`);
+    if (asset) params.push(`asset=${asset}`);
+    if (status) params.push(`status=${status}`);
+    return params.length > 0 ? `/opportunities/degen-strategies?${params.join("&")}` : "/opportunities/degen-strategies";
+  },
 
   // APY History
   DAILY_APY_HISTORY_WEIGHTED: (walletAddress: string, days?: string) =>
-    `/daily-apy-history/weighted/${walletAddress}${
+    `/daily-apy-history/weighted-multi-asset/${walletAddress}${
       days ? `?days=${days}` : ""
     }`,
 
   // Rebalance
-  REBALANCE_INFO: (isCrossChain?: boolean) =>
-    isCrossChain !== undefined
-      ? `/rebalance/rebalance-info?isCrossChain=${isCrossChain}`
-      : "/rebalance/rebalance-info",
+  REBALANCE_INFO: (options?: { isCrossChain?: boolean; tokenSymbol?: string }) => {
+    const params: string[] = [];
+    if (options?.isCrossChain !== undefined) params.push(`isCrossChain=${options.isCrossChain}`);
+    if (options?.tokenSymbol) params.push(`tokenSymbol=${options.tokenSymbol}`);
+    return params.length > 0 ? `/rebalance/rebalance-info?${params.join("&")}` : "/rebalance/rebalance-info";
+  },
 
   // APY Per Strategy
-  APY_PER_STRATEGY: (isCrossChain: boolean = false, days: number = 7, strategy: string = "safe") =>
-    `/rebalance/rebalance-info?isCrossChain=${isCrossChain}&days=${days}&strategy=${strategy}`,
+  APY_PER_STRATEGY: (options: {
+    isCrossChain?: boolean;
+    days?: number;
+    strategy?: string;
+    chainId?: number;
+    tokenSymbol?: string;
+  } = {}) => {
+    const params: string[] = [];
+    if (options.isCrossChain !== undefined) params.push(`isCrossChain=${options.isCrossChain}`);
+    if (options.days !== undefined) params.push(`days=${options.days}`);
+    if (options.strategy) params.push(`strategy=${options.strategy}`);
+    if (options.chainId !== undefined) params.push(`chainId=${options.chainId}`);
+    if (options.tokenSymbol) params.push(`tokenSymbol=${options.tokenSymbol}`);
+    return params.length > 0 ? `/rebalance/rebalance-info?${params.join("&")}` : "/rebalance/rebalance-info";
+  },
 } as const;

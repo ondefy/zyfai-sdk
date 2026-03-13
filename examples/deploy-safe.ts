@@ -24,11 +24,6 @@ async function main() {
 
   const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
 
-  const rpcUrls = {
-    8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
-    42161: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY",
-    9745: "https://your-plasma-rpc-provider.com",
-  };
   const sdk = new ZyfaiSDK({
     apiKey,
     // rpcUrls,

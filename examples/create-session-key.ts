@@ -22,7 +22,7 @@ async function main() {
     );
   }
 
-  const chainId = 8453 as SupportedChainId;
+  const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
 
   const sdk = new ZyfaiSDK({
     apiKey,
@@ -49,6 +49,7 @@ async function main() {
 
   console.log(`Signature: ${sessionResult.signature}`);
   console.log(`User ID: ${sessionResult.userId}`);
+  console.log(`Message Activation: ${sessionResult.message}`);
 
   if (sessionResult.sessionActivation) {
     console.log("\nActivation details:");

@@ -39,10 +39,6 @@ export type {
   WithdrawResponse,
   AddWalletToSdkResponse,
 
-  // User Types
-  UserDetails,
-  UserDetailsResponse,
-
   // Data Types
   TVLResponse,
   VolumeResponse,
@@ -55,6 +51,7 @@ export type {
   HistoryResponse,
 
   // Earnings Types
+  TokenEarnings,
   OnchainEarnings,
   OnchainEarningsResponse,
   DailyEarning,
@@ -70,6 +67,8 @@ export type {
   OpportunitiesResponse,
 
   // APY History Types
+  TokenApy,
+  ApyPosition,
   DailyApyEntry,
   DailyApyHistoryResponse,
 

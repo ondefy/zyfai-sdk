@@ -44,29 +44,42 @@ async function main() {
     console.log("\nOnchain Earnings:");
     console.log("-".repeat(50));
     console.log(`  Wallet: ${earnings.data.walletAddress}`);
-    console.log(`  Total Earnings: $${earnings.data.totalEarnings.toFixed(6)}`);
-    console.log(
-      `  Current Earnings: $${earnings.data.currentEarnings.toFixed(6)}`
-    );
-    console.log(
-      `  Lifetime Earnings: $${earnings.data.lifetimeEarnings.toFixed(6)}`
+    console.log(`Response: ${JSON.stringify(earnings.data)}`);
+
+    console.log("\n  Total Earnings by Token:");
+    Object.entries(earnings.data.totalEarningsByToken).forEach(
+      ([token, value]) => {
+        console.log(`    ${token}: ${value}`);
+      }
     );
 
-    if (
-      earnings.data.unrealizedEarnings !== undefined &&
-      typeof earnings.data.unrealizedEarnings === "number"
-    ) {
-      console.log(
-        `  Unrealized Earnings: $${earnings.data.unrealizedEarnings.toFixed(6)}`
+    console.log("\n  Lifetime Earnings by Token:");
+    Object.entries(earnings.data.lifetimeEarningsByToken).forEach(
+      ([token, value]) => {
+        console.log(`    ${token}: ${value}`);
+      }
+    );
+
+    if (earnings.data.currentEarningsByChain) {
+      console.log("\n  Current Earnings by Chain:");
+      Object.entries(earnings.data.currentEarningsByChain).forEach(
+        ([chain, tokenEarnings]) => {
+          console.log(`    Chain ${chain}:`);
+          Object.entries(tokenEarnings).forEach(([token, value]) => {
+            console.log(`      ${token}: ${value}`);
+          });
+        }
       );
     }
 
-    if (earnings.data.currentEarningsByChain) {
-      console.log("\n  Earnings by Chain:");
-      Object.entries(earnings.data.currentEarningsByChain).forEach(
-        ([chain, value]) => {
-          const numValue = typeof value === "number" ? value : 0;
-          console.log(`    Chain ${chain}: $${numValue.toFixed(6)}`);
+    if (earnings.data.unrealizedEarnings) {
+      console.log("\n  Unrealized Earnings:");
+      Object.entries(earnings.data.unrealizedEarnings).forEach(
+        ([chain, tokenEarnings]) => {
+          console.log(`    Chain ${chain}:`);
+          Object.entries(tokenEarnings).forEach(([token, value]) => {
+            console.log(`      ${token}: ${value}`);
+          });
         }
       );
     }
@@ -86,7 +99,7 @@ async function main() {
   try {
     const updated = await sdk.calculateOnchainEarnings(smartWallet);
     console.log("Earnings recalculated:");
-    console.log(`  Total: $${updated.data.totalEarnings.toFixed(6)}`);
+    console.log("  Total by token:", updated.data.totalEarningsByToken);
   } catch (error) {
     console.log("Failed to calculate earnings:", (error as Error).message);
   }

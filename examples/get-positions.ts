@@ -27,7 +27,6 @@ async function main() {
   const response = await sdk.getPositions(connected, chainId);
   
   console.log('response:', response);
-  console.log('response.portfolio.staleBalances:', response.portfolio?.staleBalances);
 
   const portfolio = response?.portfolio;
   console.log(`Portfolio found: ${portfolio ? "Yes" : "No"}`);

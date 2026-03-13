@@ -13,8 +13,11 @@ async function main() {
     );
   }
 
-  const chainId = 8453 as SupportedChainId;
-  const withdrawAmount = "100000"; // 0.1 USDC = 100000 (6 decimals)
+  const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
+  const asset = "WETH"; // Can be "USDC" or "WETH"
+  const withdrawAmount = asset === "WETH" 
+    ? "600000000000000000" // 0.6 WETH (18 decimals)
+    : "100000000"; // 100 USDC (6 decimals)
 
   const sdk = new ZyfaiSDK({
     apiKey,
@@ -42,12 +45,14 @@ async function main() {
   }
 
   // Funds are always withdrawn to the Safe owner's address (connected)
-  const response = await sdk.withdrawFunds(connected, chainId, withdrawAmount);
+  const response = await sdk.withdrawFunds(connected, chainId, undefined, "WETH");
 
   console.log("Withdraw submitted:");
   console.log(`  Success: ${response.success}`);
   console.log(`  Type: ${response.type}`);
+  console.log(`  Amount: ${response.amount}`);
   console.log(`  Tx Hash: ${response.txHash}`);
+  console.log(`  Message: ${response.message}`);
 }
 
 main().catch((error) => {
