@@ -36,12 +36,22 @@ export interface UpdateUserProfileRequest {
   protocols?: string[];
   autoSelectProtocols?: boolean;
   omniAccount?: boolean;
+  chains?: number[];
   autocompounding?: boolean;
   agentName?: string;
   crosschainStrategy?: boolean;
   splitting?: boolean;
   minSplits?: number;
+  asset?: "usdc" | "eth";
+}
+
+/** @internal */
+export interface UpdateUserProfileInternalRequest {
+  omniAccount?: boolean;
+  chains?: number[];
+  agentName?: string;
   customization?: Record<string, any>;
+  assetTypeSettings?: AssetTypeSettings;
 }
 
 /** @internal */
@@ -61,6 +71,7 @@ export interface UpdateUserProfileResponse {
   splitting?: boolean;
   minSplits?: number;
   customization?: Record<string, any>;
+  asset?: "usdc" | "eth";
 }
 
 /** @internal */
@@ -173,6 +184,20 @@ export interface Portfolio {
   splitting?: boolean;
   minSplits?: number;
   executorProxy?: boolean;
+  assetTypeSettings?: AssetTypeSettings;
+}
+
+export interface AssetTypeSettings {
+  [assetType: string]: {
+    rebalanceStrategy?: string;
+    autocompounding?: boolean;
+    crosschainStrategy?: boolean;
+    splitting?: boolean;
+    minSplits?: number;
+    chains?: number[];
+    autoSelectProtocols?: boolean;
+    protocols?: string[];
+  };
 }
 
 export interface PositionSlot {
@@ -205,22 +230,17 @@ export interface UserDetails {
   address: string;
   smartWallet: string;
   chains: number[];
-  protocols: Protocol[];
   hasActiveSessionKey: boolean;
-  email?: string;
-  strategy?: string;
-  telegramId?: string;
-  walletType?: string;
   autoSelectProtocols: boolean;
-  autocompounding?: boolean;
+  rebalanceStrategy: string;
+  autocompounding: boolean;
+  crosschainStrategy: boolean;
+  splitting: boolean;
+  minSplits: number;
+  protocols: string[];
   omniAccount?: boolean;
-  crosschainStrategy?: boolean;
   agentName?: string;
-  customization?: Record<string, any>;
-  executorProxy?: boolean;
-  splitting?: boolean;
-  minSplits?: number;
-  registered?: boolean;
+  asset: "usdc" | "eth";
 }
 
 export interface UserDetailsResponse {
@@ -232,19 +252,9 @@ export interface UserDetailsResponse {
 // TVL & Volume Types
 // ============================================================================
 
-export interface TVLBreakdown {
-  chain_id: number;
-  protocol_id: string | null;
-  protocol_name: string | null;
-  pool: string | null;
-  total_balance: number;
-}
-
 export interface TVLResponse {
   success: boolean;
   totalTvl: number;
-  byChain?: Record<number, number>;
-  breakdown?: TVLBreakdown[];
 }
 
 // ============================================================================

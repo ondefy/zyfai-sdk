@@ -19,6 +19,7 @@ import type {
   ProtocolsResponse,
   PortfolioResponse,
   UpdateUserProfileRequest,
+  UpdateUserProfileInternalRequest,
   UpdateUserProfileResponse,
   InitializeUserResponse,
   LoginResponse,
@@ -232,18 +233,43 @@ export class ZyfaiSDK {
       // Authenticate user first to get JWT token
       await this.authenticateUser();
 
-      // Map public strategy keywords to internal backend values if provided
-      const payload: UpdateUserProfileRequest = { ...request };
-      if (payload.strategy) {
-        if (!isValidPublicStrategy(payload.strategy)) {
+      // Default asset to "usdc" if not provided
+      const asset = request.asset || "usdc";
+
+      // Convert strategy if provided
+      let rebalanceStrategy: string | undefined;
+      if (request.strategy) {
+        if (!isValidPublicStrategy(request.strategy)) {
           throw new Error(
-            `Invalid strategy: ${payload.strategy}. Must be "conservative" or "aggressive".`
+            `Invalid strategy: ${request.strategy}. Must be "conservative" or "aggressive".`
           );
         }
-        payload.strategy = toInternalStrategy(
-          payload.strategy as "conservative" | "aggressive"
+        rebalanceStrategy = toInternalStrategy(
+          request.strategy as "conservative" | "aggressive"
         );
       }
+
+      // Build asset-specific settings from request fields
+      const assetSettings: Record<string, any> = {};
+      if (rebalanceStrategy !== undefined) assetSettings.rebalanceStrategy = rebalanceStrategy;
+      if (request.autocompounding !== undefined) assetSettings.autocompounding = request.autocompounding;
+      if (request.crosschainStrategy !== undefined) assetSettings.crosschainStrategy = request.crosschainStrategy;
+      if (request.splitting !== undefined) assetSettings.splitting = request.splitting;
+      if (request.minSplits !== undefined) assetSettings.minSplits = request.minSplits;
+      if (request.chains !== undefined) assetSettings.chains = request.chains;
+      if (request.autoSelectProtocols !== undefined) assetSettings.autoSelectProtocols = request.autoSelectProtocols;
+      if (request.protocols !== undefined) assetSettings.protocols = request.protocols;
+
+      // Build internal payload with assetTypeSettings
+      const payload: UpdateUserProfileInternalRequest = {
+        assetTypeSettings: {
+          [asset]: assetSettings,
+        },
+      };
+
+      // Add global fields that stay at root level
+      if (request.omniAccount !== undefined) payload.omniAccount = request.omniAccount;
+      if (request.agentName !== undefined) payload.agentName = request.agentName;
 
       // Update user profile via API
       const response = await this.httpClient.patch<any>(
@@ -255,18 +281,18 @@ export class ZyfaiSDK {
         success: true,
         userId: response.userId || response.id,
         smartWallet: response.smartWallet,
-        chains: response.chains,
-        strategy: response.strategy,
-        protocols: response.protocols,
-        autoSelectProtocols: response.autoSelectProtocols,
+        chains: response.assetTypeSettings?.[asset]?.chains,
+        strategy: response.assetTypeSettings?.[asset]?.rebalanceStrategy,
+        protocols: response.assetTypeSettings?.[asset]?.protocols,
+        autoSelectProtocols: response.assetTypeSettings?.[asset]?.autoSelectProtocols,
         omniAccount: response.omniAccount,
-        autocompounding: response.autocompounding,
+        autocompounding: response.assetTypeSettings?.[asset]?.autocompounding,
         agentName: response.agentName,
-        crosschainStrategy: response.crosschainStrategy,
-        executorProxy: response.executorProxy,
-        splitting: response.splitting,
-        minSplits: response.minSplits,
+        crosschainStrategy: response.assetTypeSettings?.[asset]?.crosschainStrategy,
+        splitting: response.assetTypeSettings?.[asset]?.splitting,
+        minSplits: response.assetTypeSettings?.[asset]?.minSplits,
         customization: response.customization,
+        asset: asset,
       };
     } catch (error) {
       throw new Error(
@@ -295,8 +321,14 @@ export class ZyfaiSDK {
    */
   async pauseAgent(): Promise<UpdateUserProfileResponse> {
     try {
-      // Update user profile with empty protocols array
+      // Pause both assets by clearing protocols for each
+      await this.updateUserProfile({
+        asset: "usdc",
+        protocols: [],
+      });
+
       const response = await this.updateUserProfile({
+        asset: "eth",
         protocols: [],
       });
 
@@ -306,10 +338,9 @@ export class ZyfaiSDK {
     }
   }
 
-
-    /**
-   * Pause the agent by clearing all protocols
-   * Sets the user's protocols to an empty array, effectively pausing automated operations
+  /**
+   * Resume the agent by restoring protocols based on user's strategy for each asset
+   * Fetches available protocols and assigns them based on each asset's strategy
    *
    * @returns Response indicating success and updated user details
    *
@@ -320,56 +351,65 @@ export class ZyfaiSDK {
    * // Connect account first
    * await sdk.connectAccount();
    *
-   * // Pause the agent
-   * const result = await sdk.pauseAgent();
-   * console.log('Agent paused:', result.success);
+   * // Resume the agent
+   * const result = await sdk.resumeAgent();
+   * console.log('Agent resumed:', result.success);
    * ```
    */
   async resumeAgent(): Promise<UpdateUserProfileResponse> {
     try {
-      const userDetails = await this.getUserDetails();
-
-      const userChains = userDetails.user.chains;
-      const strategy = userDetails.user.strategy || "safe_strategy";
-
-      const convertedStrategy = toInternalStrategy(strategy as "conservative" | "aggressive");
-
+      const userDetailsUSDC = await this.getUserDetails("usdc");
+      const userDetailsETH = await this.getUserDetails("eth");
 
       // If user has no chains configured, use all supported chains
       const chains: number[] =
-        userChains && userChains.length > 0 ? userChains : [8453, 42161];
+        userDetailsUSDC.user.chains && userDetailsUSDC.user.chains.length > 0 ? userDetailsUSDC.user.chains : [8453, 42161];
 
       // Fetch all protocols (API returns array directly, not { protocols: [...] })
       const allProtocols = await this.httpClient.get<Protocol[]>(
         ENDPOINTS.PROTOCOLS()
       );
 
-      // Filter protocols by user's chains and strategy
-      // - safe_strategy: only protocols that support safe_strategy
-      // - degen_strategy: all protocols (safe + degen)
-      const filteredProtocolIds = allProtocols
-        .filter((protocol: Protocol) => {
-          const hasMatchingChain = protocol.chains.some((chain: number) =>
-            chains.includes(chain)
-          );
-          if (!hasMatchingChain) {
-            return false;
-          }
-          // Degen users get access to ALL protocols (safe + degen)
-          if (convertedStrategy === "degen_strategy") {
-            return (
-              protocol.strategies?.includes("safe_strategy") ||
-              protocol.strategies?.includes("degen_strategy")
-            );
-          }
-          // Safe users only get safe_strategy protocols
-          return protocol.strategies?.includes("safe_strategy");
-        })
-        .map((protocol: Protocol) => protocol.id);
+      // Get strategies for both assets
+      const usdcStrategy = userDetailsUSDC.user.rebalanceStrategy || "safe_strategy";
+      const ethStrategy = userDetailsETH.user.rebalanceStrategy || "safe_strategy";
 
-      // Update user profile with filtered protocols
+      // Helper function to filter protocols by strategy
+      const filterProtocolsByStrategy = (strategy: string): string[] => {
+        return allProtocols
+          .filter((protocol: Protocol) => {
+            const hasMatchingChain = protocol.chains.some((chain: number) =>
+              chains.includes(chain)
+            );
+            if (!hasMatchingChain) {
+              return false;
+            }
+            // Degen users get access to ALL protocols (safe + degen)
+            if (strategy === "degen_strategy") {
+              return (
+                protocol.strategies?.includes("safe_strategy") ||
+                protocol.strategies?.includes("degen_strategy")
+              );
+            }
+            // Safe users only get safe_strategy protocols
+            return protocol.strategies?.includes("safe_strategy");
+          })
+          .map((protocol: Protocol) => protocol.id);
+      };
+
+      // Get filtered protocols for each asset based on their strategy
+      const usdcProtocols = filterProtocolsByStrategy(usdcStrategy);
+      const ethProtocols = filterProtocolsByStrategy(ethStrategy);
+
+      // Update both assets with their respective protocols
+      await this.updateUserProfile({
+        asset: "usdc",
+        protocols: usdcProtocols,
+      });
+
       const response = await this.updateUserProfile({
-        protocols: filteredProtocolIds,
+        asset: "eth",
+        protocols: ethProtocols,
       });
 
       return response;
@@ -1242,7 +1282,8 @@ export class ZyfaiSDK {
   async depositFunds(
     userAddress: string,
     chainId: SupportedChainId,
-    amount: string
+    amount: string,
+    asset?: string
   ): Promise<DepositResponse> {
     try {
       if (!userAddress) {
@@ -1257,8 +1298,9 @@ export class ZyfaiSDK {
         throw new Error("Valid amount is required");
       }
 
+      const token = getDefaultTokenAddress(chainId, asset);
+
       // Get default token address for the chain
-      const token = getDefaultTokenAddress(chainId);
 
       const walletClient = this.getWalletClient();
       const chainConfig = getChainConfig(chainId, this.rpcUrls);
@@ -1431,7 +1473,8 @@ export class ZyfaiSDK {
   async withdrawFunds(
     userAddress: string,
     chainId: SupportedChainId,
-    amount?: string
+    amount?: string,
+    tokenSymbol?: string
   ): Promise<WithdrawResponse> {
     try {
       if (!userAddress) {
@@ -1495,12 +1538,15 @@ export class ZyfaiSDK {
         response = await this.httpClient.post(ENDPOINTS.PARTIAL_WITHDRAW, {
           chainId,
           amount,
+          tokenSymbol,
         });
       } else {
+        console.log("Full withdrawal", tokenSymbol);
         // Full withdrawal - ask backend to trigger automatic withdrawal flow
         response = await this.httpClient.get(ENDPOINTS.USER_WITHDRAW, {
-          params: { chainId },
+          params: { chainId, tokenSymbol },
         });
+        console.log(JSON.stringify(response, null, 2));
       }
 
       const success = response?.success ?? true;
@@ -1635,7 +1681,7 @@ export class ZyfaiSDK {
    * console.log("Chains:", user.user.chains);
    * ```
    */
-  async getUserDetails(): Promise<UserDetailsResponse> {
+  async getUserDetails(asset: "usdc" | "eth" = "usdc"): Promise<UserDetailsResponse> {
     try {
       await this.authenticateUser();
 
@@ -1650,23 +1696,18 @@ export class ZyfaiSDK {
           id: convertedResponse.id,
           address: convertedResponse.address,
           smartWallet: convertedResponse.smartWallet,
-          chains: convertedResponse.chains || [],
-          protocols: convertedResponse.protocols || [],
+          chains: convertedResponse.assetTypeSettings?.[asset]?.chains || [],
           hasActiveSessionKey: convertedResponse.hasActiveSessionKey || false,
-          email: convertedResponse.email,
-          strategy: convertedResponse.strategy,
-          telegramId: convertedResponse.telegramId,
-          walletType: convertedResponse.walletType,
-          autoSelectProtocols: convertedResponse.autoSelectProtocols || false,
-          autocompounding: convertedResponse.autocompounding,
           omniAccount: convertedResponse.omniAccount,
-          crosschainStrategy: convertedResponse.crosschainStrategy,
           agentName: convertedResponse.agentName,
-          customization: convertedResponse.customization,
-          executorProxy: convertedResponse.executorProxy,
-          splitting: convertedResponse.splitting,
-          minSplits: convertedResponse.minSplits,
-          registered: convertedResponse.registered,
+          asset: asset,
+          autoSelectProtocols: convertedResponse.assetTypeSettings?.[asset]?.autoSelectProtocols,
+          rebalanceStrategy: convertedResponse.assetTypeSettings?.[asset]?.rebalanceStrategy,
+          autocompounding: convertedResponse.assetTypeSettings?.[asset]?.autocompounding,
+          crosschainStrategy: convertedResponse.assetTypeSettings?.[asset]?.crosschainStrategy,
+          splitting: convertedResponse.assetTypeSettings?.[asset]?.splitting,
+          minSplits: convertedResponse.assetTypeSettings?.[asset]?.minSplits || 0,
+          protocols: convertedResponse.assetTypeSettings?.[asset]?.protocols || [],
         },
       };
     } catch (error) {
@@ -1695,20 +1736,9 @@ export class ZyfaiSDK {
     try {
       const response = await this.httpClient.get<any>(ENDPOINTS.DATA_TVL);
 
-      // API returns: { "146": 15, "8453": 874, "9745": 8, "42161": 62, "total": 959, "breakdown": [...] }
-      const byChain: Record<number, number> = {};
-      for (const key of Object.keys(response)) {
-        const numKey = parseInt(key, 10);
-        if (!isNaN(numKey) && typeof response[key] === "number") {
-          byChain[numKey] = response[key];
-        }
-      }
-
       return {
         success: true,
-        totalTvl: response.total || response.totalTvl || response.tvl || 0,
-        byChain,
-        breakdown: response.breakdown,
+        totalTvl: response.total || 0,
       };
     } catch (error) {
       throw new Error(`Failed to get TVL: ${(error as Error).message}`);
@@ -1785,9 +1815,9 @@ export class ZyfaiSDK {
    * console.log("Total Volume:", volume.volumeInUSD);
    * ```
    */
-  async getVolume(): Promise<VolumeResponse> {
+  async getVolume(assetType: "usdc" | "eth" = "usdc"): Promise<VolumeResponse> {
     try {
-      const response = await this.httpClient.get<any>(ENDPOINTS.DATA_VOLUME);
+      const response = await this.httpClient.get<any>(ENDPOINTS.DATA_VOLUME(assetType));
 
       return {
         success: true,
@@ -2126,50 +2156,6 @@ export class ZyfaiSDK {
   }
 
   // ============================================================================
-  // Portfolio Methods (Data API v2)
-  // ============================================================================
-
-  /**
-   * Get Debank portfolio for a wallet across multiple chains
-   * Note: This is a paid endpoint and may require authorization
-   *
-   * @param walletAddress - Smart wallet address
-   * @returns Multi-chain portfolio data
-   *
-   * @example
-   * ```typescript
-   * const portfolio = await sdk.getDebankPortfolio("0x...");
-   * console.log("Total value:", portfolio.totalValueUsd);
-   * ```
-   */
-  async getDebankPortfolio(
-    walletAddress: string
-  ): Promise<DebankPortfolioResponse> {
-    try {
-      if (!walletAddress) {
-        throw new Error("Wallet address is required");
-      }
-
-      const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.DEBANK_PORTFOLIO_MULTICHAIN(walletAddress)
-      );
-
-      const data = response.data || response;
-
-      return {
-        success: true,
-        walletAddress,
-        totalValueUsd: data.totalValueUsd || 0,
-        chains: data.chains || data,
-      };
-    } catch (error) {
-      throw new Error(
-        `Failed to get Debank portfolio: ${(error as Error).message}`
-      );
-    }
-  }
-
-  // ============================================================================
   // Opportunities Methods (Data API v2)
   // ============================================================================
 
@@ -2188,11 +2174,12 @@ export class ZyfaiSDK {
    */
   async getConservativeOpportunities(
     chainId?: number,
-    asset?: string
+    asset?: string,
+    status?: "live" | "not_live"
   ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId, asset)
+        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId, asset, status)
       );
 
       const data = response.data || response || [];
@@ -2208,7 +2195,7 @@ export class ZyfaiSDK {
               protocolName: o.protocol_name || o.protocolName,
               poolName: o.pool_name || o.poolName,
               chainId: o.chain_id || o.chainId,
-              apy: o.apy || o.pool_apy || 0,
+              apy: o.combined_apy || 0,
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,
@@ -2239,11 +2226,12 @@ export class ZyfaiSDK {
    */
   async getAggressiveOpportunities(
     chainId?: number,
-    asset?: string
+    asset?: string,
+    status?: "live" | "not_live"
   ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId, asset)
+        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId, asset, status)
       );
 
       const data = response.data || response || [];
@@ -2259,7 +2247,7 @@ export class ZyfaiSDK {
               protocolName: o.protocol_name || o.protocolName,
               poolName: o.pool_name || o.poolName,
               chainId: o.chain_id || o.chainId,
-              apy: o.apy || o.pool_apy || 0,
+              apy: o.combined_apy || 0,
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,

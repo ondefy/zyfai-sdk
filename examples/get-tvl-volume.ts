@@ -37,13 +37,6 @@ async function main() {
     console.log("\nTVL Data:");
     console.log("-".repeat(40));
     console.log(`  Total TVL: $${tvlResponse.totalTvl?.toLocaleString() || "0"}`);
-
-    if (tvlResponse.byChain) {
-      console.log("\n  By Chain:");
-      Object.entries(tvlResponse.byChain).forEach(([chain, value]) => {
-        console.log(`    ${chain}: $${value.toLocaleString()}`);
-      });
-    }
   } catch (error) {
     console.error("Failed to fetch TVL:", (error as Error).message);
   }
@@ -51,7 +44,7 @@ async function main() {
   // Get Volume
   console.log("\nFetching Trading Volume...");
   try {
-    const volumeResponse = await sdk.getVolume();
+    const volumeResponse = await sdk.getVolume('eth');
     console.log("\nVolume Data:");
     console.log("-".repeat(40));
     console.log(`  Total Volume: $${volumeResponse.volumeInUSD}`);

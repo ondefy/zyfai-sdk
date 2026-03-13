@@ -11,11 +11,11 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
-  const userAddress = process.env.USER_ADDRESS;
+  const privateKey = process.env.PRIVATE_KEY;
 
-  if (!apiKey || !userAddress) {
+  if (!apiKey || !privateKey) {
     throw new Error(
-      "Missing env vars. Please set ZYFAI_API_KEY and USER_ADDRESS."
+      "Missing env vars. Please set ZYFAI_API_KEY and PRIVATE_KEY."
     );
   }
 
@@ -25,10 +25,11 @@ async function main() {
     apiKey,
   });
 
-  console.log("SDK initialized.\n");
-
+ console.log("SDK initialized. Connecting account…");
+  const connected = await sdk.connectAccount(privateKey, chainId);
+  console.log(`Connected EOA: ${connected}`);
   // Read-only: derive smart wallet address without connecting a wallet
-  const walletInfo = await sdk.getSmartWalletAddress(userAddress, chainId);
+  const walletInfo = await sdk.getSmartWalletAddress(connected, chainId);
   const smartWallet = walletInfo.address;
   console.log(`Smart Wallet: ${smartWallet}\n`);
 

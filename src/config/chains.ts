@@ -43,9 +43,60 @@ export const DEFAULT_TOKEN_ADDRESSES: Record<SupportedChainId, string> = {
   42161: "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // USDC on Arbitrum
   9745: "0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb", // USDT on Plasma
 };
+export const ASSET_CONFIGS: Readonly<Record<string, any>> = {
+  USDC: {
+    symbol: 'USDC',
+    assetType: 'usdc',
+    displayName: 'USDC',
+    icon: '/ai-dashboard/usdc-token.png',
+    decimals: 6,
+    tokenSymbols: ['USDC', 'USDC.e', 'USDT', 'USDT0'],
+    tokenSymbolsByChainId: {
+      8453: 'USDC',
+      42161: 'USDC',
+      9745: 'USDT0',
+      146: 'USDC.e',
+      1: 'USDC',
+    },
+    addresses: {
+      8453: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // Base
+      42161: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // Arbitrum
+      9745: '0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb', // Plasma
+      146: '0x29219dd400f2bf60e5a23d13be72b486d4038894', // Sonic
+      59144: '0x176211869ca2b568f2a7d4ee941e073a821ee1ff', // Linea
+      1: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // Ethereum
+    },
+    enabled: true,
+  },
+  WETH: {
+    symbol: 'WETH',
+    assetType: 'eth',
+    displayName: 'WETH',
+    icon: '/ai-dashboard/eth-token.png',
+    decimals: 18,
+    tokenSymbols: ['WETH', 'ETH'],
+    tokenSymbolsByChainId: {
+      8453: 'WETH',
+      42161: 'WETH',
+      9745: 'WETH',
+      146: 'WETH',
+      59144: 'WETH',
+      1: 'WETH',
+    },
+    addresses: {
+      8453: '0x4200000000000000000000000000000000000006', // Base
+      42161: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', // Arbitrum
+      9745: '0x4200000000000000000000000000000000000006', // Plasma
+      146: '0x039e64f90d4199560e7533692f69448878db85c7', // Sonic
+      59144: '0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f', // Linea
+      1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // Ethereum
+    },
+    enabled: true,
+  },
+};
 
-export const getDefaultTokenAddress = (chainId: SupportedChainId): string => {
-  const address = DEFAULT_TOKEN_ADDRESSES[chainId];
+export const getDefaultTokenAddress = (chainId: SupportedChainId, asset?: string): string => {
+  const address = ASSET_CONFIGS[asset || "USDC"]?.addresses[chainId];
   if (!address || address === "0x0000000000000000000000000000000000000000") {
     throw new Error(
       `Default token address not configured for chain ${chainId}. Please provide tokenAddress explicitly.`

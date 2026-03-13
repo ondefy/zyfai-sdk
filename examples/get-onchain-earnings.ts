@@ -44,6 +44,7 @@ async function main() {
     console.log("\nOnchain Earnings:");
     console.log("-".repeat(50));
     console.log(`  Wallet: ${earnings.data.walletAddress}`);
+    console.log(`Response: ${JSON.stringify(earnings.data)}`);
 
     console.log("\n  Total Earnings by Token:");
     Object.entries(earnings.data.totalEarningsByToken).forEach(

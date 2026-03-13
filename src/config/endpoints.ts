@@ -41,8 +41,8 @@ export const ENDPOINTS = {
     `/data/position?walletAddress=${walletAddress}`,
   DATA_HISTORY: (walletAddress: string, chainId: SupportedChainId) =>
     `/data/history?walletAddress=${walletAddress}&chainId=${chainId}`,
-  DATA_TVL: "/data/tvl",
-  DATA_VOLUME: "/data/volume",
+  DATA_TVL: "/data/usd-tvl",
+  DATA_VOLUME: (assetType: "usdc" | "eth") => `/data/volume?assetType=${assetType}`,
   DATA_FIRST_TOPUP: (walletAddress: string, chainId: number) =>
     `/data/first-topup?walletAddress=${walletAddress}&chainId=${chainId}`,
   DATA_ACTIVE_WALLETS: (chainId: number) =>
@@ -86,21 +86,19 @@ export const DATA_ENDPOINTS = {
     return url;
   },
 
-  // Portfolio
-  DEBANK_PORTFOLIO_MULTICHAIN: (address: string) =>
-    `/debank/portfolio/multichain/${address}`,
-
   // Opportunities
-  OPPORTUNITIES_SAFE: (chainId?: number, asset?: string) => {
+  OPPORTUNITIES_SAFE: (chainId?: number, asset?: string, status?: string) => {
     const params: string[] = [];
     if (chainId !== undefined) params.push(`chainId=${chainId}`);
     if (asset) params.push(`asset=${asset}`);
+    if (status) params.push(`status=${status}`);
     return params.length > 0 ? `/opportunities/safe?${params.join("&")}` : "/opportunities/safe";
   },
-  OPPORTUNITIES_DEGEN: (chainId?: number, asset?: string) => {
+  OPPORTUNITIES_DEGEN: (chainId?: number, asset?: string, status?: string) => {
     const params: string[] = [];
     if (chainId !== undefined) params.push(`chainId=${chainId}`);
     if (asset) params.push(`asset=${asset}`);
+    if (status) params.push(`status=${status}`);
     return params.length > 0 ? `/opportunities/degen-strategies?${params.join("&")}` : "/opportunities/degen-strategies";
   },
 

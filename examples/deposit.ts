@@ -13,9 +13,16 @@ async function main() {
     );
   }
 
-  const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
-  const amount =
-    process.env.DEPOSIT_AMOUNT ?? (chainId === 8453 ? "1500000" : "1500000");
+  const chainId = Number(process.env.CHAIN_ID ?? 42161) as SupportedChainId;
+  
+  // Examples of amounts in correct decimal units:
+  // USDC (6 decimals): "1000000" = 1 USDC, "100000000" = 100 USDC
+  // WETH (18 decimals): "1000000000000000000" = 1 WETH, "100000000000000000" = 0.1 WETH
+  
+  const asset = "WETH"; // Can be "USDC" or "WETH"
+  const amount = asset === "WETH" 
+    ? "660000000000000000" // 0.6601 WETH (18 decimals)
+    : "100000000"; // 100 USDC (6 decimals)
 
   const sdk = new ZyfaiSDK({
     apiKey,
@@ -29,21 +36,9 @@ async function main() {
   const wallet = await sdk.getSmartWalletAddress(connected, chainId);
   console.log(`Safe address: ${wallet.address}`);
 
-  if (!wallet.isDeployed) {
-    console.log("Safe not deployed. Deploying now ...");
-    const deployment = await sdk.deploySafe(connected, chainId);
-    if (!deployment.success) {
-      throw new Error("Failed to deploy Safe.");
-    }
-    console.log(`Deployed Safe at ${deployment.safeAddress}`);
-  }
-
-  const tokenInfo = chainId === 9745 ? "USDT" : "USDC";
-  console.log(
-    `Depositing ${amount} (least units) of ${tokenInfo} on chain ${chainId}…`
-  );
-  // Token address is automatically selected based on chain (USDC for Base/Arbitrum, USDT for Plasma)
-  const response = await sdk.depositFunds(connected, chainId, amount);
+  // Deposit with specified asset (USDC by default, or WETH)
+  console.log(`Depositing ${asset === "WETH" ? "0.1" : "100"} ${asset}...`);
+  const response = await sdk.depositFunds(connected, chainId, amount, asset);
 
   console.log("Deposit submitted:");
   console.log(`  Transaction: ${response.txHash}`);

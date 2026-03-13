@@ -34,7 +34,7 @@ async function main() {
   // Get Conservative Opportunities
   console.log(`Fetching CONSERVATIVE opportunities for chain ${chainId}...`);
   try {
-    const conservativeOpps = await sdk.getConservativeOpportunities(chainId);
+    const conservativeOpps = await sdk.getConservativeOpportunities(chainId, );
 
     console.log("\nConservative Opportunities (Low Risk):");
     console.log("=".repeat(70));
@@ -71,7 +71,8 @@ async function main() {
   // Get Aggressive Opportunities
   console.log(`\n\nFetching AGGRESSIVE opportunities for chain ${chainId}...`);
   try {
-    const aggressiveOpps = await sdk.getAggressiveOpportunities(chainId);
+    const aggressiveOpps = await sdk.getAggressiveOpportunities(chainId, "USDC", "live");
+    console.log(JSON.stringify(aggressiveOpps, null, 2));
 
     console.log("\nAggressive Opportunities (High Risk/High Reward):");
     console.log("=".repeat(70));
