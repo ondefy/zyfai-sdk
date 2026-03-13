@@ -81,6 +81,7 @@ import {
   convertStrategiesToPublic,
   isValidPublicStrategy,
   convertStrategiesToPublicAndNaming,
+  convertAssetInternally,
 } from "../utils/strategy";
 import { SiweMessage } from "siwe";
 
@@ -233,7 +234,9 @@ export class ZyfaiSDK {
       await this.authenticateUser();
 
       // Default asset to "usdc" if not provided
-      const asset = request.asset || "usdc";
+      const asset = request.asset || "USDC";
+
+      const internalAsset = convertAssetInternally(asset as "USDC" | "WETH");
 
       // Convert strategy if provided
       let rebalanceStrategy: string | undefined;
@@ -262,7 +265,7 @@ export class ZyfaiSDK {
       // Build internal payload with assetTypeSettings
       const payload: UpdateUserProfileInternalRequest = {
         assetTypeSettings: {
-          [asset]: assetSettings,
+          [internalAsset]: assetSettings,
         },
       };
 
@@ -307,12 +310,12 @@ export class ZyfaiSDK {
     try {
       // Pause both assets by clearing protocols for each
       await this.updateUserProfile({
-        asset: "usdc",
+        asset: "USDC",
         protocols: [],
       });
 
       const response = await this.updateUserProfile({
-        asset: "eth",
+        asset: "WETH",
         protocols: [],
       });
 
@@ -342,8 +345,8 @@ export class ZyfaiSDK {
    */
   async resumeAgent(): Promise<UpdateUserProfileResponse> {
     try {
-      const userDetailsUSDC = await this.getUserDetails("usdc");
-      const userDetailsETH = await this.getUserDetails("eth");
+      const userDetailsUSDC = await this.getUserDetails("USDC");
+      const userDetailsETH = await this.getUserDetails("WETH");
 
       // If user has no chains configured, use all supported chains
       const chains: number[] =
@@ -387,12 +390,12 @@ export class ZyfaiSDK {
 
       // Update both assets with their respective protocols
       await this.updateUserProfile({
-        asset: "usdc",
+        asset: "USDC",
         protocols: usdcProtocols,
       });
 
       const updatedUserDetailsETH = await this.updateUserProfile({
-        asset: "eth",
+        asset: "WETH",
         protocols: ethProtocols,
       });
 
@@ -1194,7 +1197,7 @@ export class ZyfaiSDK {
       // Update user profile with protocols
       await this.updateUserProfile({
         protocols: protocolIds,
-        asset: "eth",
+        asset: "WETH",
       });
     } catch (error) {
       // Log error but don't fail session key creation
@@ -1672,12 +1675,13 @@ export class ZyfaiSDK {
    * console.log("Chains:", user.user.chains);
    * ```
    */
-  async getUserDetails(asset: "usdc" | "eth" = "usdc"): Promise<UpdateUserProfileResponse> {
+  async getUserDetails(asset: "USDC" | "WETH" = "USDC"): Promise<UpdateUserProfileResponse> {
     try {
       await this.authenticateUser();
 
       const response = await this.httpClient.get<any>(ENDPOINTS.USER_ME);
 
+      const internalAsset = convertAssetInternally(asset);
       // Convert strategy from backend format to public format
       const convertedResponse = convertStrategyToPublic(response);
 
@@ -1685,17 +1689,17 @@ export class ZyfaiSDK {
         success: true,
         agentName: convertedResponse.agentName,
         smartWallet: convertedResponse.smartWallet,
-        chains: convertedResponse.assetTypeSettings?.[asset]?.chains || [],
+        chains: convertedResponse.assetTypeSettings?.[internalAsset]?.chains || [],
         hasActiveSessionKey: convertedResponse.hasActiveSessionKey || false,
         omniAccount: convertedResponse.omniAccount,
         asset: asset,
-        autoSelectProtocols: convertedResponse.assetTypeSettings?.[asset]?.autoSelectProtocols,
-        strategy: convertedResponse.assetTypeSettings?.[asset]?.rebalanceStrategy,
-        autocompounding: convertedResponse.assetTypeSettings?.[asset]?.autocompounding,
-        crosschainStrategy: convertedResponse.assetTypeSettings?.[asset]?.crosschainStrategy,
-        splitting: convertedResponse.assetTypeSettings?.[asset]?.splitting,
-        minSplits: convertedResponse.assetTypeSettings?.[asset]?.minSplits || 0,
-        protocols: convertedResponse.assetTypeSettings?.[asset]?.protocols || [],
+        autoSelectProtocols: convertedResponse.assetTypeSettings?.[internalAsset]?.autoSelectProtocols,
+        strategy: convertedResponse.assetTypeSettings?.[internalAsset]?.rebalanceStrategy,
+        autocompounding: convertedResponse.assetTypeSettings?.[internalAsset]?.autocompounding,
+        crosschainStrategy: convertedResponse.assetTypeSettings?.[internalAsset]?.crosschainStrategy,
+        splitting: convertedResponse.assetTypeSettings?.[internalAsset]?.splitting,
+        minSplits: convertedResponse.assetTypeSettings?.[internalAsset]?.minSplits || 0,
+        protocols: convertedResponse.assetTypeSettings?.[internalAsset]?.protocols || [],
         customization: convertedResponse.customization,
       };
     } catch (error) {

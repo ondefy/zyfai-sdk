@@ -42,7 +42,7 @@ export interface UpdateUserProfileRequest {
   crosschainStrategy?: boolean;
   splitting?: boolean;
   minSplits?: number;
-  asset?: "usdc" | "eth";
+  asset?: "USDC" | "WETH";
 }
 
 /** @internal */
@@ -70,7 +70,7 @@ export interface UpdateUserProfileResponse {
   splitting?: boolean;
   minSplits?: number;
   customization?: Record<string, any>;
-  asset?: "usdc" | "eth";
+  asset?: "USDC" | "WETH";
 }
 
 /** @internal */

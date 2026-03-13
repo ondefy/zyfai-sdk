@@ -79,6 +79,16 @@ export function convertStrategyToPublic<T extends { strategy?: string }>(
   }
 }
 
+export function convertAssetInternally(asset: "USDC" | "WETH"): "usdc" | "eth" {
+  if (asset === "USDC") {
+    return "usdc";
+  }
+  if (asset === "WETH") {
+    return "eth";
+  }
+  throw new Error(`Invalid asset: ${asset}. Must be "USDC" or "WETH".`);
+}
+
 export function convertStrategiesToPublic<T extends { strategy?: string }>(
   array: T[]
 ): T[] {

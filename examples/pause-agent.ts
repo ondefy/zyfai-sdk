@@ -50,8 +50,8 @@ async function main() {
 
     // Verify the protocols were cleared
     console.log("\nVerifying agent is paused...");
-    const updatedDetails = await sdk.getUserDetails("usdc");
-    const ethDetails = await sdk.getUserDetails("eth");
+    const updatedDetails = await sdk.getUserDetails("USDC");
+    const ethDetails = await sdk.getUserDetails("WETH");
     if (updatedDetails.success && ethDetails.success) {
       const usdcProtocols = updatedDetails.protocols || [];
       const ethProtocols = ethDetails.protocols || [];

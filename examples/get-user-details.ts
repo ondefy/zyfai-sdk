@@ -32,7 +32,7 @@ async function main() {
 
   console.log("Fetching user details (requires SIWE authentication)...\n");
   const userDetails = await sdk.getUserDetails();
-  const ethDetails = await sdk.getUserDetails("eth");
+  const ethDetails = await sdk.getUserDetails("WETH");
 
   if (!userDetails.success || !ethDetails.success) {
     console.log("Failed to fetch user details");
