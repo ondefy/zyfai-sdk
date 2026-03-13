@@ -13,7 +13,7 @@ async function main() {
     );
   }
 
-  const chainId = 42161 as SupportedChainId;
+  const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
 
   const sdk = new ZyfaiSDK({
     apiKey,

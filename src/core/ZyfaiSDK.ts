@@ -25,7 +25,6 @@ import type {
   LoginResponse,
   AddSessionKeyRequest,
   AddSessionKeyResponse,
-  UserDetailsResponse,
   TVLResponse,
   VolumeResponse,
   ActiveWalletsResponse,
@@ -272,28 +271,13 @@ export class ZyfaiSDK {
       if (request.agentName !== undefined) payload.agentName = request.agentName;
 
       // Update user profile via API
-      const response = await this.httpClient.patch<any>(
+      await this.httpClient.patch<any>(
         ENDPOINTS.USER_ME,
         payload
       );
 
-      return {
-        success: true,
-        userId: response.userId || response.id,
-        smartWallet: response.smartWallet,
-        chains: response.assetTypeSettings?.[asset]?.chains,
-        strategy: response.assetTypeSettings?.[asset]?.rebalanceStrategy,
-        protocols: response.assetTypeSettings?.[asset]?.protocols,
-        autoSelectProtocols: response.assetTypeSettings?.[asset]?.autoSelectProtocols,
-        omniAccount: response.omniAccount,
-        autocompounding: response.assetTypeSettings?.[asset]?.autocompounding,
-        agentName: response.agentName,
-        crosschainStrategy: response.assetTypeSettings?.[asset]?.crosschainStrategy,
-        splitting: response.assetTypeSettings?.[asset]?.splitting,
-        minSplits: response.assetTypeSettings?.[asset]?.minSplits,
-        customization: response.customization,
-        asset: asset,
-      };
+      // Fetch fresh user details after update and return directly
+      return await this.getUserDetails(asset);
     } catch (error) {
       throw new Error(
         `Failed to update user profile: ${(error as Error).message}`
@@ -363,7 +347,7 @@ export class ZyfaiSDK {
 
       // If user has no chains configured, use all supported chains
       const chains: number[] =
-        userDetailsUSDC.user.chains && userDetailsUSDC.user.chains.length > 0 ? userDetailsUSDC.user.chains : [8453, 42161];
+        userDetailsUSDC.chains && userDetailsUSDC.chains.length > 0 ? userDetailsUSDC.chains : [8453, 42161];
 
       // Fetch all protocols (API returns array directly, not { protocols: [...] })
       const allProtocols = await this.httpClient.get<Protocol[]>(
@@ -371,8 +355,8 @@ export class ZyfaiSDK {
       );
 
       // Get strategies for both assets
-      const usdcStrategy = userDetailsUSDC.user.rebalanceStrategy || "safe_strategy";
-      const ethStrategy = userDetailsETH.user.rebalanceStrategy || "safe_strategy";
+      const usdcStrategy = userDetailsUSDC.strategy || "safe_strategy";
+      const ethStrategy = userDetailsETH.strategy || "safe_strategy";
 
       // Helper function to filter protocols by strategy
       const filterProtocolsByStrategy = (strategy: string): string[] => {
@@ -407,12 +391,12 @@ export class ZyfaiSDK {
         protocols: usdcProtocols,
       });
 
-      const response = await this.updateUserProfile({
+      const updatedUserDetailsETH = await this.updateUserProfile({
         asset: "eth",
         protocols: ethProtocols,
       });
 
-      return response;
+      return updatedUserDetailsETH;
     } catch (error) {
       throw new Error(`Failed to resume agent: ${(error as Error).message}`);
     }
@@ -1189,21 +1173,28 @@ export class ZyfaiSDK {
     try {
       // Fetch available protocols for the chain
       const protocolsResponse = await this.getAvailableProtocols(chainId);
+      const userDetails = await this.getUserDetails();
+      const filteredProtocols = userDetails.strategy ? protocolsResponse.protocols.filter((p) => p.strategies?.includes(userDetails.strategy!)) : protocolsResponse.protocols;
 
       if (
-        !protocolsResponse.protocols ||
-        protocolsResponse.protocols.length === 0
+        !filteredProtocols ||
+        filteredProtocols.length === 0
       ) {
         console.warn(`No protocols available for chain ${chainId}`);
         return;
       }
 
       // Extract protocol IDs
-      const protocolIds = protocolsResponse.protocols.map((p) => p.id);
+      const protocolIds = filteredProtocols.map((p) => p.id);
 
       // Update user profile with protocols
       await this.updateUserProfile({
         protocols: protocolIds,
+      });
+      // Update user profile with protocols
+      await this.updateUserProfile({
+        protocols: protocolIds,
+        asset: "eth",
       });
     } catch (error) {
       // Log error but don't fail session key creation
@@ -1681,7 +1672,7 @@ export class ZyfaiSDK {
    * console.log("Chains:", user.user.chains);
    * ```
    */
-  async getUserDetails(asset: "usdc" | "eth" = "usdc"): Promise<UserDetailsResponse> {
+  async getUserDetails(asset: "usdc" | "eth" = "usdc"): Promise<UpdateUserProfileResponse> {
     try {
       await this.authenticateUser();
 
@@ -1692,23 +1683,20 @@ export class ZyfaiSDK {
 
       return {
         success: true,
-        user: {
-          id: convertedResponse.id,
-          address: convertedResponse.address,
-          smartWallet: convertedResponse.smartWallet,
-          chains: convertedResponse.assetTypeSettings?.[asset]?.chains || [],
-          hasActiveSessionKey: convertedResponse.hasActiveSessionKey || false,
-          omniAccount: convertedResponse.omniAccount,
-          agentName: convertedResponse.agentName,
-          asset: asset,
-          autoSelectProtocols: convertedResponse.assetTypeSettings?.[asset]?.autoSelectProtocols,
-          rebalanceStrategy: convertedResponse.assetTypeSettings?.[asset]?.rebalanceStrategy,
-          autocompounding: convertedResponse.assetTypeSettings?.[asset]?.autocompounding,
-          crosschainStrategy: convertedResponse.assetTypeSettings?.[asset]?.crosschainStrategy,
-          splitting: convertedResponse.assetTypeSettings?.[asset]?.splitting,
-          minSplits: convertedResponse.assetTypeSettings?.[asset]?.minSplits || 0,
-          protocols: convertedResponse.assetTypeSettings?.[asset]?.protocols || [],
-        },
+        agentName: convertedResponse.agentName,
+        smartWallet: convertedResponse.smartWallet,
+        chains: convertedResponse.assetTypeSettings?.[asset]?.chains || [],
+        hasActiveSessionKey: convertedResponse.hasActiveSessionKey || false,
+        omniAccount: convertedResponse.omniAccount,
+        asset: asset,
+        autoSelectProtocols: convertedResponse.assetTypeSettings?.[asset]?.autoSelectProtocols,
+        strategy: convertedResponse.assetTypeSettings?.[asset]?.rebalanceStrategy,
+        autocompounding: convertedResponse.assetTypeSettings?.[asset]?.autocompounding,
+        crosschainStrategy: convertedResponse.assetTypeSettings?.[asset]?.crosschainStrategy,
+        splitting: convertedResponse.assetTypeSettings?.[asset]?.splitting,
+        minSplits: convertedResponse.assetTypeSettings?.[asset]?.minSplits || 0,
+        protocols: convertedResponse.assetTypeSettings?.[asset]?.protocols || [],
+        customization: convertedResponse.customization,
       };
     } catch (error) {
       throw new Error(

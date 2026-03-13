@@ -33,11 +33,11 @@ async function main() {
   console.log("Fetching current user details...");
   const userDetails = await sdk.getUserDetails();
   if (userDetails.success) {
-    const currentProtocols = userDetails.user.protocols || [];
+    const currentProtocols = userDetails.protocols || [];
     console.log(`Current protocols: ${currentProtocols.length}`);
     if (currentProtocols.length > 0) {
       currentProtocols.forEach((p) => {
-        console.log(`  - ${p.name}`);
+        console.log(`  - ${p}`);
       });
     }
   }
@@ -47,16 +47,20 @@ async function main() {
 
   if (response.success) {
     console.log("✓ Agent paused successfully");
-    console.log(`  User ID: ${response.userId}`);
 
     // Verify the protocols were cleared
     console.log("\nVerifying agent is paused...");
-    const updatedDetails = await sdk.getUserDetails();
-    if (updatedDetails.success) {
-      const protocols = updatedDetails.user.protocols || [];
-      console.log(`  Active protocols: ${protocols.length}`);
-      if (protocols.length === 0) {
+    const updatedDetails = await sdk.getUserDetails("usdc");
+    const ethDetails = await sdk.getUserDetails("eth");
+    if (updatedDetails.success && ethDetails.success) {
+      const usdcProtocols = updatedDetails.protocols || [];
+      const ethProtocols = ethDetails.protocols || [];
+      console.log(`  Active USDC protocols: ${usdcProtocols?.length || 0}`);
+      console.log(`  Active ETH protocols: ${ethProtocols?.length || 0}`);
+      if (usdcProtocols?.length === 0 && ethProtocols?.length === 0) {
         console.log("✓ Agent is now paused (no active protocols)");
+      } else {
+        console.log("✗ Agent is not paused (active protocols)");
       }
     }
   } else {

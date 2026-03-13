@@ -31,33 +31,23 @@ async function main() {
   console.log(`Connected EOA: ${connected}\n`);
 
   console.log("Fetching user details (requires SIWE authentication)...\n");
-  const response = await sdk.getUserDetails();
+  const userDetails = await sdk.getUserDetails();
+  const ethDetails = await sdk.getUserDetails("eth");
 
-  if (!response.success) {
+  if (!userDetails.success || !ethDetails.success) {
     console.log("Failed to fetch user details");
     return;
   }
 
-  const user = response.user;
+  const user = userDetails;
+  const eth = ethDetails;
+
   console.log("User Details:");
   console.log("-".repeat(50));
-  console.log(`  ID:                   ${user.id}`);
-  console.log(`  Address (EOA):        ${user.address}`);
-  console.log(`  Smart Wallet:         ${user.smartWallet}`);
-  console.log(`  Chains:               ${user.chains?.join(", ") || "none"}`);
-  console.log(`  Has Active Session:   ${user.hasActiveSessionKey}`);
-  console.log(`  Auto-Select:          ${user.autoSelectProtocols}`);
-  console.log(`  Strategy:             ${user.strategy || "n/a"}`);
-  console.log(`  Wallet Type:          ${user.walletType || "n/a"}`);
-  console.log(`  Omni Account:         ${user.omniAccount ?? "n/a"}`);
-  console.log(`  Cross-chain:          ${user.crosschainStrategy ?? "n/a"}`);
-
-  if (user.protocols && user.protocols.length > 0) {
-    console.log(`\n  Protocols (${user.protocols.length}):`);
-    user.protocols.forEach((p) => {
-      console.log(`    - ${p.name}`);
-    });
-  }
+  console.log(`  USDC Strategy:             ${user.strategy || "n/a"}`);
+  console.log(`  ETH Strategy:             ${eth.strategy || "n/a"}`);
+  console.log(`  USDC Protocols:            ${user.protocols?.join(", ") || "n/a"}`);
+  console.log(`  ETH Protocols:             ${eth.protocols?.join(", ") || "n/a"}`);
 }
 
 main().catch((error) => {

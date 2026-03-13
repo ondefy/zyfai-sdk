@@ -54,10 +54,8 @@ export interface UpdateUserProfileInternalRequest {
   assetTypeSettings?: AssetTypeSettings;
 }
 
-/** @internal */
 export interface UpdateUserProfileResponse {
   success: boolean;
-  userId: string;
   smartWallet?: Address;
   chains?: number[];
   strategy?: string;
@@ -68,6 +66,7 @@ export interface UpdateUserProfileResponse {
   agentName?: string;
   crosschainStrategy?: boolean;
   executorProxy?: boolean;
+  hasActiveSessionKey?: boolean;
   splitting?: boolean;
   minSplits?: number;
   customization?: Record<string, any>;
@@ -225,28 +224,6 @@ export interface PortfolioResponse {
 // User Types
 // ============================================================================
 
-export interface UserDetails {
-  id: string;
-  address: string;
-  smartWallet: string;
-  chains: number[];
-  hasActiveSessionKey: boolean;
-  autoSelectProtocols: boolean;
-  rebalanceStrategy: string;
-  autocompounding: boolean;
-  crosschainStrategy: boolean;
-  splitting: boolean;
-  minSplits: number;
-  protocols: string[];
-  omniAccount?: boolean;
-  agentName?: string;
-  asset: "usdc" | "eth";
-}
-
-export interface UserDetailsResponse {
-  success: boolean;
-  user: UserDetails;
-}
 
 // ============================================================================
 // TVL & Volume Types

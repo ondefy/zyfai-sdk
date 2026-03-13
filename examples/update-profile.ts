@@ -34,7 +34,7 @@ async function main() {
   console.log("Connected\n");
 
   // ===========================================================================
-  // Example 1: Get Available Protocols
+  // Example 1: Get Available Protocols And Update Strategy
   // ===========================================================================
   console.log("Step 1: Get Available Protocols");
   console.log("-".repeat(50));
@@ -48,7 +48,12 @@ async function main() {
         ` - ${protocol.strategies?.join(", ") || "N/A"}`
     );
   });
-  console.log();
+
+  const updateStrategyResponse = await sdk.updateUserProfile({
+    asset: "eth",
+    protocols: protocolsResponse.protocols.map((p) => p.id),
+  });
+  console.log("Strategy updated to 'conservative'", updateStrategyResponse);
 
   // ===========================================================================
   // Example 2: Update ETH Strategy
@@ -57,7 +62,7 @@ async function main() {
   console.log("-".repeat(50));
 
   const response = await sdk.updateUserProfile({
-    strategy: "conservative",
+    strategy: "aggressive",
     asset: "eth",
   });
 

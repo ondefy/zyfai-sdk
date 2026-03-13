@@ -39,10 +39,6 @@ export type {
   WithdrawResponse,
   AddWalletToSdkResponse,
 
-  // User Types
-  UserDetails,
-  UserDetailsResponse,
-
   // Data Types
   TVLResponse,
   VolumeResponse,

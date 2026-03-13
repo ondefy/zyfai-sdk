@@ -13,7 +13,7 @@ async function main() {
     );
   }
 
-  const chainId = 42161 as SupportedChainId;
+  const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
   const asset = "WETH"; // Can be "USDC" or "WETH"
   const withdrawAmount = asset === "WETH" 
     ? "600000000000000000" // 0.6 WETH (18 decimals)
@@ -45,7 +45,7 @@ async function main() {
   }
 
   // Funds are always withdrawn to the Safe owner's address (connected)
-  const response = await sdk.withdrawFunds(connected, chainId, withdrawAmount, "WETH");
+  const response = await sdk.withdrawFunds(connected, chainId, undefined, "WETH");
 
   console.log("Withdraw submitted:");
   console.log(`  Success: ${response.success}`);
