@@ -38,6 +38,8 @@ export type {
   LogDepositResponse,
   WithdrawResponse,
   AddWalletToSdkResponse,
+  UpdateUserProfileRequest,
+  UpdateUserProfileResponse,
 
   // Data Types
   TVLResponse,

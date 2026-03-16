@@ -28,9 +28,8 @@ export interface DeploySafeResponse {
   status: "deployed" | "failed";
 }
 
-// Internal types - used by SDK implementation
+// User Profile types
 
-/** @internal */
 export interface UpdateUserProfileRequest {
   strategy?: string;
   protocols?: string[];
