@@ -46,6 +46,16 @@ await sdk.connectAccount("0x...", 8453); // Automatically authenticates via SIWE
 // Option B: With wallet provider (chainId defaults to 8453)
 await sdk.connectAccount(walletProvider, 8453); // Automatically authenticates via SIWE
 
+// Option C: Bankr Wallet — EIP-1193 provider backed by POST https://api.bankr.bot/wallet/sign
+import { createBankrWalletProvider } from "@zyfai/sdk";
+
+const bankrProvider = createBankrWalletProvider({
+  apiKey: process.env.BANKR_API_KEY!,
+  chainId: 8453,
+  signerAddress: "0x...", // optional; if omitted, one personal_sign discovers signer
+});
+await sdk.connectAccount(bankrProvider, 8453);
+
 // 3. Call functions with explicit parameters
 // The connected account is used only for signing, not for determining which user's data to fetch
 await sdk.deploySafe("0xUserAddress", chainId);
@@ -75,6 +85,8 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 - **JWT Token Forwarding**: The SDK automatically forwards JWT tokens to Data API endpoints that require authentication
 - **Async Withdrawals**: Withdrawals are processed asynchronously - the `txHash` may not be immediately available in the response
 - The SDK does not connect to wallets directly. The client handles wallet connection on their frontend and passes the provider.
+
+**Bankr provider (`createBankrWalletProvider`):** Routes `personal_sign`, `eth_signTypedData_v4`, and `eth_signTransaction` to Bankr. All other JSON-RPC calls are forwarded to the public RPC for the chosen chain (same defaults as the SDK). `eth_sendTransaction` is rejected; sign with `eth_signTransaction` and submit `eth_sendRawTransaction` yourself if needed.
 
 ### Method to API Mapping
 

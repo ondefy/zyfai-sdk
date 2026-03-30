@@ -224,6 +224,8 @@ export const deploySafeAccount = async (
       message: { raw: userOpHashToSign },
     });
 
+    console.log("userOpSignature", userOpSignature);
+
     // Step 3: Call backend again with the signature to complete deployment
     const deployResponse = (await httpClient.post(
       `${ENDPOINTS.SAFE_DEPLOY}?chainId=${chainId}`,

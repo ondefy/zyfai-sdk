@@ -71,6 +71,16 @@ await sdk.connectAccount(provider); // SDK detects chain from provider
 const provider = window.ethereum; // Client passes this from their frontend
 await sdk.connectAccount(provider); // Automatically uses provider's current chain
 
+// Option 4: Bankr Wallet (Agent API sign endpoint) — server or bot signing via POST /wallet/sign
+import { createBankrWalletProvider } from "@zyfai/sdk";
+
+const bankr = createBankrWalletProvider({
+  apiKey: process.env.BANKR_API_KEY!,
+  chainId: 8453,
+  signerAddress: "0xYourBankrEoa", // optional: avoids one-time personal_sign probe
+});
+await sdk.connectAccount(bankr, 8453);
+
 // Now call methods with explicit user addresses
 const userAddress = "0xUser...";
 await sdk.deploySafe(userAddress, 8453);

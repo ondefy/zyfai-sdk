@@ -8,6 +8,12 @@
 
 export { ZyfaiSDK } from "./core/ZyfaiSDK";
 
+export {
+  createBankrWalletProvider,
+  type BankrWalletProviderConfig,
+  type BankrEip1193Provider,
+} from "./providers/bankr-wallet-provider";
+
 // Chain utilities
 export {
   getChainConfig,
