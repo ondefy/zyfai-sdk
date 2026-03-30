@@ -22,11 +22,16 @@ import {
   type WalletClient,
   fromHex,
   toHex,
+  recoverTypedDataAddress,
+  recoverMessageAddress,
+  recoverAddress,
 } from "viem";
 import type { Chain } from "viem/chains";
 import {
   type SmartAccount,
   entryPoint07Address,
+  type UserOperation,
+  getUserOperationTypedData,
 } from "viem/account-abstraction";
 import type { SupportedChainId } from "../config/chains";
 import { ENDPOINTS } from "../config/endpoints";
@@ -187,6 +192,13 @@ export interface DeploySafeAccountConfig extends SafeAccountWriteConfig {
   strategy?: "safe_strategy" | "degen_strategy";
 }
 
+interface PrepareDeployResponse {
+  success: boolean;
+  userOpHashToSign?: Hex;
+  userOperation?: UserOperation<"0.7">;
+  status: string;
+}
+
 export const deploySafeAccount = async (
   config: DeploySafeAccountConfig
 ): Promise<SafeDeploymentResult> => {
@@ -199,32 +211,52 @@ export const deploySafeAccount = async (
       );
     }
 
-    // Step 1: Call backend to get userOpHashToSign
+    // Step 1: Call backend to get userOperation to sign
     const prepareResponse = (await httpClient.post(
       `${ENDPOINTS.SAFE_DEPLOY}?chainId=${chainId}`,
       { strategy }
-    )) as {
-      success: boolean;
-      userOpHashToSign?: Hex;
-      status: string;
-    };
+    )) as PrepareDeployResponse;
 
-    if (!prepareResponse.userOpHashToSign) {
+    if (!prepareResponse.userOperation) {
       throw new Error(
-        "Backend did not return userOpHashToSign. Response: " +
+        "Backend did not return userOperation. Response: " +
           JSON.stringify(prepareResponse)
       );
     }
 
-    const userOpHashToSign = prepareResponse.userOpHashToSign;
+    const userOperation = prepareResponse.userOperation;
+    console.log("userOperation", userOperation);
+    const hash = prepareResponse.userOpHashToSign;
 
-    // Step 2: Sign the userOpHashToSign with the user's wallet
-    const userOpSignature = await owner.signMessage({
-      account: owner.account,
-      message: { raw: userOpHashToSign },
+    // Step 2: Sign the userOperation using EIP-712 typed data
+    const typedData = getUserOperationTypedData({
+      chainId,
+      entryPointAddress: entryPoint07Address,
+      userOperation: {
+        ...userOperation,
+        sender: userOperation.sender,
+      },
     });
 
+    const userOpSignature = await owner.signTypedData({
+      account: owner.account,
+      ...typedData,
+    });
+
+    const recoveredFromTypedData = await recoverTypedDataAddress({
+      ...typedData,
+      signature: userOpSignature,
+    });
+    const recoveredFromHash = hash
+      ? await recoverAddress({
+          hash,
+          signature: userOpSignature,
+        })
+      : null;
+    console.log("hash", hash);
     console.log("userOpSignature", userOpSignature);
+    console.log("recoveredFromTypedData", recoveredFromTypedData);
+    console.log("recoveredFromHash", recoveredFromHash);
 
     // Step 3: Call backend again with the signature to complete deployment
     const deployResponse = (await httpClient.post(
