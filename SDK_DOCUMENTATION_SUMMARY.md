@@ -699,7 +699,7 @@ Earnings are returned per-token (multi-asset: USDC, WETH, WBTC, etc.).
 
 ```typescript
 const earnings = await sdk.getOnchainEarnings(walletAddress);
-// Returns: { success, data: { walletAddress, totalEarningsByToken, lifetimeEarningsByToken, currentEarningsByChain, unrealizedEarnings, lastCheckTimestamp?, lastLogDate? } }
+// Returns: { success, data: { walletAddress, totalEarningsByToken, lastCheckTimestamp?, lastLogDate? } }
 // TokenEarnings = Record<string, string>, e.g. { "USDC": "0.020667", "WETH": "0.000009" }
 ```
 
@@ -727,7 +727,7 @@ const daily = await sdk.getDailyEarnings(
   "2024-01-31"
 );
 // Returns: { success, walletAddress, data: DailyEarning[], count, filters }
-// DailyEarning fields: snapshot_date, current_earnings_by_token, lifetime_earnings_by_token, unrealized_earnings_by_token, total_earnings_by_token, daily_*_delta_by_token
+// DailyEarning fields: snapshot_date, total_earnings_by_token, daily_total_delta_by_token
 ```
 
 ---

@@ -688,8 +688,6 @@ Earnings are returned per-token (multi-asset support).
 const earnings = await sdk.getOnchainEarnings(walletAddress);
 // Per-token earnings: { "USDC": "0.020667", "WETH": "0.000009" }
 console.log("Total by token:", earnings.data.totalEarningsByToken);
-console.log("Lifetime by token:", earnings.data.lifetimeEarningsByToken);
-console.log("By chain:", earnings.data.currentEarningsByChain);
 ```
 
 #### Calculate Onchain Earnings (Refresh)
