@@ -389,13 +389,7 @@ export interface OnchainEarningsResponse {
 export interface DailyEarning {
   wallet_address?: string;
   snapshot_date: string;
-  current_earnings_by_token: TokenEarnings;
-  lifetime_earnings_by_token: TokenEarnings;
-  unrealized_earnings_by_token: TokenEarnings;
   total_earnings_by_token: TokenEarnings;
-  daily_current_delta_by_token: TokenEarnings;
-  daily_lifetime_delta_by_token: TokenEarnings;
-  daily_unrealized_delta_by_token: TokenEarnings;
   daily_total_delta_by_token: TokenEarnings;
   created_at?: string;
 }

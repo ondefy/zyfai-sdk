@@ -2222,10 +2222,19 @@ export class ZyfaiSDK {
         DATA_ENDPOINTS.DAILY_EARNINGS(walletAddress, startDate, endDate)
       );
 
+      // Filter out unwanted fields from each daily entry
+      const filteredData = (response.data || []).map((entry: any) => ({
+        wallet_address: entry.wallet_address,
+        snapshot_date: entry.snapshot_date,
+        total_earnings_by_token: entry.total_earnings_by_token,
+        daily_total_delta_by_token: entry.daily_total_delta_by_token,
+        created_at: entry.created_at,
+      }));
+
       return {
         success: true,
         walletAddress,
-        data: response.data || [],
+        data: filteredData,
         count: response.count || 0,
         filters: {
           startDate: startDate || null,

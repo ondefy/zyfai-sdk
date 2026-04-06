@@ -45,9 +45,9 @@ async function main() {
   console.log(`Fetching daily earnings from ${startDate} to ${endDate}...`);
   try {
     const response = await sdk.getDailyEarnings(
-      smartWallet,
-      startDate,
-      endDate
+      "0x1F4D072090644B5057342665720fC36fE38823b5",
+      "2026-02-15",
+      "2026-04-23"
     );
 
     console.log("\nDaily Earnings:");
@@ -61,13 +61,11 @@ async function main() {
     if (response.data.length === 0) {
       console.log("  No daily earnings data found.");
     } else {
-      response.data.forEach((day: any) => {
+      response.data.forEach((day) => {
         const date = day.snapshot_date || "n/a";
         console.log(`\n  ${date}:`);
         console.log("    Total Earnings by Token:", JSON.stringify(day.total_earnings_by_token));
-        console.log("    Daily Total Delta by Token:", JSON.stringify(day.daily_total_delta_by_token));
-        console.log("    Lifetime by Token:", JSON.stringify(day.lifetime_earnings_by_token));
-        console.log("    Unrealized by Token:", JSON.stringify(day.unrealized_earnings_by_token));
+        console.log("    Daily Delta by Token:", JSON.stringify(day.daily_total_delta_by_token));
       });
     }
   } catch (error) {
