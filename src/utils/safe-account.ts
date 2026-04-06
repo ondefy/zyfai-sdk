@@ -147,9 +147,17 @@ export const getAccountType = async (
     const code = await publicClient.getCode({ address });
 
     // If no code, it's an EOA, pass 7702 as well
-    if (!code || code === '0x' || code.length === 2 || code.length === 48) {
+    if (!code || code === '0x' || code.length === 2) {
       return "EOA";
     }
+
+
+    // Check for EIP-7702 delegated EOA (bytecode starts with 0xef01)
+    // These are EOAs with code delegation, still controlled by private key
+    if (code.startsWith("0xef01")) {
+      return "EOA";
+    }
+
 
     // Check if it's a Safe by attempting to read the threshold
     try {
