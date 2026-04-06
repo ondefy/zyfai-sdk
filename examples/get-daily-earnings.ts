@@ -66,8 +66,6 @@ async function main() {
         console.log(`\n  ${date}:`);
         console.log("    Total Earnings by Token:", JSON.stringify(day.total_earnings_by_token));
         console.log("    Daily Total Delta by Token:", JSON.stringify(day.daily_total_delta_by_token));
-        console.log("    Lifetime by Token:", JSON.stringify(day.lifetime_earnings_by_token));
-        console.log("    Unrealized by Token:", JSON.stringify(day.unrealized_earnings_by_token));
       });
     }
   } catch (error) {

@@ -2041,9 +2041,6 @@ export class ZyfaiSDK {
         data: {
           walletAddress,
           totalEarningsByToken: response.total_earnings_by_token || {},
-          lifetimeEarningsByToken: response.lifetime_earnings_by_token || {},
-          currentEarningsByChain: response.current_earnings_by_chain || {},
-          unrealizedEarnings: response.unrealized_earnings || {},
           lastCheckTimestamp: response.last_check_timestamp,
           lastLogDate: response.last_log_date,
         },
@@ -2088,9 +2085,6 @@ export class ZyfaiSDK {
         data: {
           walletAddress,
           totalEarningsByToken: data.total_earnings_by_token || {},
-          lifetimeEarningsByToken: data.lifetime_earnings_by_token || {},
-          currentEarningsByChain: data.current_earnings_by_chain || {},
-          unrealizedEarnings: data.unrealized_earnings || {},
           lastCheckTimestamp: data.last_check_timestamp,
           lastLogDate: data.last_log_date,
         },

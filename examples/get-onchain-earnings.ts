@@ -44,7 +44,6 @@ async function main() {
     console.log("\nOnchain Earnings:");
     console.log("-".repeat(50));
     console.log(`  Wallet: ${earnings.data.walletAddress}`);
-    console.log(`Response: ${JSON.stringify(earnings.data)}`);
 
     console.log("\n  Total Earnings by Token:");
     Object.entries(earnings.data.totalEarningsByToken).forEach(
@@ -52,37 +51,6 @@ async function main() {
         console.log(`    ${token}: ${value}`);
       }
     );
-
-    console.log("\n  Lifetime Earnings by Token:");
-    Object.entries(earnings.data.lifetimeEarningsByToken).forEach(
-      ([token, value]) => {
-        console.log(`    ${token}: ${value}`);
-      }
-    );
-
-    if (earnings.data.currentEarningsByChain) {
-      console.log("\n  Current Earnings by Chain:");
-      Object.entries(earnings.data.currentEarningsByChain).forEach(
-        ([chain, tokenEarnings]) => {
-          console.log(`    Chain ${chain}:`);
-          Object.entries(tokenEarnings).forEach(([token, value]) => {
-            console.log(`      ${token}: ${value}`);
-          });
-        }
-      );
-    }
-
-    if (earnings.data.unrealizedEarnings) {
-      console.log("\n  Unrealized Earnings:");
-      Object.entries(earnings.data.unrealizedEarnings).forEach(
-        ([chain, tokenEarnings]) => {
-          console.log(`    Chain ${chain}:`);
-          Object.entries(tokenEarnings).forEach(([token, value]) => {
-            console.log(`      ${token}: ${value}`);
-          });
-        }
-      );
-    }
 
     if (earnings.data.lastCheckTimestamp) {
       console.log(`\n  Last Updated: ${earnings.data.lastCheckTimestamp}`);
