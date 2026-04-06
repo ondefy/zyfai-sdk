@@ -26,6 +26,7 @@ export interface DeploySafeResponse {
   safeAddress: Address;
   txHash: string;
   status: "deployed" | "failed";
+  sessionKeyCreated?: boolean;
 }
 
 // User Profile types
@@ -173,7 +174,6 @@ export interface Portfolio {
   smartWallet?: Address;
   positions?: PositionSlot[];
   hasActiveSessionKey?: boolean;
-  hasBalance?: boolean;
   newSessionKeyAvailable?: boolean;
   contracts?: Address[];
   omniAccount?: boolean;
@@ -183,6 +183,17 @@ export interface Portfolio {
   minSplits?: number;
   executorProxy?: boolean;
   assetTypeSettings?: AssetTypeSettings;
+}
+
+export interface PortfolioDetailed {
+  hasBalance?: boolean;
+  staleBalances?: string[];
+  hasActiveSessionKey?: boolean;
+  positions?: PositionSlot[];
+  portfolioByAssetType?: Record<string, {
+    balance: string;
+    decimals: number;
+  }>;
 }
 
 export interface AssetTypeSettings {
@@ -217,6 +228,12 @@ export interface PortfolioResponse {
   success: boolean;
   userAddress: string;
   portfolio: Portfolio;
+}
+
+export interface PortfolioDetailedResponse {
+  success: boolean;
+  userAddress: string;
+  portfolio: PortfolioDetailed;
 }
 
 // ============================================================================
@@ -360,9 +377,6 @@ export type TokenEarnings = Record<string, string>;
 export interface OnchainEarnings {
   walletAddress: string;
   totalEarningsByToken: TokenEarnings;
-  lifetimeEarningsByToken: TokenEarnings;
-  currentEarningsByChain: Record<string, TokenEarnings>;
-  unrealizedEarnings: Record<string, TokenEarnings>;
   lastCheckTimestamp?: string;
   lastLogDate?: Record<string, string | null>;
 }
@@ -674,4 +688,57 @@ export interface Session {
   actions: ActionData[];
   permitERC4337Paymaster: boolean;
   chainId: bigint;
+}
+
+// Vault Types
+
+export type VaultAsset = "USDC";
+
+export interface VaultDepositRequest {
+  amount: string;
+  asset?: VaultAsset;
+}
+
+export interface VaultDepositResponse {
+  success: boolean;
+  txHash: string;
+  amount: string;
+  asset: VaultAsset;
+  vaultAddress: Address;
+}
+
+export interface VaultWithdrawRequest {
+  shares?: string;
+  all?: boolean;
+}
+
+export interface VaultWithdrawResponse {
+  success: boolean;
+  txHash: string;
+  withdrawKey: Hex;
+  status: "pending" | "claimable";
+}
+
+export interface VaultClaimRequest {
+  withdrawKey: Hex;
+}
+
+export interface VaultClaimResponse {
+  success: boolean;
+  txHash: string;
+  claimed: boolean;
+}
+
+export interface VaultWithdrawStatusResponse {
+  success: boolean;
+  withdrawKey: Hex | null;
+  isClaimable: boolean;
+  isPending: boolean;
+  nonce: bigint;
+}
+
+export interface VaultSharesResponse {
+  success: boolean;
+  shares: bigint;
+  symbol: string;
 }

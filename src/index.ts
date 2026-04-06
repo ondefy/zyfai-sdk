@@ -8,6 +8,9 @@
 
 export { ZyfaiSDK } from "./core/ZyfaiSDK";
 
+// Providers
+export { createBankrProvider, type BankrProviderConfig, type BankrProvider } from "./providers/bankr";
+
 // Chain utilities
 export {
   getChainConfig,
@@ -105,6 +108,8 @@ export type {
   Pool,
   Portfolio,
   PositionSlot,
+  PortfolioDetailed,
+  PortfolioDetailedResponse,
 
   // Session Types
   Session,
@@ -112,4 +117,15 @@ export type {
   ERC7739Data,
   ERC7739Context,
   ActionData,
+
+  // Vault Types
+  VaultAsset,
+  VaultDepositResponse,
+  VaultWithdrawResponse,
+  VaultClaimResponse,
+  VaultWithdrawStatusResponse,
+  VaultSharesResponse,
 } from "./types";
+
+// Vault constants
+export { VAULT_ADDRESS } from "./config/abis";

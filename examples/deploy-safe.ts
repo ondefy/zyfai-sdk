@@ -50,13 +50,14 @@ async function main() {
     console.log(`Safe Address: ${walletInfo.address}`);
   } else {
     console.log("Safe not deployed. Deploying now ...");
-    const deployment = await sdk.deploySafe(connectedAddress, chainId);
+    const deployment = await sdk.deploySafe(connectedAddress, chainId, "aggressive", true);
 
     if (deployment.success) {
       console.log("\n✅ Safe deployed successfully!");
       console.log(`  Safe Address: ${deployment.safeAddress}`);
       console.log(`  Transaction Hash: ${deployment.txHash}`);
       console.log(`  Status: ${deployment.status}`);
+      console.log(`  Session Key Created: ${deployment.sessionKeyCreated}`);
     } else {
       console.error("\n❌ Safe deployment failed");
       throw new Error("Failed to deploy Safe");

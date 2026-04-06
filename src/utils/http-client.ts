@@ -114,8 +114,8 @@ export class HttpClient {
               );
             case 429:
               throw new Error("Rate limit exceeded. Please try again later.");
-            case 500:
-              throw new Error("Internal server error. Please try again later.");
+          case 500:
+            throw new Error(data?.message || data?.error || "Internal server error. Please try again later.");
             default:
               throw new Error(data.message || "An error occurred");
           }

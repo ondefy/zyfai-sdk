@@ -4,7 +4,7 @@
 
 import { HttpClient } from "../utils/http-client";
 import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT } from "../config/endpoints";
-import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS } from "../config/abis";
+import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS, VAULT_ABI, VAULT_ADDRESS } from "../config/abis";
 import type {
   SDKConfig,
   DeploySafeResponse,
@@ -51,6 +51,14 @@ import type {
   GetPoolsResponse,
   GetSelectedPoolsResponse,
   Protocol,
+  PortfolioDetailed,
+  PortfolioDetailedResponse,
+  VaultDepositResponse,
+  VaultWithdrawResponse,
+  VaultClaimResponse,
+  VaultWithdrawStatusResponse,
+  VaultSharesResponse,
+  VaultAsset,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -82,6 +90,7 @@ import {
   isValidPublicStrategy,
   convertStrategiesToPublicAndNaming,
   convertAssetInternally,
+  removeUnusedFields,
 } from "../utils/strategy";
 import { SiweMessage } from "siwe";
 
@@ -856,6 +865,7 @@ export class ZyfaiSDK {
    * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
    * @param strategy - Optional strategy selection: "conservative" (default) or "aggressive"
+   * @param createSessionKey - If true, automatically creates a session key after deployment (default: false)
    * @returns Deployment response with Safe address and transaction hash
    *
    * @example
@@ -865,12 +875,16 @@ export class ZyfaiSDK {
    *
    * // Deploy with aggressive strategy
    * await sdk.deploySafe(userAddress, 8453, "aggressive");
+   *
+   * // Deploy and automatically create session key
+   * await sdk.deploySafe(userAddress, 8453, "conservative", true);
    * ```
    */
   async deploySafe(
     userAddress: string,
     chainId: SupportedChainId,
-    strategy?: Strategy
+    strategy?: Strategy,
+    createSessionKey?: boolean
   ): Promise<DeploySafeResponse> {
     try {
       // Validate inputs
@@ -914,13 +928,26 @@ export class ZyfaiSDK {
         }
       }
 
-      // If already deployed, return early without attempting deployment
+      // If already deployed, optionally create session key and return early
       if (alreadyDeployed) {
+        let sessionKeyCreated = false;
+        if (createSessionKey) {
+          try {
+            await this.createSessionKey(userAddress, chainId);
+            sessionKeyCreated = true;
+          } catch (sessionKeyError) {
+            console.warn(
+              "Failed to create session key:",
+              (sessionKeyError as Error).message
+            );
+          }
+        }
         return {
           success: true,
           safeAddress,
           txHash: "0x0",
           status: "deployed",
+          sessionKeyCreated,
         };
       }
 
@@ -953,11 +980,27 @@ export class ZyfaiSDK {
         );
       }
 
+      // Optionally create session key after deployment
+      let sessionKeyCreated = false;
+      if (createSessionKey) {
+        try {
+          await this.createSessionKey(userAddress, chainId);
+          sessionKeyCreated = true;
+        } catch (sessionKeyError) {
+          // Log the error but don't fail deployment
+          console.warn(
+            "Failed to create session key after Safe deployment:",
+            (sessionKeyError as Error).message
+          );
+        }
+      }
+
       return {
         success: true,
         safeAddress: deploymentResult.safeAddress,
         txHash: deploymentResult.txHash || "0x0",
         status: "deployed",
+        sessionKeyCreated,
       };
     } catch (error) {
       console.error("Safe deployment failed:", error);
@@ -1657,6 +1700,61 @@ export class ZyfaiSDK {
     }
   }
 
+
+  /**
+   * Get all active positions and portfolio for a user
+   *
+   * @param userAddress - User's EOA address
+   * @param chainId - Optional: Filter by specific chain ID
+   * @returns User's positions across all protocols
+   *
+   * @example
+   * ```typescript
+   * // Get all positions across all chains
+   * const positions = await sdk.getPositions(userAddress);
+   *
+   * // Get positions on a specific chain
+   * const basePositions = await sdk.getPositions(userAddress, 8453);
+   * ```
+   */
+  async getPortfolio(
+    userAddress: string,
+  ): Promise<PortfolioDetailedResponse> {
+    try {
+      if (!userAddress) {
+        throw new Error("User address is required");
+      }
+
+      const smartWalletInfo = await this.getSmartWalletByEOA(userAddress);
+
+      // If no smart wallet exists, return empty positions
+      if (!smartWalletInfo.smartWallet) {
+        return {
+          success: true,
+          userAddress,
+          portfolio: {},
+        };
+      }
+
+      console.log("Getting portfolio for", smartWalletInfo.smartWallet);
+
+      // Use the /data/position endpoint with smart wallet address
+      const response = await this.httpClient.get<PortfolioDetailed>(
+        ENDPOINTS.DATA_PORTFOLIO(smartWalletInfo.smartWallet)
+      );
+
+      const convertedResponse = removeUnusedFields(response as any);
+
+      return {
+        success: true,
+        userAddress,
+        portfolio: convertedResponse,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get positions: ${(error as Error).message}`);
+    }
+  }
+
   // ============================================================================
   // User Details Methods
   // ============================================================================
@@ -2041,9 +2139,6 @@ export class ZyfaiSDK {
         data: {
           walletAddress,
           totalEarningsByToken: response.total_earnings_by_token || {},
-          lifetimeEarningsByToken: response.lifetime_earnings_by_token || {},
-          currentEarningsByChain: response.current_earnings_by_chain || {},
-          unrealizedEarnings: response.unrealized_earnings || {},
           lastCheckTimestamp: response.last_check_timestamp,
           lastLogDate: response.last_log_date,
         },
@@ -2088,9 +2183,6 @@ export class ZyfaiSDK {
         data: {
           walletAddress,
           totalEarningsByToken: data.total_earnings_by_token || {},
-          lifetimeEarningsByToken: data.lifetime_earnings_by_token || {},
-          currentEarningsByChain: data.current_earnings_by_chain || {},
-          unrealizedEarnings: data.unrealized_earnings || {},
           lastCheckTimestamp: data.last_check_timestamp,
           lastLogDate: data.last_log_date,
         },
@@ -2872,5 +2964,413 @@ export class ZyfaiSDK {
         `Failed to register agent on Identity Registry: ${(error as Error).message}`
       );
     }
+  }
+
+  // ============================================
+  // Vault Methods (Base only)
+  // ============================================
+
+  /**
+   * Deposit assets into the Zyfai Vault
+   * Currently only supports USDC on Base chain
+   *
+   * @param amount - Amount to deposit (in human readable format, e.g., "100" for 100 USDC)
+   * @param asset - Asset to deposit (default: "USDC")
+   * @returns Deposit transaction result
+   *
+   * @example
+   * ```typescript
+   * const result = await sdk.vaultDeposit("100", "USDC");
+   * console.log("Deposited:", result.txHash);
+   * ```
+   */
+  async vaultDeposit(
+    amount: string,
+    asset: VaultAsset = "USDC",
+    chainId: SupportedChainId = 8453
+  ): Promise<VaultDepositResponse> {
+    if (!this.walletClient?.account) {
+      throw new Error("Wallet not connected. Call connectAccount first.");
+    }
+
+    const userAddress = this.walletClient.account.address;
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+
+    // Get token address for the asset
+    const tokenAddress = getDefaultTokenAddress(chainId, asset) as Address;
+    const decimals = 6; // USDC has 6 decimals
+
+    // Parse amount to smallest unit
+    const parsedAmount = BigInt(Math.floor(parseFloat(amount) * 10 ** decimals));
+
+    try {
+      // Step 1: Check current allowance
+      const allowance = await chainConfig.publicClient.readContract({
+        address: tokenAddress,
+        abi: ERC20_ABI,
+        functionName: "allowance",
+        args: [userAddress, VAULT_ADDRESS],
+      });
+
+      // Step 2: Approve if needed
+      if (allowance < parsedAmount) {
+        const approveTx = await this.walletClient.writeContract({
+          address: tokenAddress,
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [VAULT_ADDRESS, parsedAmount],
+          chain: chainConfig.chain,
+          account: this.walletClient.account,
+        });
+
+        await chainConfig.publicClient.waitForTransactionReceipt({
+          hash: approveTx,
+        });
+      }
+
+      // Step 3: Deposit into vault
+      const depositTx = await this.walletClient.writeContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: "deposit",
+        args: [parsedAmount, userAddress],
+        chain: chainConfig.chain,
+        account: this.walletClient.account,
+      });
+
+      const receipt = await chainConfig.publicClient.waitForTransactionReceipt({
+        hash: depositTx,
+      });
+
+      if (receipt.status !== "success") {
+        throw new Error("Vault deposit transaction failed");
+      }
+
+      return {
+        success: true,
+        txHash: depositTx,
+        amount,
+        asset,
+        vaultAddress: VAULT_ADDRESS,
+      };
+    } catch (error) {
+      throw new Error(`Vault deposit failed: ${(error as Error).message}`);
+    }
+  }
+
+  
+
+  /**
+   * Request withdrawal from the Zyfai Vault
+   * Withdrawals are async - use getVaultWithdrawStatus and vaultClaim after
+   *
+   * @param shares - Amount of shares to redeem (optional, defaults to all shares)
+   * @returns Withdraw request result with withdrawKey
+   *
+   * @example
+   * ```typescript
+   * const result = await sdk.vaultWithdraw();
+   * console.log("Withdraw key:", result.withdrawKey);
+   * // Later, check status and claim
+   * ```
+   */
+  async vaultWithdraw(shares?: string, chainId: SupportedChainId = 8453): Promise<VaultWithdrawResponse> {
+    if (!this.walletClient?.account) {
+      throw new Error("Wallet not connected. Call connectAccount first.");
+    }
+
+    const userAddress = this.walletClient.account.address;
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+
+    try {
+      // Get max redeemable shares if not specified
+      let sharesToRedeem: bigint;
+
+      if (shares) {
+        sharesToRedeem = BigInt(shares);
+      } else {
+        const maxShares = await chainConfig.publicClient.readContract({
+          address: VAULT_ADDRESS,
+          abi: VAULT_ABI,
+          functionName: "maxRequestRedeem",
+          args: [userAddress],
+        });
+
+        if (maxShares === 0n) {
+          throw new Error("No shares available to redeem or withdrawals are paused");
+        }
+
+        sharesToRedeem = maxShares as bigint;
+      }
+
+      // Request redeem
+      const redeemTx = await this.walletClient.writeContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: "requestRedeem",
+        args: [sharesToRedeem, userAddress, userAddress],
+        chain: chainConfig.chain,
+        account: this.walletClient.account,
+      });
+
+      await chainConfig.publicClient.waitForTransactionReceipt({
+        hash: redeemTx,
+      });
+
+      // Get the withdraw key - nonce is incremented after requestRedeem
+      const nonceResult = await chainConfig.publicClient.readContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: "nonces",
+        args: [userAddress],
+      });
+      const nonce = BigInt(nonceResult as bigint);
+
+      if (nonce === 0n) {
+        throw new Error("Nonce is 0 after requestRedeem - unexpected state");
+      }
+
+      const withdrawKey = await chainConfig.publicClient.readContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: "getWithdrawKey",
+        args: [userAddress, nonce - 1n],
+      });
+
+      // Check if already claimable
+      const isClaimable = await chainConfig.publicClient.readContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: "isClaimable",
+        args: [withdrawKey],
+      });
+
+      return {
+        success: true,
+        txHash: redeemTx,
+        withdrawKey: withdrawKey as Hex,
+        status: isClaimable ? "claimable" : "pending",
+      };
+    } catch (error) {
+      throw new Error(`Vault withdraw request failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get the status of a pending withdrawal
+   *
+   * @param withdrawKey - The withdraw key to check (optional, gets latest if not provided)
+   * @returns Withdraw status
+   *
+   * @example
+   * ```typescript
+   * const status = await sdk.getVaultWithdrawStatus();
+   * if (status.isClaimable) {
+   *   await sdk.vaultClaim(status.withdrawKey);
+   * }
+   * ```
+   */
+  async getVaultWithdrawStatus(
+    withdrawKey?: Hex,
+    chainId: SupportedChainId = 8453
+  ): Promise<VaultWithdrawStatusResponse> {
+    if (!this.walletClient?.account) {
+      throw new Error("Wallet not connected. Call connectAccount first.");
+    }
+
+    const userAddress = this.walletClient.account.address;
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+
+    try {
+      // Get nonce to find latest withdraw key
+      const nonceResult = await chainConfig.publicClient.readContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: "nonces",
+        args: [userAddress],
+      });
+      const nonce = BigInt(nonceResult as bigint);
+
+      if (nonce === 0n) {
+        return {
+          success: true,
+          withdrawKey: null,
+          isClaimable: false,
+          isPending: false,
+          nonce: 0n,
+        };
+      }
+
+      // Use provided key or get latest
+      let keyToCheck = withdrawKey;
+      if (!keyToCheck) {
+        keyToCheck = await chainConfig.publicClient.readContract({
+          address: VAULT_ADDRESS,
+          abi: VAULT_ABI,
+          functionName: "getWithdrawKey",
+          args: [userAddress, nonce - 1n],
+        }) as Hex;
+      }
+
+      // Check status
+      const [isClaimable, isClaimed] = await Promise.all([
+        chainConfig.publicClient.readContract({
+          address: VAULT_ADDRESS,
+          abi: VAULT_ABI,
+          functionName: "isClaimable",
+          args: [keyToCheck],
+        }),
+        chainConfig.publicClient.readContract({
+          address: VAULT_ADDRESS,
+          abi: VAULT_ABI,
+          functionName: "isClaimed",
+          args: [keyToCheck],
+        }),
+      ]);
+
+      // If already claimed, no pending withdrawal
+      if (isClaimed) {
+        return {
+          success: true,
+          withdrawKey: null,
+          isClaimable: false,
+          isPending: false,
+          nonce,
+        };
+      }
+
+      return {
+        success: true,
+        withdrawKey: keyToCheck,
+        isClaimable: isClaimable as boolean,
+        isPending: !isClaimable,
+        nonce,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get withdraw status: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Claim a completed withdrawal from the Zyfai Vault
+   *
+   * @param withdrawKey - The withdraw key to claim
+   * @returns Claim transaction result
+   *
+   * @example
+   * ```typescript
+   * const status = await sdk.getVaultWithdrawStatus();
+   * if (status.isClaimable) {
+   *   const claim = await sdk.vaultClaim(status.withdrawKey);
+   *   console.log("Claimed:", claim.txHash);
+   * }
+   * ```
+   */
+  async vaultClaim(withdrawKey: Hex, chainId: SupportedChainId = 8453): Promise<VaultClaimResponse> {
+    if (!this.walletClient?.account) {
+      throw new Error("Wallet not connected. Call connectAccount first.");
+    }
+
+    if (!withdrawKey) {
+      throw new Error("Withdraw key is required");
+    }
+
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+
+    try {
+      // Check if claimable first
+      const isClaimable = await chainConfig.publicClient.readContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: "isClaimable",
+        args: [withdrawKey],
+      });
+
+      if (!isClaimable) {
+        const isClaimed = await chainConfig.publicClient.readContract({
+          address: VAULT_ADDRESS,
+          abi: VAULT_ABI,
+          functionName: "isClaimed",
+          args: [withdrawKey],
+        });
+
+        if (isClaimed) {
+          throw new Error("This withdrawal has already been claimed");
+        }
+
+        throw new Error("Withdrawal is not yet claimable. Please wait for processing.");
+      }
+
+      // Claim
+      const claimTx = await this.walletClient.writeContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: "claim",
+        args: [withdrawKey],
+        chain: chainConfig.chain,
+        account: this.walletClient.account,
+      });
+
+      const receipt = await chainConfig.publicClient.waitForTransactionReceipt({
+        hash: claimTx,
+      });
+
+      if (receipt.status !== "success") {
+        throw new Error("Vault claim transaction failed");
+      }
+
+      return {
+        success: true,
+        txHash: claimTx,
+        claimed: true,
+      };
+    } catch (error) {
+      throw new Error(`Vault claim failed: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * Get vault shares info for the connected wallet
+   *
+   * @param userAddress - Optional user address (defaults to connected wallet)
+   * @returns Vault shares balance and token symbol
+   *
+   * @example
+   * ```typescript
+   * const { shares, symbol } = await sdk.getVaultShares();
+   * console.log(`Balance: ${shares} ${symbol}`);
+   * ```
+   */
+  async getVaultShares(
+    userAddress?: string,
+    chainId: SupportedChainId = 8453
+  ): Promise<VaultSharesResponse> {
+    const address = userAddress || this.walletClient?.account?.address;
+
+    if (!address) {
+      throw new Error("User address required. Provide address or connect wallet first.");
+    }
+
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+
+    const [shareBalance, tokenSymbol] = await Promise.all([
+      chainConfig.publicClient.readContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: "balanceOf",
+        args: [address as Address],
+      }),
+      chainConfig.publicClient.readContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: "symbol",
+      }),
+    ]);
+
+    return {
+      success: true,
+      shares: shareBalance as bigint,
+      symbol: tokenSymbol as string,
+    };
   }
 }

@@ -79,6 +79,14 @@ export function convertStrategyToPublic<T extends { strategy?: string }>(
   }
 }
 
+export function removeUnusedFields(obj: any): any {
+  const result = { ...obj };
+  if ('hasStaleBalance' in result) {
+    delete (result as any).hasStaleBalance;
+  }
+  return result;
+}
+
 export function convertAssetInternally(asset: "USDC" | "WETH"): "usdc" | "eth" {
   if (asset === "USDC") {
     return "usdc";

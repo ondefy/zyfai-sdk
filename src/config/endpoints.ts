@@ -39,6 +39,8 @@ export const ENDPOINTS = {
   // Data (v1)
   DATA_POSITION: (walletAddress: string) =>
     `/data/position?walletAddress=${walletAddress}`,
+  DATA_PORTFOLIO: (walletAddress: string) =>
+    `/data/wallet-portfolio?walletAddress=${walletAddress}`,
   DATA_HISTORY: (walletAddress: string, chainId: SupportedChainId) =>
     `/data/history?walletAddress=${walletAddress}&chainId=${chainId}`,
   DATA_TVL: "/data/usd-tvl",
