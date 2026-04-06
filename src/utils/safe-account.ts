@@ -146,8 +146,8 @@ export const getAccountType = async (
   try {
     const code = await publicClient.getCode({ address });
 
-    // If no code, it's an EOA
-    if (!code || code === "0x" || code.length === 2) {
+    // If no code, it's an EOA, pass 7702 as well
+    if (!code || code === '0x' || code.length === 2 || code.length === 48) {
       return "EOA";
     }
 
