@@ -3002,6 +3002,10 @@ export class ZyfaiSDK {
       throw new Error("Wallet not connected. Call connectAccount first.");
     }
 
+    if (Number(amount) <= 2) {
+      throw new Error("Minimum deposit amount is 2.00 USDC");
+    }
+
     const userAddress = this.walletClient.account.address;
     const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
