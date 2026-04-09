@@ -70,7 +70,7 @@
     "@rhinestone/module-sdk": "^0.2.10",
     "axios": "^1.6.0",
     "permissionless": "^0.2.38",
-    "siwe": "^3.0.0"
+    "@signinwithethereum/siwe": "^4.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
