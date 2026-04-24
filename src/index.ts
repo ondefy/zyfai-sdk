@@ -57,6 +57,7 @@ export type {
 
   // Earnings Types
   TokenEarnings,
+  ChainTokenEarnings,
   OnchainEarnings,
   OnchainEarningsResponse,
   DailyEarning,

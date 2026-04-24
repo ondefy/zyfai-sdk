@@ -53,6 +53,15 @@ async function main() {
       }
     );
 
+    if (earnings.data.totalEarningsByChain) {
+      console.log("\n  Total Earnings by Chain:");
+      Object.entries(earnings.data.totalEarningsByChain).forEach(
+        ([chainId, tokens]) => {
+          console.log(`    Chain ${chainId}:`, tokens);
+        }
+      );
+    }
+
     if (earnings.data.lastCheckTimestamp) {
       console.log(`\n  Last Updated: ${earnings.data.lastCheckTimestamp}`);
     }
@@ -69,6 +78,7 @@ async function main() {
     const updated = await sdk.calculateOnchainEarnings(smartWallet);
     console.log("Earnings recalculated:");
     console.log("  Total by token:", updated.data.totalEarningsByToken);
+    console.log("  Total by chain:", updated.data.totalEarningsByChain);
   } catch (error) {
     console.log("Failed to calculate earnings:", (error as Error).message);
   }

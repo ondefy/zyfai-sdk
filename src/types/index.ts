@@ -374,9 +374,13 @@ export interface HistoryResponse {
 // Token-keyed earnings: { "USDC": "0.020667", "WETH": "0.000009..." }
 export type TokenEarnings = Record<string, string>;
 
+// Chain + token-keyed earnings: { "8453": { "USDC": "0.01", "WETH": "0.0001" }, "42161": {...} }
+export type ChainTokenEarnings = Record<string, TokenEarnings>;
+
 export interface OnchainEarnings {
   walletAddress: string;
   totalEarningsByToken: TokenEarnings;
+  totalEarningsByChain?: ChainTokenEarnings;
   lastCheckTimestamp?: string;
   lastLogDate?: Record<string, string | null>;
 }

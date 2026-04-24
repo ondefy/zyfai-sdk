@@ -2120,6 +2120,7 @@ export class ZyfaiSDK {
    * ```typescript
    * const earnings = await sdk.getOnchainEarnings("0x...");
    * console.log("Total USDC:", earnings.data.totalEarningsByToken["USDC"]);
+   * console.log("Total on Arbitrum:", earnings.data.totalEarningsByChain?.["42161"]);
    * ```
    */
   async getOnchainEarnings(
@@ -2139,6 +2140,7 @@ export class ZyfaiSDK {
         data: {
           walletAddress,
           totalEarningsByToken: response.total_earnings_by_token || {},
+          totalEarningsByChain: response.total_earnings_by_chain || {},
           lastCheckTimestamp: response.last_check_timestamp,
           lastLogDate: response.last_log_date,
         },
@@ -2161,6 +2163,7 @@ export class ZyfaiSDK {
    * ```typescript
    * const earnings = await sdk.calculateOnchainEarnings("0x...");
    * console.log("Total USDC:", earnings.data.totalEarningsByToken["USDC"]);
+   * console.log("Per-chain total:", earnings.data.totalEarningsByChain);
    * ```
    */
   async calculateOnchainEarnings(
@@ -2183,6 +2186,7 @@ export class ZyfaiSDK {
         data: {
           walletAddress,
           totalEarningsByToken: data.total_earnings_by_token || {},
+          totalEarningsByChain: data.total_earnings_by_chain || {},
           lastCheckTimestamp: data.last_check_timestamp,
           lastLogDate: data.last_log_date,
         },
