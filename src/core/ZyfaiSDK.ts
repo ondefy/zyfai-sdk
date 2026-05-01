@@ -915,18 +915,18 @@ export class ZyfaiSDK {
       );
 
       // Verify that userAddress is an EOA (only if not already deployed to save RPC calls)
-      if (!alreadyDeployed) {
-        const accountType = await getAccountType(
-          userAddress as Address,
-          chainConfig.publicClient
-        );
+      // if (!alreadyDeployed) {
+      //   const accountType = await getAccountType(
+      //     userAddress as Address,
+      //     chainConfig.publicClient
+      //   );
 
-        if (accountType !== "EOA") {
-          throw new Error(
-            `Address ${userAddress} is not an EOA. Only EOA addresses can deploy Safe smart wallets.`
-          );
-        }
-      }
+      //   if (accountType !== "EOA") {
+      //     throw new Error(
+      //       `Address ${userAddress} is not an EOA. Only EOA addresses can deploy Safe smart wallets.`
+      //     );
+      //   }
+      // }
 
       // If already deployed, optionally create session key and return early
       if (alreadyDeployed) {
