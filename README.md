@@ -722,6 +722,11 @@ Returns per-position APY breakdowns with per-token weighted averages.
 const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
 // Per-token weighted APY: { "USDC": 4.64, "WETH": 1.94 }
 console.log("Weighted APY after fee:", apyHistory.weightedApyAfterFee);
+console.log("Weighted APY (with rZFI Merkl):", apyHistory.weightedApyWithRzfiAfterFee);
+console.log("Avg rZFI Merkl APR:", apyHistory.averageRzfiMerklApr);
+// Per-chain breakdowns: { "8453": { "USDC": 4.59 }, "42161": { "WETH": 1.82 } }
+console.log("By chain:", apyHistory.weightedApyAfterFeeByChain);
+console.log("By chain (with rZFI):", apyHistory.weightedApyWithRzfiAfterFeeByChain);
 // Each date entry has positions (with tokenSymbol), and per-token weighted_apy, fee, etc.
 ```
 

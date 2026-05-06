@@ -47,8 +47,16 @@ async function main() {
     try {
       const response = await sdk.getDailyApyHistory(smartWallet, period);
 
-      console.log('apy history response:', response);
-
+      console.log("apy history response:", response);
+      console.log("  totalDays:", response.totalDays);
+      console.log("  weightedApyAfterFee:", response.weightedApyAfterFee);
+      console.log("  weightedApyWithRzfiAfterFee:", response.weightedApyWithRzfiAfterFee);
+      console.log("  averageRzfiMerklApr:", response.averageRzfiMerklApr);
+      console.log("  weightedApyAfterFeeByChain:", response.weightedApyAfterFeeByChain);
+      console.log(
+        "  weightedApyWithRzfiAfterFeeByChain:",
+        response.weightedApyWithRzfiAfterFeeByChain
+      );
     } catch (error) {
       console.log(`  Failed: ${(error as Error).message}`);
     }

@@ -759,9 +759,10 @@ Returns per-position APY breakdowns with per-token weighted averages (multi-asse
 
 ```typescript
 const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
-// Returns: { success, walletAddress, history: Record<string, DailyApyEntry>, totalDays, requestedDays?, weightedApyWithRzfiAfterFee?: TokenApy, weightedApyAfterFee?: TokenApy }
+// Returns: { success, walletAddress, history: Record<string, DailyApyEntry>, totalDays, requestedDays?, weightedApyWithRzfiAfterFee?: TokenApy, weightedApyAfterFee?: TokenApy, averageRzfiMerklApr?: TokenApy, weightedApyAfterFeeByChain?: ChainTokenApy, weightedApyWithRzfiAfterFeeByChain?: ChainTokenApy }
 // DailyApyEntry: { positions: ApyPosition[], weighted_apy: TokenApy, fee: TokenApy, weighted_apy_after_fee: TokenApy, rzfi_merkl_apr: TokenApy, final_weighted_apy: TokenApy }
 // TokenApy = Record<string, number>, e.g. { "USDC": 5.05, "WETH": 1.58 }
+// ChainTokenApy = Record<string, TokenApy>, e.g. { "8453": { "USDC": 4.59 }, "42161": { "WETH": 1.82 } }
 // ApyPosition includes tokenSymbol field
 ```
 
