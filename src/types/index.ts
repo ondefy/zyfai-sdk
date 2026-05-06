@@ -550,8 +550,9 @@ export interface SdkKeyTVLResponse {
   success: boolean;
   allowedWallets: Address[];
   totalTvl: number;
+  totalVolume: number;
   tvlByWallet: WalletTVL[];
-  metadata?: {
+  metadata: {
     sdkKeyId: string;
     clientName: string;
     walletsCount: number;

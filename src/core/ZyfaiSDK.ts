@@ -2711,6 +2711,7 @@ export class ZyfaiSDK {
         success: response.success || true,
         allowedWallets: response.allowedWallets || [],
         totalTvl: response.totalTvl || 0,
+        totalVolume: response.totalVolume || 0,
         tvlByWallet: response.tvlByWallet || [],
         metadata: response.metadata || {
           sdkKeyId: "",
