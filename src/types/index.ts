@@ -476,6 +476,9 @@ export interface ApyPosition {
 // Per-token APY values: { "USDC": 5.05, "WETH": 1.58 }
 export type TokenApy = Record<string, number>;
 
+// Chain + token-keyed APY values: { "8453": { "USDC": 4.59 }, "42161": { "WETH": 1.82 } }
+export type ChainTokenApy = Record<string, TokenApy>;
+
 export interface DailyApyEntry {
   positions: ApyPosition[];
   weighted_apy: TokenApy;
@@ -493,6 +496,9 @@ export interface DailyApyHistoryResponse {
   requestedDays?: number;
   weightedApyWithRzfiAfterFee?: TokenApy;
   weightedApyAfterFee?: TokenApy;
+  averageRzfiMerklApr?: TokenApy;
+  weightedApyAfterFeeByChain?: ChainTokenApy;
+  weightedApyWithRzfiAfterFeeByChain?: ChainTokenApy;
 }
 
 // ============================================================================

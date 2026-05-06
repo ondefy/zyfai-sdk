@@ -2589,7 +2589,10 @@ export class ZyfaiSDK {
         totalDays: data.total_days || data.totalDays || 0,
         requestedDays: data.requested_days || data.requestedDays,
         weightedApyWithRzfiAfterFee: data.average_final_weighted_apy_after_fee_with_rzfi,
-        weightedApyAfterFee: data.average_final_weighted_apy_after_fee
+        weightedApyAfterFee: data.average_final_weighted_apy_after_fee,
+        averageRzfiMerklApr: data.average_rzfi_merkl_apr,
+        weightedApyAfterFeeByChain: data.average_final_weighted_apy_after_fee_by_chain,
+        weightedApyWithRzfiAfterFeeByChain: data.average_final_weighted_apy_after_fee_with_rzfi_by_chain,
       };
     } catch (error) {
       throw new Error(
