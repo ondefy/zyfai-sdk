@@ -75,8 +75,9 @@ export const DATA_ENDPOINTS = {
 
   // Earnings
   ONCHAIN_EARNINGS: (walletAddress: string) =>
-    `/onchain-earnings/onchain-earnings?walletAddress=${walletAddress}`,
-  CALCULATE_ONCHAIN_EARNINGS: "/onchain-earnings/calculate-onchain-earnings",
+    `/onchain-earnings/onchain-earnings-v2?walletAddress=${walletAddress}`,
+  CALCULATE_ONCHAIN_EARNINGS: (walletAddress: string) =>
+    `/onchain-earnings/calculate-onchain-earnings-v2?walletAddress=${walletAddress}`,
   DAILY_EARNINGS: (
     walletAddress: string,
     startDate?: string,

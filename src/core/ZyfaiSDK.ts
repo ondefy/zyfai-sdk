@@ -2135,14 +2135,16 @@ export class ZyfaiSDK {
         DATA_ENDPOINTS.ONCHAIN_EARNINGS(walletAddress)
       );
 
+      const data = response.data || response;
+
       return {
         success: true,
         data: {
           walletAddress,
-          totalEarningsByToken: response.total_earnings_by_token || {},
-          totalEarningsByChain: response.total_earnings_by_chain || {},
-          lastCheckTimestamp: response.last_check_timestamp,
-          lastLogDate: response.last_log_date,
+          totalEarningsByToken: data.total_earnings_by_token || {},
+          totalEarningsByChain: data.total_earnings_by_chain || {},
+          lastCheckTimestamp: data.last_check_timestamp,
+          lastLogDate: data.last_log_date,
         },
       };
     } catch (error) {
@@ -2175,8 +2177,8 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.dataPost<any>(
-        DATA_ENDPOINTS.CALCULATE_ONCHAIN_EARNINGS,
-        { walletAddress }
+        DATA_ENDPOINTS.CALCULATE_ONCHAIN_EARNINGS(walletAddress),
+        {}
       );
 
       const data = response.data || response;
