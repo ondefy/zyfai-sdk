@@ -2201,7 +2201,11 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get daily earnings for a wallet within a date range
+   * Get daily earnings for a wallet within a date range (V2)
+   *
+   * Reads from `user_onchain_daily_earnings_v2`. Each entry exposes
+   * per-chain per-token maps for current / lifetime / unrealized / total
+   * earnings plus a daily total delta.
    *
    * @param walletAddress - Smart wallet address
    * @param startDate - Start date (YYYY-MM-DD format)
@@ -2211,7 +2215,10 @@ export class ZyfaiSDK {
    * @example
    * ```typescript
    * const daily = await sdk.getDailyEarnings("0x...", "2024-01-01", "2024-01-31");
-   * daily.data.forEach(d => console.log(d.snapshot_date, d.total_earnings_by_token));
+   * daily.data.forEach(d => {
+   *   // d.total_earnings_by_token = { "8453": { "USDC": "143.10" } }
+   *   console.log(d.snapshot_date, d.total_earnings_by_token);
+   * });
    * ```
    */
   async getDailyEarnings(
@@ -2228,19 +2235,20 @@ export class ZyfaiSDK {
         DATA_ENDPOINTS.DAILY_EARNINGS(walletAddress, startDate, endDate)
       );
 
-      // Filter out unwanted fields from each daily entry
-      const filteredData = (response.data || []).map((entry: any) => ({
-        wallet_address: entry.wallet_address,
+      const data = (response.data || []).map((entry: any) => ({
         snapshot_date: entry.snapshot_date,
-        total_earnings_by_token: entry.total_earnings_by_token,
-        daily_total_delta_by_token: entry.daily_total_delta_by_token,
+        current_earnings_by_token: entry.current_earnings_by_token || {},
+        lifetime_earnings_by_token: entry.lifetime_earnings_by_token || {},
+        unrealized_earnings_by_token: entry.unrealized_earnings_by_token || {},
+        total_earnings_by_token: entry.total_earnings_by_token || {},
+        daily_total_delta_by_token: entry.daily_total_delta_by_token || {},
         created_at: entry.created_at,
       }));
 
       return {
         success: true,
         walletAddress,
-        data: filteredData,
+        data,
         count: response.count || 0,
         filters: {
           startDate: startDate || null,

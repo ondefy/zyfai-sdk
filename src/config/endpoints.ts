@@ -83,7 +83,7 @@ export const DATA_ENDPOINTS = {
     startDate?: string,
     endDate?: string
   ) => {
-    let url = `/onchain-earnings/daily-earnings?walletAddress=${walletAddress}`;
+    let url = `/onchain-earnings/daily-earnings-v2?walletAddress=${walletAddress}`;
     if (startDate) url += `&startDate=${startDate}`;
     if (endDate) url += `&endDate=${endDate}`;
     return url;
