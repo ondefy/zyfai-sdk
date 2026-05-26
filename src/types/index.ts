@@ -390,11 +390,16 @@ export interface OnchainEarningsResponse {
   data: OnchainEarnings;
 }
 
+// V2 endpoint returns per-chain per-token nested maps under the `*_by_token`
+// keys, e.g. `{ "8453": { "USDC": "143.10" } }`. The key name is preserved
+// from the backend; the shape is `ChainTokenEarnings`.
 export interface DailyEarning {
-  wallet_address?: string;
   snapshot_date: string;
-  total_earnings_by_token: TokenEarnings;
-  daily_total_delta_by_token: TokenEarnings;
+  current_earnings_by_token: ChainTokenEarnings;
+  lifetime_earnings_by_token: ChainTokenEarnings;
+  unrealized_earnings_by_token: ChainTokenEarnings;
+  total_earnings_by_token: ChainTokenEarnings;
+  daily_total_delta_by_token: ChainTokenEarnings;
   created_at?: string;
 }
 
