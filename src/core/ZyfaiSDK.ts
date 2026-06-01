@@ -92,7 +92,7 @@ import {
   convertAssetInternally,
   removeUnusedFields,
 } from "../utils/strategy";
-import { SiweMessage } from "siwe";
+import { SiweMessage } from "@signinwithethereum/siwe";
 
 export class ZyfaiSDK {
   private httpClient: HttpClient;
