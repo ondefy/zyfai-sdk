@@ -88,6 +88,7 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 | `withdrawFunds`                | Execution API | Yes (SIWE)    |
 | `getAvailableProtocols`        | Execution API | No            |
 | `getPositions`                 | Execution API | No            |
+| `getPortfolio`                 | Execution API | No            |
 | `getUserDetails`               | Execution API | No            |
 | `getTVL`                       | Execution API | No            |
 | `getVolume`                    | Execution API | No            |
@@ -539,6 +540,7 @@ interface PositionSlot {
   underlyingAmount?: string;
   pool_apy?: number;
   pool_tvl?: string;
+  liquidity?: number;
 }
 
 interface Position {

@@ -185,15 +185,21 @@ export interface Portfolio {
   assetTypeSettings?: AssetTypeSettings;
 }
 
+export interface PortfolioAssetBalance {
+  balance: Hex;
+  decimals: number;
+}
+
+export type PortfolioByAssetType = Record<string, PortfolioAssetBalance>;
+
+export type PortfolioByChain = Record<string, PortfolioByAssetType>;
 export interface PortfolioDetailed {
   hasBalance?: boolean;
   staleBalances?: string[];
   hasActiveSessionKey?: boolean;
   positions?: PositionSlot[];
-  portfolioByAssetType?: Record<string, {
-    balance: string;
-    decimals: number;
-  }>;
+  portfolioByAssetType?: PortfolioByAssetType;
+  portfolioByChain?: PortfolioByChain;
 }
 
 export interface AssetTypeSettings {
@@ -222,6 +228,7 @@ export interface PositionSlot {
   underlyingAmount?: string;
   pool_apy?: number;
   pool_tvl?: number;
+  liquidity?: number;
 }
 
 export interface PortfolioResponse {

@@ -109,6 +109,9 @@ export type {
   Pool,
   Portfolio,
   PositionSlot,
+  PortfolioAssetBalance,
+  PortfolioByAssetType,
+  PortfolioByChain,
   PortfolioDetailed,
   PortfolioDetailedResponse,
 
