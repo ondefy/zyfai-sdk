@@ -50,6 +50,8 @@ import type {
   CustomizeBatchResponse,
   GetPoolsResponse,
   GetSelectedPoolsResponse,
+  SimulateBestPositionsParams,
+  SimulateBestPositionsResponse,
   Protocol,
   PortfolioDetailed,
   PortfolioDetailedResponse,
@@ -2843,6 +2845,60 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(
         `Failed to get available pools: ${(error as Error).message}`
+      );
+    }
+  }
+
+  // ============================================================================
+  // Simulation
+  // ============================================================================
+
+  /**
+   * Simulate the best yield positions for a given amount, splitting it across
+   * the top-ranked pools (up to minSplit positions) for the requested chains/strategy.
+   *
+   * Returns ready-to-execute calldata (approve + deposit) per position. The deposit
+   * calldata contains a "<RECEIVER>" placeholder that must be replaced with the
+   * actual receiving address (e.g. the user's Safe) before sending the transaction.
+   *
+   * @param params - Simulation parameters
+   * @returns Chain-keyed map of simulated positions with calldata
+   *
+   * @example
+   * ```typescript
+   * const result = await sdk.simulateBestPositions({
+   *   amount: 3000,
+   *   token: "USDC",
+   *   networks: 8453,
+   *   strategy: "conservative",
+   *   minSplit: 3,
+   *   protocols: ["aave", "compound", "morpho"],
+   * });
+   * console.log(result.data["8453"]);
+   * ```
+   */
+  async simulateBestPositions(
+    params: SimulateBestPositionsParams
+  ): Promise<SimulateBestPositionsResponse> {
+    try {
+      if (!isValidPublicStrategy(params.strategy)) {
+        throw new Error(
+          `Invalid strategy: ${params.strategy}. Must be "conservative" or "aggressive".`
+        );
+      }
+      const internalStrategy = toInternalStrategy(params.strategy);
+
+      const response = await this.httpClient.get<SimulateBestPositionsResponse>(
+        ENDPOINTS.SIMULATE_BEST_POSITIONS({
+          ...params,
+          strategy: internalStrategy,
+        })
+      );
+
+      return response;
+    } catch (error) {
+      throw new Error(
+        `Failed to simulate best positions: ${(error as Error).message}`
       );
     }
   }

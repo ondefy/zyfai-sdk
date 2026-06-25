@@ -106,6 +106,7 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 | `getAggressiveOpportunities`   | **Data API**  | No            |
 | `getDailyApyHistory`           | **Data API**  | No            |
 | `getAPYPerStrategy`            | **Data API**  | No            |
+| `simulateBestPositions`        | Execution API | No            |
 
 \* JWT token is automatically forwarded from SIWE authentication
 
@@ -834,6 +835,29 @@ const portfolio = await sdk.getDebankPortfolio(walletAddress);
 ```
 
 **Note:** This is a premium endpoint requiring additional authorization.
+
+---
+
+### 24. Simulate Best Positions
+
+Simulate splitting an amount across the top-ranked pools for a chain/strategy. Returns ready-to-execute calldata per position.
+
+```typescript
+const result = await sdk.simulateBestPositions({
+  amount: 3000,
+  token: "USDC",
+  networks: 8453,
+  strategy: "conservative",
+  minSplit: 3,
+  protocols: ["aave", "compound", "morpho"],
+  pools: ["gauntletusdcprime", "steakhouseprimeusdc"],
+});
+// Returns: { success, data: Record<chainId, SimulatedPosition[]>, messages }
+// SimulatedPosition: { protocol, pool, simulated_apy, combined_apy, amount, amount_raw, url, tvl, liquidity, averageCombinedApy30Days, calldata }
+// calldata: array of { contract_address, function_name, parameters, value, description } for approve + deposit
+```
+
+**Note:** The `deposit` calldata entry's `parameters` array contains a `"<RECEIVER>"` placeholder that must be replaced with the actual receiving address (e.g. the user's Safe) before executing the transaction.
 
 ---
 

@@ -578,6 +578,48 @@ export interface SdkKeyTVLResponse {
 }
 
 // ============================================================================
+// Simulate Best Positions Types
+// ============================================================================
+
+export interface SimulateBestPositionsParams {
+  amount: number;
+  token: string;
+  networks: number | number[];
+  strategy: "conservative" | "aggressive";
+  minSplit?: number;
+  protocols?: string[];
+  pools?: string[];
+}
+
+export interface SimulateCalldataItem {
+  contract_address: Address;
+  function_name: string;
+  parameters: string[];
+  value: string;
+  description: string;
+}
+
+export interface SimulatedPosition {
+  protocol: string;
+  pool: string;
+  simulated_apy: number;
+  combined_apy: number;
+  amount: number;
+  amount_raw: string;
+  url: string;
+  tvl: number;
+  liquidity: number;
+  averageCombinedApy30Days: number;
+  calldata: SimulateCalldataItem[];
+}
+
+export interface SimulateBestPositionsResponse {
+  success: boolean;
+  data: Record<string, SimulatedPosition[]>;
+  messages: Record<string, string>;
+}
+
+// ============================================================================
 // Best Opportunity Types
 // ============================================================================
 

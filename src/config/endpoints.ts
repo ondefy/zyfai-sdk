@@ -60,6 +60,31 @@ export const ENDPOINTS = {
   // Agent Identity Registry
   AGENT_TOKEN_URI: "/users/me/agent-token-uri",
 
+  // Simulation
+  SIMULATE_BEST_POSITIONS: (params: {
+    amount: number;
+    token: string;
+    networks: number | number[];
+    strategy: string;
+    minSplit?: number;
+    protocols?: string[];
+    pools?: string[];
+  }) => {
+    const networks = Array.isArray(params.networks)
+      ? params.networks.join(",")
+      : params.networks;
+    const query: string[] = [
+      `amount=${params.amount}`,
+      `token=${params.token}`,
+      `networks=${networks}`,
+      `strategy=${params.strategy}`,
+    ];
+    if (params.minSplit !== undefined) query.push(`minSplit=${params.minSplit}`);
+    if (params.protocols?.length) query.push(`protocols=${params.protocols.join(",")}`);
+    if (params.pools?.length) query.push(`pools=${params.pools.join(",")}`);
+    return `/simulate/best-positions?${query.join("&")}`;
+  },
+
   // Customization
   CUSTOMIZE_BATCH: "/customization/customize-batch",
   CUSTOMIZATION_POOLS: (protocolId: string, strategy?: string) =>
