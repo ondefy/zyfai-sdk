@@ -94,6 +94,12 @@ export type {
   BestOpportunityDetails,
   BestOpportunityResponse,
 
+  // Simulate Best Positions Types
+  SimulateBestPositionsParams,
+  SimulateCalldataItem,
+  SimulatedPosition,
+  SimulateBestPositionsResponse,
+
   // Agent Identity Registry Types
   RegisterAgentResponse,
 
