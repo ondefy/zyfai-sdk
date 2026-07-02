@@ -8,9 +8,9 @@ export type Hex = `0x${string}`;
 export type Strategy = "conservative" | "aggressive";
 
 export interface RpcUrlsConfig {
+  1?: string;
   8453?: string;
   42161?: string;
-  9745?: string;
 }
 
 export interface SDKConfig {

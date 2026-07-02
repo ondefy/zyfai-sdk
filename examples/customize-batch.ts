@@ -156,21 +156,22 @@ async function main() {
 
   // Configure the same protocol across multiple chains
   const multiChainProtocol = selectedProtocols[0];
-  const chains = [8453, 42161, 9745]; // Base, Arbitrum, Plasma
+  const chains = [1, 8453, 42161]; // Ethereum Mainnet, Base, Arbitrum
 
   const multiChainCustomizations = chains.map((chain) => ({
     protocolId: multiChainProtocol.id,
     pools: chain === 8453 ? poolsResponse.pools.slice(0, 2) : [], // Specific pools on Base, autoselect on others
     chainId: chain,
-    autoselect: chain !== 8453, // Autoselect on Arbitrum and Plasma
+    autoselect: chain !== 8453, // Autoselect on Ethereum Mainnet and Arbitrum
   }));
 
   console.log(`Configuring ${multiChainProtocol.name} across ${chains.length} chains:`);
   multiChainCustomizations.forEach((custom) => {
     const chainName =
+      custom.chainId === 1 ? "Ethereum Mainnet" :
       custom.chainId === 8453 ? "Base" :
       custom.chainId === 42161 ? "Arbitrum" :
-      custom.chainId === 9745 ? "Plasma" : `Chain ${custom.chainId}`;
+      `Chain ${custom.chainId}`;
     console.log(`  ${chainName}: ${custom.autoselect ? "Autoselect" : `${custom.pools.length} specific pools`}`);
   });
   console.log();

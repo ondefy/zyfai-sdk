@@ -91,7 +91,7 @@ src/
 │   ├── http-client.ts        # Dual HTTP client (Execution + Data API)
 │   └── strategy.ts           # Strategy conversion (conservative/aggressive ↔️ safe/degen)
 ├── config/
-│   ├── chains.ts             # Chain configs (Arbitrum, Base, Plasma)
+│   ├── chains.ts             # Chain configs (Ethereum Mainnet, Base, Arbitrum)
 │   ├── endpoints.ts          # API endpoint definitions for both backends
 │   └── abis.ts               # Smart contract ABIs (ERC20)
 ├── types/
@@ -111,9 +111,9 @@ src/
 
 | Chain | ID | Default Token |
 |-------|-----|--------------|
+| Ethereum Mainnet | 1 | USDC (0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48) |
 | Base | 8453 | USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) |
 | Arbitrum | 42161 | USDC (0xaf88d065e77c8cc2239327c5edb3a432268e5831) |
-| Plasma | 9745 | USDT (0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb) |
 
 Default chain: Base (8453)
 
@@ -184,7 +184,8 @@ Public SDK uses "conservative" and "aggressive". Internal API uses "safe" and "d
 **Deposit:**
 - Frontend user sends ERC20 transfer to Safe address
 - SDK calls `/users/log_deposit` to register the deposit
-- Token addresses are auto-selected based on chain (USDC for Base/Arbitrum, USDT for Plasma)
+- Token addresses are auto-selected based on chain (USDC by default on Ethereum Mainnet, Base, and Arbitrum)
+- Minimum total portfolio balance is only enforced on Ethereum Mainnet USDC (5 USDC — test threshold in `MIN_PORTFOLIO_BALANCE`); no minimum on Base, Arbitrum, or for WETH today
 
 **Withdraw:**
 - SDK calls `/users/withdraw` or `/users/partial-withdraw`

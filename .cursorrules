@@ -159,9 +159,9 @@ const positions = await sdk.getPositions("0xUserAddress");
 
 Only support these chains:
 
-- **Arbitrum** (42161)
+- **Ethereum Mainnet** (1)
 - **Base** (8453)
-- **Plasma** (9745)
+- **Arbitrum** (42161)
 
 Default chain: **Base (8453)**
 
@@ -204,7 +204,7 @@ interface BaseResponse {
 }
 
 // Chain IDs are explicit union type
-type SupportedChainId = 8453 | 42161 | 9745;
+type SupportedChainId = 1 | 8453 | 42161;
 ```
 
 ### Documentation

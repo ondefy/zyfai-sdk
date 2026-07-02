@@ -36,7 +36,7 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base, arbitrum } from "viem/chains";
+import { base, arbitrum, mainnet } from "viem/chains";
 
 config();
 
@@ -55,6 +55,8 @@ const ERC20_ABI = [
 
 function getChain(chainId: number) {
   switch (chainId) {
+    case 1:
+      return mainnet;
     case 8453:
       return base;
     case 42161:
@@ -75,7 +77,7 @@ async function main() {
   }
 
   const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
-  const amount = process.env.DEPOSIT_AMOUNT ?? "3000000"; // 3 USDC/USDT
+  const amount = process.env.DEPOSIT_AMOUNT ?? "3000000"; // 3 USDC (6 decimals)
   const customTokenAddress = process.env.TOKEN_ADDRESS;
 
   // Option 1: Use a pre-existing transaction hash (if you already executed the deposit)
@@ -132,7 +134,7 @@ async function main() {
 
     const tokenAddress = (customTokenAddress ||
       getDefaultTokenAddress(chainId)) as Address;
-    const tokenInfo = chainId === 9745 ? "USDT" : "USDC";
+    const tokenInfo = "USDC";
 
     console.log(`Token: ${tokenInfo} (${tokenAddress})`);
     console.log(`Amount: ${amount} (least decimal units)`);

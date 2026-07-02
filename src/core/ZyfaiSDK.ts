@@ -5,6 +5,7 @@
 import { HttpClient } from "../utils/http-client";
 import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT } from "../config/endpoints";
 import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS, VAULT_ABI, VAULT_ADDRESS } from "../config/abis";
+import { MIN_PORTFOLIO_BALANCE, formatMinPortfolioLabel } from "../config/constants";
 import type {
   SDKConfig,
   DeploySafeResponse,
@@ -73,6 +74,7 @@ import {
   getChainConfig,
   isSupportedChain,
   getDefaultTokenAddress,
+  ASSET_CONFIGS,
   type SupportedChainId,
 } from "../config/chains";
 import {
@@ -1297,22 +1299,30 @@ export class ZyfaiSDK {
    * Deposit funds from EOA to Safe smart wallet
    * Transfers tokens from the connected wallet to the user's Safe and logs the deposit
    *
-   * Token is automatically selected based on chain:
-   * - Base (8453) and Arbitrum (42161): USDC
-   * - Plasma (9745): USDT
+   * Token is automatically selected based on chain (USDC by default):
+   * - Ethereum Mainnet (1), Base (8453), Arbitrum (42161)
+   *
+   * Minimum portfolio balance enforced (Safe balance + deposit amount),
+   * configured per-chain in `MIN_PORTFOLIO_BALANCE`:
+   * - Ethereum Mainnet (1): 5 USDC (test threshold)
+   * - Base (8453) & Arbitrum (42161): no minimum
+   *
+   * If no minimum is configured for a given (chainId, asset) pair,
+   * the check is skipped.
    *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
    * @param amount - Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals)
+   * @param asset - Optional asset symbol ("USDC" or "WETH"). Defaults to "USDC".
    * @returns Deposit response with transaction hash
    *
    * @example
    * ```typescript
-   * // Deposit 100 USDC (6 decimals) to Safe on Base
+   * // Deposit 10,000 USDC (6 decimals) to Safe on Base
    * const result = await sdk.depositFunds(
    *   "0xUser...",
    *   8453,
-   *   "100000000" // 100 USDC = 100 * 10^6
+   *   "10000000000" // 10,000 USDC = 10_000 * 10^6
    * );
    * ```
    */
@@ -1335,9 +1345,17 @@ export class ZyfaiSDK {
         throw new Error("Valid amount is required");
       }
 
-      const token = getDefaultTokenAddress(chainId, asset);
+      const assetSymbol = (asset || "USDC").toUpperCase();
+      const assetConfig = ASSET_CONFIGS[assetSymbol];
+      if (!assetConfig) {
+        throw new Error(
+          `Unsupported asset: ${assetSymbol}. Supported: USDC, WETH.`
+        );
+      }
 
-      // Get default token address for the chain
+      const minRequired = MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
+
+      const token = getDefaultTokenAddress(chainId, assetSymbol);
 
       const walletClient = this.getWalletClient();
       const chainConfig = getChainConfig(chainId, this.rpcUrls);
@@ -1361,10 +1379,36 @@ export class ZyfaiSDK {
         );
       }
 
-      // Convert amount string to BigInt (amount is already in least decimal units)
       const amountBigInt = BigInt(amount);
 
-      // Transfer tokens from connected wallet to Safe
+      // Enforce minimum total portfolio balance only when a threshold is
+      // configured for this (chainId, asset) pair. No config = no check.
+      if (minRequired !== undefined) {
+        const currentSafeBalance = (await chainConfig.publicClient.readContract({
+          address: token as Address,
+          abi: ERC20_ABI,
+          functionName: "balanceOf",
+          args: [safeAddress],
+        })) as bigint;
+
+        const totalAfterDeposit = currentSafeBalance + amountBigInt;
+        if (totalAfterDeposit < minRequired) {
+          const minLabel = formatMinPortfolioLabel(
+            minRequired,
+            assetConfig.decimals,
+            assetSymbol
+          );
+          throw new Error(
+            `Minimum portfolio balance not met on chain ${chainId}. ` +
+              `Total portfolio must be at least ${minLabel}. ` +
+              `Current Safe balance: ${currentSafeBalance.toString()}, ` +
+              `deposit amount: ${amountBigInt.toString()}, ` +
+              `total after deposit: ${totalAfterDeposit.toString()} ` +
+              `(raw units, ${assetConfig.decimals} decimals).`
+          );
+        }
+      }
+
       const txHash = await walletClient.writeContract({
         address: token as Address,
         abi: ERC20_ABI,
@@ -1419,8 +1463,7 @@ export class ZyfaiSDK {
    * - Need more control over transaction execution
    *
    * Token is automatically selected based on chain if not provided:
-   * - Base (8453) and Arbitrum (42161): USDC
-   * - Plasma (9745): USDT
+   * - Ethereum Mainnet (1), Base (8453), Arbitrum (42161): USDC by default
    *
    * @param chainId - Chain ID where the deposit was made
    * @param txHash - Transaction hash of the deposit

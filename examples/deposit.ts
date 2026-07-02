@@ -21,7 +21,7 @@ async function main() {
   
   const asset = "WETH"; // Can be "USDC" or "WETH"
   const amount = asset === "WETH" 
-    ? "2000000000000000" // 0.002 WETH (18 decimals) -- minimum amount 0.001 on L2s
+    ? "1000000000000000" // 0.002 WETH (18 decimals) -- minimum amount 0.001 on L2s
     : "100000000"; // 100 USDC (6 decimals) -- minimum amount 1.5 on L2s
 
   const sdk = new ZyfaiSDK({
@@ -36,6 +36,7 @@ async function main() {
   const wallet = await sdk.getSmartWalletAddress(connected, chainId);
   console.log(`Safe address: ${wallet.address}`);
 
+  console.log("Depositing funds...", amount, asset, chainId);
   // Deposit with specified asset (USDC by default, or WETH)
   const response = await sdk.depositFunds(connected, chainId, amount, asset);
 

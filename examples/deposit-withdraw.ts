@@ -11,10 +11,9 @@ import { SupportedChainId, ZyfaiSDK } from "../dist/index";
 // Load environment variables from .env file
 config();
 
-// Token addresses are now automatically selected based on chain:
-// - Base (8453) and Arbitrum (42161): USDC
-// - Plasma (9745): USDT
-// You can still provide a custom token address if needed
+// Token addresses are automatically selected based on chain:
+// - Ethereum Mainnet (1), Base (8453), and Arbitrum (42161): USDC (default)
+// Pass asset: "WETH" to depositFunds to deposit WETH instead.
 
 async function main() {
   // Validate environment variables
@@ -69,11 +68,11 @@ async function main() {
   console.log("Step 4: Depositing funds to Safe...");
   console.log("Depositing 0.1 USDC (100000 units with 6 decimals) to Safe...");
   console.log(
-    "Note: Token address is automatically selected (USDC for Base/Arbitrum, USDT for Plasma)"
+    "Note: Token address is automatically selected (USDC on Mainnet, Base, and Arbitrum)"
   );
 
   try {
-    // Token address is automatically selected based on chain (USDC for Base/Arbitrum, USDT for Plasma)
+    // Token address is automatically selected based on chain (USDC on Mainnet, Base, and Arbitrum)
     const depositResult = await sdk.depositFunds(
       userAddress,
       chainId,

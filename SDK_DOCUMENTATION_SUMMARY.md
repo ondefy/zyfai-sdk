@@ -30,9 +30,9 @@ const sdk = new ZyfaiSDK({
   // rpcUrls is optional - only needed for local operations like getSmartWalletAddress
   rpcUrls: {
     // Optional: Custom RPC URLs to avoid rate limiting from public RPCs
+    1: "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY", // Ethereum Mainnet
     8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY", // Base
     42161: "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY", // Arbitrum
-    9745: "https://your-plasma-rpc-provider.com", // Plasma
   },
 });
 
@@ -62,9 +62,9 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 | --------- | -------- | --------------------------------------------------------------------------------------------- |
 | `apiKey`  | Yes      | API key for both Execution API and Data API                                                   |
 | `rpcUrls` | No       | Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations) |
+|           |          | - `1` (string): Ethereum Mainnet RPC URL                                                      |
 |           |          | - `8453` (string): Base Mainnet RPC URL                                                       |
 |           |          | - `42161` (string): Arbitrum One RPC URL                                                      |
-|           |          | - `9745` (string): Plasma Mainnet RPC URL                                                     |
 
 **Important:**
 
@@ -134,7 +134,7 @@ deploySafe(
 | Parameter     | Type     | Required | Description                                                      |
 | ------------- | -------- | -------- | ---------------------------------------------------------------- |
 | `userAddress` | string   | ✅       | User's EOA address                                               |
-| `chainId`     | number   | ✅       | Target chain (8453, 42161, 9745)                                 |
+| `chainId`     | number   | ✅       | Target chain (1, 8453, 42161)                                    |
 | `strategy`    | Strategy | ❌       | Strategy selection: `"conservative"` (default) or `"aggressive"` |
 
 #### Response Type
@@ -341,7 +341,7 @@ interface SmartWalletResponse {
 }
 ```
 
-**Note:** Supported chains are Arbitrum (42161), Base (8453), and Plasma (9745).
+**Note:** Supported chains are Ethereum Mainnet (1), Base (8453), and Arbitrum (42161).
 
 #### Example Response
 
@@ -364,16 +364,23 @@ Transfer tokens from user's EOA to their Smart Wallet and log the deposit.
 depositFunds(
   userAddress: string,
   chainId: number,
-  amount: string
+  amount: string,
+  asset?: "USDC" | "WETH"
 ): Promise<DepositResponse>
 ```
 
 **Token Selection:**
 
-Token address is automatically selected based on chain:
+Token address is automatically selected based on chain and requested asset (defaults to USDC):
 
-- **Base (8453) and Arbitrum (42161)**: USDC
-- **Plasma (9745)**: USDT
+- **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC (default) or WETH
+
+**Minimum portfolio balance (enforced on Safe balance + deposit amount):**
+
+- Ethereum Mainnet (1) / USDC: 5 USDC (test threshold — will be raised before production)
+- All other (chain, asset) pairs: no minimum enforced
+
+Only deposits on Mainnet in USDC that would leave the Safe below 5 USDC are rejected. Top-ups smaller than the minimum are allowed if the Safe already holds enough of the asset to meet it.
 
 #### Request Parameters
 
@@ -381,7 +388,8 @@ Token address is automatically selected based on chain:
 | ------------- | ------ | -------- | ------------------------------------------------------------------------------ |
 | `userAddress` | string | ✅       | User's EOA address                                                             |
 | `chainId`     | number | ✅       | Chain to deposit on                                                            |
-| `amount`      | string | ✅       | Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals) |
+| `amount`      | string | ✅       | Amount in least decimal units (e.g., "10000000000" for 10,000 USDC)            |
+| `asset`       | string | ❌       | Asset to deposit: `"USDC"` (default) or `"WETH"`                               |
 
 #### Response Type
 
@@ -882,9 +890,9 @@ const sdk = new ZyfaiSDK({
   apiKey: API_KEY,
   rpcUrls: {
     // Optional: Use your own RPC providers to avoid rate limiting
+    1: "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY",
     8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY",
     42161: "https://arb-mainnet.g.alchemy.com/v2/YOUR_KEY",
-    9745: "https://your-plasma-rpc-provider.com",
   },
 });
 
@@ -905,12 +913,13 @@ if (!wallet.isDeployed) {
 // 2. Create session key (uses existing authentication)
 await sdk.createSessionKey(userAddress, chainId);
 
-// 3. Deposit funds - 100 USDC (least decimal units: 100 * 10^6)
-// Token address is automatically selected (USDC for Base/Arbitrum, USDT for Plasma)
+// 3. Deposit funds - 10 USDC (least decimal units: 10 * 10^6)
+// Token address is automatically selected (USDC by default on Ethereum Mainnet, Base, Arbitrum)
+// Only Mainnet enforces a minimum (5 USDC, test threshold); Base and Arbitrum have no minimum.
 const depositResult = await sdk.depositFunds(
   userAddress,
   chainId,
-  "100000000" // 100 USDC with 6 decimals
+  "10000000" // 10 USDC with 6 decimals
 );
 
 // 4. Monitor positions

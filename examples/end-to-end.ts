@@ -18,8 +18,8 @@ import { SupportedChainId, ZyfaiSDK } from "../dist/index";
 config();
 
 // Token addresses are automatically selected based on chain:
-// - Base (8453) and Arbitrum (42161): USDC
-// - Plasma (9745): USDT
+// - Ethereum Mainnet (1), Base (8453) and Arbitrum (42161): USDC (default)
+//   Pass asset: "WETH" to depositFunds to deposit WETH instead.
 
 async function main() {
   console.log("=".repeat(60));
@@ -154,7 +154,7 @@ async function main() {
   // =================================================================
   console.log("STEP 6: Deposit Funds (Optional)");
   console.log("-".repeat(60));
-  const tokenName = chainId === 9745 ? "USDT" : "USDC";
+  const tokenName = "USDC";
   console.log(`  To deposit funds, uncomment the code below and ensure:`);
   console.log(`  1. You have ${tokenName} in your connected wallet`);
   console.log("  2. You have gas fees for the transaction");
@@ -166,11 +166,11 @@ async function main() {
   /* UNCOMMENT TO ENABLE DEPOSITS
   try {
     console.log(`  Depositing 10 ${tokenName} to Safe...`);
-    // Token address is automatically selected (USDC for Base/Arbitrum, USDT for Plasma)
+    // Token address is automatically selected (USDC on Mainnet, Base, and Arbitrum)
     const depositResult = await sdk.depositFunds(
       userAddress,
       chainId,
-      "10000000" // 10 USDC/USDT = 10 * 10^6 (6 decimals)
+      "10000000" // 10 USDC = 10 * 10^6 (6 decimals)
     );
 
     console.log("\nDeposit successful");

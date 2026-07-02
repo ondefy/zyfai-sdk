@@ -16,7 +16,7 @@ async function main() {
   const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
   const asset = "WETH"; // Can be "USDC" or "WETH"
   const withdrawAmount = asset === "WETH" 
-    ? "600000000000000000" // 0.6 WETH (18 decimals)
+    ? "1000000000000000" // 0.001 WETH (18 decimals)
     : "100000000"; // 100 USDC (6 decimals)
 
   const sdk = new ZyfaiSDK({

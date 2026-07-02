@@ -32,7 +32,13 @@ async function main() {
   console.log("SDK initialized");
   console.log(
     `Target chain: ${chainId} (${
-      chainId === 8453 ? "Base" : chainId === 42161 ? "Arbitrum" : "Plasma"
+      chainId === 8453
+        ? "Base"
+        : chainId === 42161
+        ? "Arbitrum"
+        : chainId === 1
+        ? "Ethereum Mainnet"
+        : `Chain ${chainId}`
     })\n`
   );
 

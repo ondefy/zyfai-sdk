@@ -11,7 +11,7 @@ You can generate an api key from here: https://sdk.zyf.ai/
 
 - **Safe Smart Wallet Deployment**: Deploy Safe wallets with deterministic addresses
 - **Flexible Authentication**: Support for private keys and modern wallet providers
-- **Multi-Chain Support**: Works on Arbitrum, Base, and Plasma
+- **Multi-Chain Support**: Works on Ethereum Mainnet, Base, and Arbitrum
 - **Yield Optimization**: Access to multiple DeFi protocols and strategies
 - **Position Tracking**: Monitor and manage your DeFi positions across chains
 
@@ -136,11 +136,11 @@ if (result.success) {
 
 The SDK supports the following chains:
 
-| Chain    | Chain ID | Status |
-| -------- | -------- | ------ |
-| Arbitrum | 42161    | ✅     |
-| Base     | 8453     | ✅     |
-| Plasma   | 9745     | ✅     |
+| Chain            | Chain ID | Status |
+| ---------------- | -------- | ------ |
+| Ethereum Mainnet | 1        | ✅     |
+| Base             | 8453     | ✅     |
+| Arbitrum         | 42161    | ✅     |
 
 Example with different chains:
 
@@ -175,9 +175,9 @@ new ZyfaiSDK(config: SDKConfig | string)
   - If an object is provided:
     - `apiKey` (string): Your Zyfai API key (required)
     - `rpcUrls` (object, optional): Custom RPC URLs per chain to avoid rate limiting (optional, only needed for local operations like `getSmartWalletAddress`)
+      - `1` (string, optional): Ethereum Mainnet RPC URL
       - `8453` (string, optional): Base Mainnet RPC URL
       - `42161` (string, optional): Arbitrum One RPC URL
-      - `9745` (string, optional): Plasma Mainnet RPC URL
 
 **Examples:**
 
@@ -194,9 +194,9 @@ const sdk = new ZyfaiSDK({
 const sdk = new ZyfaiSDK({
   apiKey: "your-api-key",
   rpcUrls: {
+    1: "https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY", // Ethereum Mainnet
     8453: "https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY", // Base
     42161: "https://arb-mainnet.g.alchemy.com/v2/YOUR_API_KEY", // Arbitrum
-    9745: "https://your-plasma-rpc-provider.com", // Plasma
   },
 });
 ```
@@ -360,17 +360,23 @@ console.log("User ID:", result.userId);
 
 ### 4. Deposit Funds
 
-Transfer tokens to your Safe smart wallet. Token address is automatically selected based on chain:
+Transfer tokens to your Safe smart wallet. Token address is automatically selected based on chain and the requested asset (defaults to USDC):
 
-- **Base (8453) and Arbitrum (42161)**: USDC
-- **Plasma (9745)**: USDT
+- **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC (default) or WETH
+
+**Minimum portfolio balance (enforced on Safe balance + deposit amount):**
+
+- Ethereum Mainnet (1) / USDC: 5 USDC (test threshold — will be raised before production)
+- All other (chain, asset) pairs: no minimum enforced
+
+Only deposits on Mainnet in USDC that would leave the Safe below 5 USDC are rejected. Deposits on Base or Arbitrum, or in WETH, have no minimum today.
 
 ```typescript
-// Deposit 100 USDC (6 decimals) to Safe on Base
+// Deposit 10 USDC (6 decimals) to Safe on Base — no minimum on Base
 const result = await sdk.depositFunds(
   userAddress,
   8453, // Chain ID
-  "100000000" // Amount: 100 USDC = 100 * 10^6
+  "10000000" // Amount: 10 USDC = 10 * 10^6
 );
 
 if (result.success) {
@@ -382,7 +388,8 @@ if (result.success) {
 **Note:**
 
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
-- Token address is automatically selected based on chain (USDC for Base/Arbitrum, USDT for Plasma)
+- Token address is automatically selected based on chain (USDC by default; pass `asset: "WETH"` to deposit WETH instead)
+- On Ethereum Mainnet, the total Safe balance in USDC must be at least 5 USDC after the deposit (test threshold); smaller top-ups are allowed if the Safe already holds enough USDC to meet the minimum
 - The SDK automatically authenticates via SIWE before logging the deposit with Zyfai's API, so no extra steps are required on your end once the transfer confirms
 
 #### Log External Deposit (For Sponsored Transactions)
@@ -996,7 +1003,7 @@ try {
 2. **Use Environment Variables**: Store keys in `.env` files
 3. **Check Deployment Status**: Always check if Safe is already deployed before deploying
 4. **Handle Errors Gracefully**: Implement proper error handling for all SDK methods
-5. **Validate Chain IDs**: Ensure you're using supported chains (Arbitrum, Base, Plasma)
+5. **Validate Chain IDs**: Ensure you're using supported chains (Ethereum Mainnet, Base, Arbitrum)
 6. **Use Explicit Parameters**: Always pass explicit `userAddress` and `chainId` to methods
 
 ## Environment Variables
@@ -1012,7 +1019,7 @@ ZYFAI_API_KEY=your-api-key
 PRIVATE_KEY=0x...
 
 # Optional: Chain ID (default: 8453 for Base)
-# Supported: 42161 (Arbitrum), 8453 (Base), 9745 (Plasma)
+# Supported: 1 (Ethereum Mainnet), 8453 (Base), 42161 (Arbitrum)
 CHAIN_ID=8453
 ```
 
@@ -1024,7 +1031,7 @@ Make sure to call `connectAccount()` before calling methods that require **signi
 
 ### "Unsupported chain" Error
 
-Check that the chain ID is in the supported chains list: Arbitrum (42161), Base (8453), or Plasma (9745).
+Check that the chain ID is in the supported chains list: Ethereum Mainnet (1), Base (8453), or Arbitrum (42161).
 
 ### SIWE Authentication Issues in Browser
 
