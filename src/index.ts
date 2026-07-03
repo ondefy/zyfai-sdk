@@ -101,6 +101,15 @@ export type {
   SimulatedPosition,
   SimulateBestPositionsResponse,
 
+  // WebSocket Event Types
+  DepegEvent,
+  LiquidityTrapEvent,
+  LiquidityRestoredEvent,
+  PoolStatusChangeEvent,
+  NewCollateralDetectedEvent,
+  LiquidityDropEvent,
+  ZyfaiEventHandlers,
+
   // Agent Identity Registry Types
   RegisterAgentResponse,
 

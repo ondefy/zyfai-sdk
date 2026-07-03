@@ -3,7 +3,7 @@
  */
 
 import { HttpClient } from "../utils/http-client";
-import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT } from "../config/endpoints";
+import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT, WS_ENDPOINT } from "../config/endpoints";
 import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS, VAULT_ABI, VAULT_ADDRESS } from "../config/abis";
 import type {
   SDKConfig,
@@ -52,6 +52,7 @@ import type {
   GetSelectedPoolsResponse,
   SimulateBestPositionsParams,
   SimulateBestPositionsResponse,
+  ZyfaiEventHandlers,
   Protocol,
   PortfolioDetailed,
   PortfolioDetailedResponse,
@@ -3458,6 +3459,91 @@ export class ZyfaiSDK {
       success: true,
       shares: shareBalance as bigint,
       symbol: tokenSymbol as string,
+    };
+  }
+
+  // ============================================================================
+  // WebSocket Event Stream
+  // ============================================================================
+
+  /**
+   * Subscribe to real-time Zyfai risk and liquidity events via WebSocket.
+   *
+   * Events: depeg, liquidity_trap, liquidity_restored, pool_status_change,
+   * new_collateral_detected, liquidity_drop.
+   *
+   * @param handlers - Optional callback per event type, plus onError
+   * @returns Cleanup function — call it to close the connection
+   *
+   * @example
+   * ```typescript
+   * const unsubscribe = sdk.subscribeToEvents({
+   *   onDepeg: (data) => console.log("Depeg detected:", data.token, data.severity),
+   *   onLiquidityDrop: (data) => console.log("Liquidity drop:", data.pool, data.dropPercent),
+   *   onError: (err) => console.error("WS error:", err),
+   * });
+   *
+   * // Later, close the connection:
+   * unsubscribe();
+   * ```
+   */
+  subscribeToEvents(handlers: ZyfaiEventHandlers): () => void {
+    let ws: any = null;
+    let closed = false;
+
+    const connect = () => {
+      ws = new (globalThis as any).WebSocket(WS_ENDPOINT);
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "subscribe" }));
+      };
+
+      ws.onmessage = (event: any) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type !== "event") return;
+
+          switch (msg.eventType) {
+            case "depeg":
+              handlers.onDepeg?.(msg.data);
+              break;
+            case "liquidity_trap":
+              handlers.onLiquidityTrap?.(msg.data);
+              break;
+            case "liquidity_restored":
+              handlers.onLiquidityRestored?.(msg.data);
+              break;
+            case "pool_status_change":
+              handlers.onPoolStatusChange?.(msg.data);
+              break;
+            case "new_collateral_detected":
+              handlers.onNewCollateralDetected?.(msg.data);
+              break;
+            case "liquidity_drop":
+              handlers.onLiquidityDrop?.(msg.data);
+              break;
+          }
+        } catch {
+          // ignore malformed messages
+        }
+      };
+
+      ws.onerror = (error: any) => {
+        handlers.onError?.(error);
+      };
+
+      ws.onclose = () => {
+        if (!closed) {
+          setTimeout(connect, 3000);
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      closed = true;
+      ws?.close();
     };
   }
 }

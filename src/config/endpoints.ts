@@ -11,6 +11,9 @@ export const API_ENDPOINT = "https://api.zyf.ai";
 // Data API
 export const DATA_API_ENDPOINT = "https://defiapi.zyf.ai";
 
+// WebSocket
+export const WS_ENDPOINT = "wss://defiapi.zyf.ai/ws/events";
+
 export const API_VERSION = "/api/v1";
 export const DATA_API_VERSION = "/api/v2";
 

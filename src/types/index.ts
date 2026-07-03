@@ -808,3 +808,77 @@ export interface VaultSharesResponse {
   shares: bigint;
   symbol: string;
 }
+
+// ============================================================================
+// WebSocket Event Types
+// ============================================================================
+
+export interface DepegEvent {
+  token: string;
+  price: number;
+  deviation: number;
+  severity: "warning" | "critical";
+  previousSeverity?: string;
+  affectedPools: { protocol: string; pool: string; chain: string }[];
+  timestamp: string;
+}
+
+export interface LiquidityTrapEvent {
+  protocol: string;
+  pool: string;
+  chain: string;
+  zyfiTvl: number;
+  liquidity: number;
+  ratio: number;
+  timestamp: string;
+}
+
+export interface LiquidityRestoredEvent {
+  protocol: string;
+  pool: string;
+  chain: string;
+  zyfiTvl: number;
+  liquidity: number;
+  timestamp: string;
+}
+
+export interface PoolStatusChangeEvent {
+  chain_id: string;
+  protocol_name: string;
+  pool_name: string;
+  status: "live" | "not live" | "dead";
+  liquidity: number;
+  timestamp: string;
+}
+
+export interface NewCollateralDetectedEvent {
+  protocol: string;
+  pool: string;
+  chain: string;
+  asset: string;
+  exposureUsd: number;
+  percentOfTvl: number;
+  timestamp: string;
+}
+
+export interface LiquidityDropEvent {
+  protocol: string;
+  pool: string;
+  chain: string;
+  asset: string;
+  previousLiquidityUsd: number;
+  currentLiquidityUsd: number;
+  dropPercent: number;
+  windowMinutes: number;
+  timestamp: string;
+}
+
+export interface ZyfaiEventHandlers {
+  onDepeg?: (data: DepegEvent) => void;
+  onLiquidityTrap?: (data: LiquidityTrapEvent) => void;
+  onLiquidityRestored?: (data: LiquidityRestoredEvent) => void;
+  onPoolStatusChange?: (data: PoolStatusChangeEvent) => void;
+  onNewCollateralDetected?: (data: NewCollateralDetectedEvent) => void;
+  onLiquidityDrop?: (data: LiquidityDropEvent) => void;
+  onError?: (error: unknown) => void;
+}
