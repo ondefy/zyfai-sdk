@@ -581,6 +581,12 @@ export interface SdkKeyTVLResponse {
 // Simulate Best Positions Types
 // ============================================================================
 
+export interface UserPosition {
+  protocol: string;
+  pool: string;
+  tvl: number;
+}
+
 export interface SimulateBestPositionsParams {
   amount: number;
   token: string;
@@ -589,6 +595,7 @@ export interface SimulateBestPositionsParams {
   minSplit?: number;
   protocols?: string[];
   pools?: string[];
+  userPositions?: UserPosition[];
 }
 
 export interface SimulateCalldataItem {

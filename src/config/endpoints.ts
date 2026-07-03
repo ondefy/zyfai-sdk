@@ -69,6 +69,7 @@ export const ENDPOINTS = {
     minSplit?: number;
     protocols?: string[];
     pools?: string[];
+    userPositions?: { protocol: string; pool: string; tvl: number }[];
   }) => {
     const networks = Array.isArray(params.networks)
       ? params.networks.join(",")
@@ -82,6 +83,7 @@ export const ENDPOINTS = {
     if (params.minSplit !== undefined) query.push(`minSplit=${params.minSplit}`);
     if (params.protocols?.length) query.push(`protocols=${params.protocols.join(",")}`);
     if (params.pools?.length) query.push(`pools=${params.pools.join(",")}`);
+    if (params.userPositions?.length) query.push(`userPositions=${encodeURIComponent(JSON.stringify(params.userPositions))}`);
     return `/simulate/best-positions?${query.join("&")}`;
   },
 

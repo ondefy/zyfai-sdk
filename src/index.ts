@@ -95,6 +95,7 @@ export type {
   BestOpportunityResponse,
 
   // Simulate Best Positions Types
+  UserPosition,
   SimulateBestPositionsParams,
   SimulateCalldataItem,
   SimulatedPosition,
