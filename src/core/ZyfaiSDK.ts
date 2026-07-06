@@ -3,7 +3,7 @@
  */
 
 import { HttpClient } from "../utils/http-client";
-import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT } from "../config/endpoints";
+import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT, WS_ENDPOINT } from "../config/endpoints";
 import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS, VAULT_ABI, VAULT_ADDRESS } from "../config/abis";
 import { MIN_PORTFOLIO_BALANCE, formatMinPortfolioLabel } from "../config/constants";
 import type {
@@ -51,6 +51,10 @@ import type {
   CustomizeBatchResponse,
   GetPoolsResponse,
   GetSelectedPoolsResponse,
+  SimulateBestPositionsParams,
+  SimulateBestPositionsResponse,
+  ZyfaiEventHandlers,
+  ZyfaiEventFilters,
   Protocol,
   PortfolioDetailed,
   PortfolioDetailedResponse,
@@ -2890,6 +2894,60 @@ export class ZyfaiSDK {
     }
   }
 
+  // ============================================================================
+  // Simulation
+  // ============================================================================
+
+  /**
+   * Simulate the best yield positions for a given amount, splitting it across
+   * the top-ranked pools (up to minSplit positions) for the requested chains/strategy.
+   *
+   * Returns ready-to-execute calldata (approve + deposit) per position. The deposit
+   * calldata contains a "<RECEIVER>" placeholder that must be replaced with the
+   * actual receiving address (e.g. the user's Safe) before sending the transaction.
+   *
+   * @param params - Simulation parameters
+   * @returns Chain-keyed map of simulated positions with calldata
+   *
+   * @example
+   * ```typescript
+   * const result = await sdk.simulateBestPositions({
+   *   amount: 3000,
+   *   token: "USDC",
+   *   networks: 8453,
+   *   strategy: "conservative",
+   *   minSplit: 3,
+   *   protocols: ["aave", "compound", "morpho"],
+   * });
+   * console.log(result.data["8453"]);
+   * ```
+   */
+  async simulateBestPositions(
+    params: SimulateBestPositionsParams
+  ): Promise<SimulateBestPositionsResponse> {
+    try {
+      if (!isValidPublicStrategy(params.strategy)) {
+        throw new Error(
+          `Invalid strategy: ${params.strategy}. Must be "conservative" or "aggressive".`
+        );
+      }
+      const internalStrategy = toInternalStrategy(params.strategy);
+
+      const response = await this.httpClient.get<SimulateBestPositionsResponse>(
+        ENDPOINTS.SIMULATE_BEST_POSITIONS({
+          ...params,
+          strategy: internalStrategy,
+        })
+      );
+
+      return response;
+    } catch (error) {
+      throw new Error(
+        `Failed to simulate best positions: ${(error as Error).message}`
+      );
+    }
+  }
+
   /**
    * Get currently selected pools for a protocol on a specific chain.
    *
@@ -3445,6 +3503,89 @@ export class ZyfaiSDK {
       success: true,
       shares: shareBalance as bigint,
       symbol: tokenSymbol as string,
+    };
+  }
+
+  // ============================================================================
+  // WebSocket Event Stream
+  // ============================================================================
+
+  /**
+   * Subscribe to real-time Zyfai risk and liquidity events via WebSocket.
+   *
+   * Events: depeg, liquidity_trap, liquidity_restored, pool_status_change,
+   * new_collateral_detected, liquidity_drop.
+   *
+   * @param handlers - Callback per event type, plus onError
+   * @param filters - Optional protocol/pool filter sent to the server on subscribe
+   * @returns Cleanup function — call it to close the connection
+   *
+   * @example
+   * ```typescript
+   * const unsubscribe = sdk.subscribeToEvents(
+   *   {
+   *     onDepeg: (data) => console.log("Depeg detected:", data.token, data.severity),
+   *     onLiquidityDrop: (data) => console.log("Liquidity drop:", data.pool, data.dropPercent),
+   *   },
+   *   { protocols: ["morpho"], pools: ["gauntlet usdc core"] }
+   * );
+   *
+   * // Later, close the connection:
+   * unsubscribe();
+   * ```
+   */
+  subscribeToEvents(handlers: ZyfaiEventHandlers, filters?: ZyfaiEventFilters): () => void {
+    let ws: any = null;
+    let closed = false;
+
+    const connect = () => {
+      ws = new (globalThis as any).WebSocket(WS_ENDPOINT);
+
+      ws.onopen = () => {
+        const msg: any = { type: "subscribe" };
+        if (filters && (filters.chains?.length || filters.protocols?.length || filters.pools?.length)) {
+          msg.filters = filters;
+        }
+        ws.send(JSON.stringify(msg));
+      };
+
+      ws.onmessage = (event: any) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type !== "event") return;
+
+          switch (msg.eventType) {
+            case "depeg":
+              handlers.onDepeg?.(msg.data);
+              break;
+            case "new_collateral_detected":
+              handlers.onNewCollateralDetected?.(msg.data);
+              break;
+            case "liquidity_drop":
+              handlers.onLiquidityDrop?.(msg.data);
+              break;
+          }
+        } catch {
+          // ignore malformed messages
+        }
+      };
+
+      ws.onerror = (error: any) => {
+        handlers.onError?.(error);
+      };
+
+      ws.onclose = () => {
+        if (!closed) {
+          setTimeout(connect, 3000);
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      closed = true;
+      ws?.close();
     };
   }
 }

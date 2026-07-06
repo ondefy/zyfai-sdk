@@ -578,6 +578,55 @@ export interface SdkKeyTVLResponse {
 }
 
 // ============================================================================
+// Simulate Best Positions Types
+// ============================================================================
+
+export interface UserPosition {
+  protocol: string;
+  pool: string;
+  tvl: number;
+}
+
+export interface SimulateBestPositionsParams {
+  amount: number;
+  token: string;
+  networks: number | number[];
+  strategy: "conservative" | "aggressive";
+  minSplit?: number;
+  protocols?: string[];
+  pools?: string[];
+  userPositions?: UserPosition[];
+}
+
+export interface SimulateCalldataItem {
+  contract_address: Address;
+  function_name: string;
+  parameters: string[];
+  value: string;
+  description: string;
+}
+
+export interface SimulatedPosition {
+  protocol: string;
+  pool: string;
+  simulated_apy: number;
+  combined_apy: number;
+  amount: number;
+  amount_raw: string;
+  url: string;
+  tvl: number;
+  liquidity: number;
+  averageCombinedApy30Days: number;
+  calldata: SimulateCalldataItem[];
+}
+
+export interface SimulateBestPositionsResponse {
+  success: boolean;
+  data: Record<string, SimulatedPosition[]>;
+  messages: Record<string, string>;
+}
+
+// ============================================================================
 // Best Opportunity Types
 // ============================================================================
 
@@ -758,4 +807,55 @@ export interface VaultSharesResponse {
   success: boolean;
   shares: bigint;
   symbol: string;
+}
+
+// ============================================================================
+// WebSocket Event Types
+// ============================================================================
+
+export interface DepegEvent {
+  token: string;
+  price: number;
+  deviation: number;
+  severity: "warning" | "critical";
+  previousSeverity?: string;
+  affectedPools: { protocol: string; pool: string; chain: string }[];
+  timestamp: string;
+}
+
+
+
+export interface NewCollateralDetectedEvent {
+  protocol: string;
+  pool: string;
+  chain: string;
+  asset: string;
+  exposureUsd: number;
+  percentOfTvl: number;
+  timestamp: string;
+}
+
+export interface LiquidityDropEvent {
+  protocol: string;
+  pool: string;
+  chain: string;
+  asset: string;
+  previousLiquidityUsd: number;
+  currentLiquidityUsd: number;
+  dropPercent: number;
+  windowMinutes: number;
+  timestamp: string;
+}
+
+export interface ZyfaiEventFilters {
+  chains?: string[];
+  protocols?: string[];
+  pools?: string[];
+}
+
+export interface ZyfaiEventHandlers {
+  onDepeg?: (data: DepegEvent) => void;
+  onNewCollateralDetected?: (data: NewCollateralDetectedEvent) => void;
+  onLiquidityDrop?: (data: LiquidityDropEvent) => void;
+  onError?: (error: unknown) => void;
 }

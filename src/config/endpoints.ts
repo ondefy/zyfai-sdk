@@ -11,6 +11,9 @@ export const API_ENDPOINT = "https://api.zyf.ai";
 // Data API
 export const DATA_API_ENDPOINT = "https://defiapi.zyf.ai";
 
+// WebSocket
+export const WS_ENDPOINT = "wss://defiapi.zyf.ai/ws/events";
+
 export const API_VERSION = "/api/v1";
 export const DATA_API_VERSION = "/api/v2";
 
@@ -59,6 +62,33 @@ export const ENDPOINTS = {
 
   // Agent Identity Registry
   AGENT_TOKEN_URI: "/users/me/agent-token-uri",
+
+  // Simulation
+  SIMULATE_BEST_POSITIONS: (params: {
+    amount: number;
+    token: string;
+    networks: number | number[];
+    strategy: string;
+    minSplit?: number;
+    protocols?: string[];
+    pools?: string[];
+    userPositions?: { protocol: string; pool: string; tvl: number }[];
+  }) => {
+    const networks = Array.isArray(params.networks)
+      ? params.networks.join(",")
+      : params.networks;
+    const query: string[] = [
+      `amount=${params.amount}`,
+      `token=${params.token}`,
+      `networks=${networks}`,
+      `strategy=${params.strategy}`,
+    ];
+    if (params.minSplit !== undefined) query.push(`minSplit=${params.minSplit}`);
+    if (params.protocols?.length) query.push(`protocols=${params.protocols.join(",")}`);
+    if (params.pools?.length) query.push(`pools=${params.pools.join(",")}`);
+    if (params.userPositions?.length) query.push(`userPositions=${encodeURIComponent(JSON.stringify(params.userPositions))}`);
+    return `/simulate/best-positions?${query.join("&")}`;
+  },
 
   // Customization
   CUSTOMIZE_BATCH: "/customization/customize-batch",

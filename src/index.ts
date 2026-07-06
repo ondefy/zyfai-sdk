@@ -94,6 +94,20 @@ export type {
   BestOpportunityDetails,
   BestOpportunityResponse,
 
+  // Simulate Best Positions Types
+  UserPosition,
+  SimulateBestPositionsParams,
+  SimulateCalldataItem,
+  SimulatedPosition,
+  SimulateBestPositionsResponse,
+
+  // WebSocket Event Types
+  DepegEvent,
+  NewCollateralDetectedEvent,
+  LiquidityDropEvent,
+  ZyfaiEventFilters,
+  ZyfaiEventHandlers,
+
   // Agent Identity Registry Types
   RegisterAgentResponse,
 
