@@ -53,6 +53,7 @@ import type {
   SimulateBestPositionsParams,
   SimulateBestPositionsResponse,
   ZyfaiEventHandlers,
+  ZyfaiEventFilters,
   Protocol,
   PortfolioDetailed,
   PortfolioDetailedResponse,
@@ -3472,22 +3473,25 @@ export class ZyfaiSDK {
    * Events: depeg, liquidity_trap, liquidity_restored, pool_status_change,
    * new_collateral_detected, liquidity_drop.
    *
-   * @param handlers - Optional callback per event type, plus onError
+   * @param handlers - Callback per event type, plus onError
+   * @param filters - Optional protocol/pool filter sent to the server on subscribe
    * @returns Cleanup function — call it to close the connection
    *
    * @example
    * ```typescript
-   * const unsubscribe = sdk.subscribeToEvents({
-   *   onDepeg: (data) => console.log("Depeg detected:", data.token, data.severity),
-   *   onLiquidityDrop: (data) => console.log("Liquidity drop:", data.pool, data.dropPercent),
-   *   onError: (err) => console.error("WS error:", err),
-   * });
+   * const unsubscribe = sdk.subscribeToEvents(
+   *   {
+   *     onDepeg: (data) => console.log("Depeg detected:", data.token, data.severity),
+   *     onLiquidityDrop: (data) => console.log("Liquidity drop:", data.pool, data.dropPercent),
+   *   },
+   *   { protocols: ["morpho"], pools: ["gauntlet usdc core"] }
+   * );
    *
    * // Later, close the connection:
    * unsubscribe();
    * ```
    */
-  subscribeToEvents(handlers: ZyfaiEventHandlers): () => void {
+  subscribeToEvents(handlers: ZyfaiEventHandlers, filters?: ZyfaiEventFilters): () => void {
     let ws: any = null;
     let closed = false;
 
@@ -3495,7 +3499,11 @@ export class ZyfaiSDK {
       ws = new (globalThis as any).WebSocket(WS_ENDPOINT);
 
       ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "subscribe" }));
+        const msg: any = { type: "subscribe" };
+        if (filters && (filters.chains?.length || filters.protocols?.length || filters.pools?.length)) {
+          msg.filters = filters;
+        }
+        ws.send(JSON.stringify(msg));
       };
 
       ws.onmessage = (event: any) => {
@@ -3506,15 +3514,6 @@ export class ZyfaiSDK {
           switch (msg.eventType) {
             case "depeg":
               handlers.onDepeg?.(msg.data);
-              break;
-            case "liquidity_trap":
-              handlers.onLiquidityTrap?.(msg.data);
-              break;
-            case "liquidity_restored":
-              handlers.onLiquidityRestored?.(msg.data);
-              break;
-            case "pool_status_change":
-              handlers.onPoolStatusChange?.(msg.data);
               break;
             case "new_collateral_detected":
               handlers.onNewCollateralDetected?.(msg.data);

@@ -103,11 +103,9 @@ export type {
 
   // WebSocket Event Types
   DepegEvent,
-  LiquidityTrapEvent,
-  LiquidityRestoredEvent,
-  PoolStatusChangeEvent,
   NewCollateralDetectedEvent,
   LiquidityDropEvent,
+  ZyfaiEventFilters,
   ZyfaiEventHandlers,
 
   // Agent Identity Registry Types

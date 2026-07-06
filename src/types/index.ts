@@ -823,33 +823,7 @@ export interface DepegEvent {
   timestamp: string;
 }
 
-export interface LiquidityTrapEvent {
-  protocol: string;
-  pool: string;
-  chain: string;
-  zyfiTvl: number;
-  liquidity: number;
-  ratio: number;
-  timestamp: string;
-}
 
-export interface LiquidityRestoredEvent {
-  protocol: string;
-  pool: string;
-  chain: string;
-  zyfiTvl: number;
-  liquidity: number;
-  timestamp: string;
-}
-
-export interface PoolStatusChangeEvent {
-  chain_id: string;
-  protocol_name: string;
-  pool_name: string;
-  status: "live" | "not live" | "dead";
-  liquidity: number;
-  timestamp: string;
-}
 
 export interface NewCollateralDetectedEvent {
   protocol: string;
@@ -873,11 +847,14 @@ export interface LiquidityDropEvent {
   timestamp: string;
 }
 
+export interface ZyfaiEventFilters {
+  chains?: string[];
+  protocols?: string[];
+  pools?: string[];
+}
+
 export interface ZyfaiEventHandlers {
   onDepeg?: (data: DepegEvent) => void;
-  onLiquidityTrap?: (data: LiquidityTrapEvent) => void;
-  onLiquidityRestored?: (data: LiquidityRestoredEvent) => void;
-  onPoolStatusChange?: (data: PoolStatusChangeEvent) => void;
   onNewCollateralDetected?: (data: NewCollateralDetectedEvent) => void;
   onLiquidityDrop?: (data: LiquidityDropEvent) => void;
   onError?: (error: unknown) => void;
