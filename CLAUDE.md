@@ -104,7 +104,7 @@ src/
 - **viem** (v2.0+): Ethereum interactions, wallet clients, public clients
 - **permissionless** (v0.2.38+): ERC-4337 account abstraction (Safe deployment)
 - **@rhinestone/module-sdk** (v0.2.10+): Session key management for Safe
-- **siwe**: Sign-In with Ethereum authentication
+- **@signinwithethereum/siwe**: Sign-In with Ethereum authentication
 - **axios**: HTTP client for both API backends
 
 ### Supported Chains
