@@ -15,29 +15,38 @@ import type { SupportedChainId } from "./chains";
  * (current Safe balance + deposit amount). A deposit is rejected only if
  * a minimum is configured AND the resulting total would be below it.
  *
- * Current configuration:
- * - Ethereum Mainnet (1) / USDC: 10,000 USDC
- * - Ethereum Mainnet (1) / WETH: 5 WETH
+ * Current configuration (lowered for testing — restore before production):
+ * - Ethereum Mainnet (1) / USDC: 100 USDC
+ * - Ethereum Mainnet (1) / WETH: 0.005 WETH
  * - No minimums on Base or Arbitrum.
  */
 export const MIN_PORTFOLIO_BALANCE: Partial<
   Record<SupportedChainId, Record<string, bigint>>
 > = {
   1: {
-    USDC: 10_000n * 10n ** 6n, // 10,000 USDC (6 decimals)
-    WETH: 5n * 10n ** 18n, // 5 WETH (18 decimals)
+    USDC: 100n * 10n ** 6n, // 100 USDC (6 decimals)
+    WETH: 5n * 10n ** 15n, // 0.005 WETH (18 decimals)
   },
 };
 
 /**
  * Format a minimum threshold (raw units + decimals) as a human-readable
- * string, e.g. `10000 USDC` or `5 WETH`. Assumes integer minimums.
+ * string, e.g. `10000 USDC` or `0.005 WETH`. Supports fractional amounts.
  */
 export const formatMinPortfolioLabel = (
   raw: bigint,
   decimals: number,
   symbol: string
 ): string => {
-  const whole = raw / 10n ** BigInt(decimals);
-  return `${whole.toString()} ${symbol}`;
+  const base = 10n ** BigInt(decimals);
+  const whole = raw / base;
+  const fraction = raw % base;
+  if (fraction === 0n) {
+    return `${whole.toString()} ${symbol}`;
+  }
+  const fractionStr = fraction
+    .toString()
+    .padStart(decimals, "0")
+    .replace(/0+$/, "");
+  return `${whole.toString()}.${fractionStr} ${symbol}`;
 };
