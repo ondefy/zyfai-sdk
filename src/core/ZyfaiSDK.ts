@@ -98,6 +98,10 @@ import {
   convertAssetInternally,
   removeUnusedFields,
 } from "../utils/strategy";
+import {
+  getMatchingProtocolIds,
+  hasMatchingPool,
+} from "../utils/protocol-selection";
 import { SiweMessage } from "siwe";
 
 export class ZyfaiSDK {
@@ -934,8 +938,12 @@ export class ZyfaiSDK {
       //   }
       // }
 
-      // If already deployed, optionally create session key and return early
+      // If already deployed, patch protocol selection for the current
+      // chain + strategy (merges with existing chains) and optionally
+      // (re)create a session key.
       if (alreadyDeployed) {
+        await this.updateUserProtocols(chainId, strategy);
+
         let sessionKeyCreated = false;
         if (createSessionKey) {
           try {
@@ -985,6 +993,11 @@ export class ZyfaiSDK {
           (initError as Error).message
         );
       }
+
+      // Patch protocol selection for the deployed chain + strategy on both
+      // USDC and WETH (never overwrites chains already configured for the
+      // user). Runs after initializeUser so the user row exists.
+      await this.updateUserProtocols(chainId, strategy);
 
       // Optionally create session key after deployment
       let sessionKeyCreated = false;
@@ -1115,11 +1128,7 @@ export class ZyfaiSDK {
         throw new Error("Failed to obtain session key signature");
       }
 
-      // Update user protocols before activating session key
-      await this.updateUserProtocols(chainId);
-
       const signer = sessions[0].sessionValidator as Address;
-      console.log("Session validator:", signer);
       // Register the session key on the backend so it becomes active immediately
       const activation = await this.activateSessionKey(
         signer as Address,
@@ -1215,45 +1224,124 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Update user protocols with available protocols from the chain
-   * This method is automatically called before activating session key
+   * Patch the user's protocol selection for the given chain + strategy on
+   * both USDC and WETH. Mirrors the front-end customization flow:
+   * 1. Merge existing chains from `getUserDetails` with the new `chainId`
+   *    (never overwrite already-configured chains).
+   * 2. Filter protocols by strategy, chain and asset support.
+   * 3. Drop protocols that don't have any pools available for the
+   *    asset/chain/strategy combo.
+   * 4. Persist via `updateUserProfile` (writes `assetTypeSettings`).
    *
-   * @param chainId - Target chain ID
+   * Called from `deploySafe` — SDK consumers don't handle protocols manually.
+   *
    * @internal
    */
-  private async updateUserProtocols(chainId: SupportedChainId): Promise<void> {
+  private async updateUserProtocols(
+    chainId: SupportedChainId,
+    strategy?: Strategy
+  ): Promise<void> {
     try {
-      // Fetch available protocols for the chain
-      const protocolsResponse = await this.getAvailableProtocols(chainId);
-      const userDetails = await this.getUserDetails();
-      const filteredProtocols = userDetails.strategy ? protocolsResponse.protocols.filter((p) => p.strategies?.includes(userDetails.strategy!)) : protocolsResponse.protocols;
+      const allProtocols = await this.httpClient.get<any[]>(
+        ENDPOINTS.PROTOCOLS()
+      );
 
-      if (
-        !filteredProtocols ||
-        filteredProtocols.length === 0
-      ) {
-        console.warn(`No protocols available for chain ${chainId}`);
-        return;
+      for (const asset of ["USDC", "WETH"] as const) {
+        try {
+          await this.updateUserProtocolsForAsset(
+            asset,
+            chainId,
+            strategy,
+            allProtocols
+          );
+        } catch (assetError) {
+          console.warn(
+            `Failed to update ${asset} protocols: ${(assetError as Error).message}`
+          );
+        }
       }
-
-      // Extract protocol IDs
-      const protocolIds = filteredProtocols.map((p) => p.id);
-
-      // Update user profile with protocols
-      await this.updateUserProfile({
-        protocols: protocolIds,
-      });
-      // Update user profile with protocols
-      await this.updateUserProfile({
-        protocols: protocolIds,
-        asset: "WETH",
-      });
     } catch (error) {
-      // Log error but don't fail session key creation
       console.warn(
         `Failed to update user protocols: ${(error as Error).message}`
       );
     }
+  }
+
+  /**
+   * Compute and persist the protocol selection for a single asset.
+   * @internal
+   */
+  private async updateUserProtocolsForAsset(
+    asset: "USDC" | "WETH",
+    chainId: SupportedChainId,
+    strategy: Strategy | undefined,
+    allProtocols: any[]
+  ): Promise<void> {
+    const userDetails = await this.getUserDetails(asset);
+
+    // Merge existing chains with the new chain — never overwrite.
+    const existingChains = userDetails.chains ?? [];
+    const effectiveChains = Array.from(
+      new Set<number>([...existingChains, chainId])
+    );
+
+    // Deploy strategy wins; otherwise keep the user's current strategy for
+    // this asset, defaulting to conservative for fresh accounts.
+    const publicStrategy: Strategy =
+      strategy ??
+      (isValidPublicStrategy(userDetails.strategy ?? "")
+        ? (userDetails.strategy as Strategy)
+        : "conservative");
+    const internalStrategy = toInternalStrategy(publicStrategy);
+
+    const matching = getMatchingProtocolIds(
+      allProtocols,
+      internalStrategy,
+      effectiveChains,
+      asset
+    );
+
+    const withPools = await this.filterProtocolIdsWithPools(
+      matching,
+      effectiveChains,
+      asset
+    );
+
+    console.log("withPools", withPools, "effectiveChains", effectiveChains, "asset", asset);
+
+    await this.updateUserProfile({
+      asset,
+      protocols: withPools,
+      chains: effectiveChains,
+    });
+  }
+
+  /**
+   * Drop protocols that have no pools on any of the selected chains for the
+   * requested asset. Uses the /customization/pools endpoint with
+   * `degen_strategy` as the master strategy so the response includes both
+   * safe and degen pools — mirrors the front-end behavior.
+   * @internal
+   */
+  private async filterProtocolIdsWithPools(
+    protocolIds: string[],
+    chains: number[],
+    asset: "USDC" | "WETH"
+  ): Promise<string[]> {
+    if (protocolIds.length === 0) return [];
+
+    const results = await Promise.allSettled(
+      protocolIds.map(async (id) => {
+        const poolsData = await this.httpClient.get<any>(
+          ENDPOINTS.CUSTOMIZATION_POOLS(id, "degen_strategy")
+        );
+        return { id, hasPool: hasMatchingPool(poolsData, chains, asset) };
+      })
+    );
+
+    return results.flatMap((r) =>
+      r.status === "fulfilled" && r.value.hasPool ? [r.value.id] : []
+    );
   }
 
   /**

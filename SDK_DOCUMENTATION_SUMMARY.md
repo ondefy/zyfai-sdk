@@ -160,6 +160,12 @@ interface DeploySafeResponse {
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting issues
 - If no strategy is provided, `"conservative"` is used as the default
+- **Automatic protocol patching**: after a successful deploy (or on the already-deployed early-return path), the SDK computes and persists the protocol selection for the `chainId` + `strategy` on **both USDC and WETH**:
+  1. Fetches `GET /api/v1/protocols` and filters protocols by chain, strategy, and asset support (`aggressive` keeps protocols supporting either `safe_strategy` or `degen_strategy`).
+  2. For each remaining protocol, calls `GET /api/v1/customization/pools?protocolId=…&strategy=degen_strategy` (master strategy — returns both safe + degen pools) and drops protocols with no pool matching the asset's valid token symbols.
+  3. Reads the user's existing chains via `getUserDetails(asset)` and computes `effectiveChains = union(existing, [chainId])` — **never overwrites** chains already configured.
+  4. Persists via `updateUserProfile({ asset, protocols, chains })` → `assetTypeSettings.[usdc|eth]`.
+- SDK consumers do not need to call `updateUserProfile` after `deploySafe`.
 
 #### Example Response (New Deployment)
 
@@ -219,6 +225,7 @@ createSessionKey(
 - **Authentication**: User must be connected via `connectAccount()` (which automatically authenticates)
 - **User Profile**: User record must have `smartWallet` and `chainId` fields populated
   - Automatically set by `deploySafe` method
+- **Protocols/chains**: Set by `deploySafe` (not by `createSessionKey`). `createSessionKey` no longer touches `assetTypeSettings`.
 
 **Important**:
 

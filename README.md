@@ -301,6 +301,12 @@ Deploy a Safe smart wallet for a user. **Deployment is handled by the backend AP
 
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting
+- After deployment, the SDK automatically patches the user's protocol selection for the target `chainId` and `strategy` on **both USDC and WETH**:
+  - Fetches protocols compatible with the strategy (`aggressive` includes both `safe` and `degen` protocols)
+  - Drops any protocol that has no pool available for the asset/chain (via `/customization/pools`)
+  - **Merges** the new `chainId` with the user's existing chains (never overwrites — safe to call again on a new chain)
+  - Persists via `updateUserProfile` into `assetTypeSettings.[usdc|eth]`
+- No need to call `updateUserProfile` manually after `deploySafe` — the SDK handles it
 
 ##### `addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>`
 
@@ -356,6 +362,7 @@ console.log("User ID:", result.userId);
 - User must be authenticated (automatically done via `connectAccount()`)
 - The SDK proactively checks if the user already has an active session key and returns early without requiring any signature if one exists
 - The user record must have `smartWallet` and `chainId` set (automatically handled after calling `deploySafe`)
+- Protocol selection is **not** touched by `createSessionKey` — it's set by `deploySafe`
 - When `alreadyActive` is `true`, `sessionKeyAddress` and `signature` are not available in the response
 
 ### 4. Deposit Funds
