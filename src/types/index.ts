@@ -596,6 +596,7 @@ export interface SimulateBestPositionsParams {
   protocols?: string[];
   pools?: string[];
   userPositions?: UserPosition[];
+  partOfZyfiTvl?: boolean;
 }
 
 export interface SimulateCalldataItem {
@@ -606,9 +607,18 @@ export interface SimulateCalldataItem {
   description: string;
 }
 
+export interface AllocationDetail {
+  pool_capacity_usd: number;
+  zyfi_position_usd: number;
+  available_capacity_usd: number;
+  fair_share_usd: number;
+  overflow_usd: number;
+}
+
 export interface SimulatedPosition {
   protocol: string;
   pool: string;
+  rank: number;
   simulated_apy: number;
   combined_apy: number;
   amount: number;
@@ -617,12 +627,22 @@ export interface SimulatedPosition {
   tvl: number;
   liquidity: number;
   averageCombinedApy30Days: number;
+  allocation_detail: AllocationDetail;
   calldata: SimulateCalldataItem[];
+}
+
+export interface ExcludedPool {
+  protocol: string;
+  pool: string;
+  reason: string;
+  detail: string;
+  failed_checks?: string[];
 }
 
 export interface SimulateBestPositionsResponse {
   success: boolean;
   data: Record<string, SimulatedPosition[]>;
+  excluded: Record<string, ExcludedPool[]>;
   messages: Record<string, string>;
 }
 
