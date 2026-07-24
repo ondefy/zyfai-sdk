@@ -73,6 +73,7 @@ export const ENDPOINTS = {
     protocols?: string[];
     pools?: string[];
     userPositions?: { protocol: string; pool: string; tvl: number }[];
+    partOfZyfiTvl?: boolean;
   }) => {
     const networks = Array.isArray(params.networks)
       ? params.networks.join(",")
@@ -87,6 +88,7 @@ export const ENDPOINTS = {
     if (params.protocols?.length) query.push(`protocols=${params.protocols.join(",")}`);
     if (params.pools?.length) query.push(`pools=${params.pools.join(",")}`);
     if (params.userPositions?.length) query.push(`userPositions=${encodeURIComponent(JSON.stringify(params.userPositions))}`);
+    if (params.partOfZyfiTvl !== undefined) query.push(`partOfZyfiTvl=${params.partOfZyfiTvl}`);
     return `/simulate/best-positions?${query.join("&")}`;
   },
 
