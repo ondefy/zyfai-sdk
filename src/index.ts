@@ -98,7 +98,9 @@ export type {
   UserPosition,
   SimulateBestPositionsParams,
   SimulateCalldataItem,
+  AllocationDetail,
   SimulatedPosition,
+  ExcludedPool,
   SimulateBestPositionsResponse,
 
   // WebSocket Event Types
