@@ -380,15 +380,16 @@ depositFunds(
   userAddress: string,
   chainId: number,
   amount: string,
-  asset?: "USDC" | "WETH" | "EURC"
+  asset: "USDC" | "WETH" | "EURC",
+  strategy?: Strategy
 ): Promise<DepositResponse>
 ```
 
 **Token Selection:**
 
-Token address is automatically selected based on chain and requested asset (defaults to USDC):
+Token address is selected from the required `asset` for the given chain:
 
-- **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC (default) or WETH
+- **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC or WETH
 - **Ethereum Mainnet (1), Base (8453)**: EURC (not available on Arbitrum)
 
 **Minimum portfolio balance (enforced on Safe balance + deposit amount):**
@@ -403,16 +404,18 @@ Only deposits on Mainnet in USDC that would leave the Safe below 5 USDC are reje
 - Runs only when the USDC profile has no `chains` configured yet (later deposits / `pauseAgent` do not re-trigger it).
 - Patches **USDC, WETH, and EURC** with chains `[1, 8453, 42161]` (EURC limited to `[1, 8453]`).
 - Fetches protocols, filters by strategy/chain/asset + pool availability, persists via `updateUserProfile` → `assetTypeSettings.[usdc|eth|eurc]`.
+- `strategy` selects protocols on that first patch (`"conservative"` default, or `"aggressive"`). Same role as the former `deploySafe` strategy argument.
 - Failures are non-fatal (`console.warn`); the deposit still proceeds.
 
 #### Request Parameters
 
-| Parameter     | Type   | Required | Description                                                                    |
-| ------------- | ------ | -------- | ------------------------------------------------------------------------------ |
-| `userAddress` | string | ✅       | User's EOA address                                                             |
-| `chainId`     | number | ✅       | Chain to deposit on                                                            |
-| `amount`      | string | ✅       | Amount in least decimal units (e.g., "10000000000" for 10,000 USDC)            |
-| `asset`       | string | ❌       | Asset to deposit: `"USDC"` (default), `"WETH"`, or `"EURC"` (Mainnet/Base)     |
+| Parameter     | Type     | Required | Description                                                                    |
+| ------------- | -------- | -------- | ------------------------------------------------------------------------------ |
+| `userAddress` | string   | ✅       | User's EOA address                                                             |
+| `chainId`     | number   | ✅       | Chain to deposit on                                                            |
+| `amount`      | string   | ✅       | Amount in least decimal units (e.g., "10000000000" for 10,000 USDC)            |
+| `asset`       | string   | ✅       | Asset to deposit: `"USDC"`, `"WETH"`, or `"EURC"` (Mainnet/Base)               |
+| `strategy`    | Strategy | ❌       | First-deposit strategy: `"conservative"` (default) or `"aggressive"`           |
 
 #### Response Type
 
@@ -970,7 +973,8 @@ await sdk.createSessionKey(userAddress, chainId);
 const depositResult = await sdk.depositFunds(
   userAddress,
   chainId,
-  "10000000" // 10 USDC with 6 decimals
+  "10000000", // 10 USDC with 6 decimals
+  "USDC"
 );
 
 // 4. Monitor positions
@@ -1036,8 +1040,7 @@ class YieldService {
     chainId: number,
     amount: string
   ) {
-    // Token address is automatically selected based on chain
-    await this.sdk.depositFunds(userAddress, chainId, amount);
+    await this.sdk.depositFunds(userAddress, chainId, amount, "USDC");
     return await this.sdk.getPositions(userAddress, chainId);
   }
 

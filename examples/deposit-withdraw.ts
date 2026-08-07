@@ -76,7 +76,8 @@ async function main() {
     const depositResult = await sdk.depositFunds(
       userAddress,
       chainId,
-      "100000" // 0.1 USDC = 100000 (6 decimals)
+      "100000", // 0.1 USDC = 100000 (6 decimals)
+      "USDC"
     );
 
     console.log("\nDeposit successful!");

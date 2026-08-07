@@ -238,7 +238,6 @@ export class ZyfaiSDK {
       // Step 6: Store auth token, userId, and session key status
       this.httpClient.setAuthToken(authToken);
       this.authenticatedUserId = loginResponse.userId || null;
-      console.log("this.authenticatedUserId", loginResponse);
       this.hasActiveSessionKey = loginResponse.hasActiveSessionKey || false;
       this.isPredeployed = loginResponse.predeployed || false;
       this.connectedSmartWallet =
@@ -1525,12 +1524,15 @@ export class ZyfaiSDK {
    * Deposit funds from EOA to Safe smart wallet
    * Transfers tokens from the connected wallet to the user's Safe and logs the deposit
    *
-   * Token is automatically selected based on chain (USDC by default):
-   * - Ethereum Mainnet (1), Base (8453), Arbitrum (42161)
+   * Token address is selected from `asset` for the given chain:
+   * - Ethereum Mainnet (1), Base (8453), Arbitrum (42161): USDC or WETH
+   * - Ethereum Mainnet (1), Base (8453): EURC
    *
    * On the account's first deposit (USDC profile has no chains yet), patches
    * protocol selection for USDC, WETH, and EURC across all supported chains
    * (EURC on Mainnet/Base only) before the transfer and log_deposit.
+   * Pass `strategy` to select protocols for that first-deposit setup
+   * (same role as the former `deploySafe` strategy argument).
    *
    * Minimum portfolio balance enforced (Safe balance + deposit amount),
    * configured per-chain in `MIN_PORTFOLIO_BALANCE`:
@@ -1543,8 +1545,10 @@ export class ZyfaiSDK {
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
    * @param amount - Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals)
-   * @param asset - Optional asset symbol ("USDC", "WETH", or "EURC"). Defaults to "USDC".
+   * @param asset - Asset symbol: "USDC", "WETH", or "EURC".
    *   EURC is supported on Ethereum Mainnet and Base only.
+   * @param strategy - Optional strategy for first-deposit protocol patching:
+   *   "conservative" (default) or "aggressive"
    * @returns Deposit response with transaction hash
    *
    * @example
@@ -1553,15 +1557,20 @@ export class ZyfaiSDK {
    * const result = await sdk.depositFunds(
    *   "0xUser...",
    *   8453,
-   *   "10000000000" // 10,000 USDC = 10_000 * 10^6
+   *   "10000000000",
+   *   "USDC"
    * );
+   *
+   * // First deposit with aggressive strategy
+   * await sdk.depositFunds(userAddress, 8453, "10000000000", "USDC", "aggressive");
    * ```
    */
   async depositFunds(
     userAddress: string,
     chainId: SupportedChainId,
     amount: string,
-    asset?: string
+    asset: string,
+    strategy?: Strategy
   ): Promise<DepositResponse> {
     try {
       if (!userAddress) {
@@ -1576,7 +1585,17 @@ export class ZyfaiSDK {
         throw new Error("Valid amount is required");
       }
 
-      const assetSymbol = (asset || "USDC").toUpperCase();
+      if (!asset) {
+        throw new Error("Asset is required (USDC, WETH, or EURC)");
+      }
+
+      if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
+        throw new Error(
+          `Invalid strategy: ${strategy}. Must be "conservative" or "aggressive".`
+        );
+      }
+
+      const assetSymbol = asset.toUpperCase();
       const assetConfig = ASSET_CONFIGS[assetSymbol];
       if (!assetConfig) {
         throw new Error(
@@ -1613,7 +1632,7 @@ export class ZyfaiSDK {
       try {
         const usdcDetails = await this.getUserDetails("USDC");
         if ((usdcDetails.chains?.length ?? 0) === 0) {
-          await this.updateUserProtocols();
+          await this.updateUserProtocols(strategy);
         }
       } catch (protocolError) {
         console.warn(
@@ -1668,12 +1687,6 @@ export class ZyfaiSDK {
 
       // Log deposit to backend
       try {
-        console.log("Logging deposit to backend", {
-          chainId,
-          transaction: txHash,
-          token,
-          amount,
-        });
         await this.httpClient.post(ENDPOINTS.LOG_DEPOSIT, {
           chainId,
           transaction: txHash,
@@ -1852,7 +1865,6 @@ export class ZyfaiSDK {
           tokenSymbol,
         });
       } else {
-        console.log("Full withdrawal", tokenSymbol);
         // Full withdrawal - ask backend to trigger automatic withdrawal flow
         response = await this.httpClient.get(ENDPOINTS.USER_WITHDRAW, {
           params: { chainId, tokenSymbol },

@@ -403,8 +403,12 @@ Only deposits on Mainnet in USDC that would leave the Safe below 5 USDC are reje
 const result = await sdk.depositFunds(
   userAddress,
   8453, // Chain ID
-  "10000000" // Amount: 10 USDC = 10 * 10^6
+  "10000000", // Amount: 10 USDC = 10 * 10^6
+  "USDC"
 );
+
+// First deposit with aggressive strategy (protocol patching)
+await sdk.depositFunds(userAddress, 8453, "10000000", "USDC", "aggressive");
 
 if (result.success) {
   console.log("Deposit successful!");
@@ -415,10 +419,10 @@ if (result.success) {
 **Note:**
 
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
-- Token address is automatically selected based on chain (USDC by default; pass `asset: "WETH"` or `asset: "EURC"` — EURC on Mainnet/Base only)
+- `asset` is required (`"USDC"`, `"WETH"`, or `"EURC"` — EURC on Mainnet/Base only); token address is selected from that for the chain
 - On Ethereum Mainnet, the total Safe balance in USDC must be at least 5 USDC after the deposit (test threshold); smaller top-ups are allowed if the Safe already holds enough USDC to meet the minimum
 - The SDK automatically authenticates via SIWE before logging the deposit with Zyfai's API, so no extra steps are required on your end once the transfer confirms
-- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Later deposits skip this.
+- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Pass optional `strategy` (`"conservative"` default or `"aggressive"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 
 #### Log External Deposit (For Sponsored Transactions)
 
