@@ -100,6 +100,21 @@ This method:
 
 ## Core Features
 
+> **Predeployed (pool) wallets.** Wallets provisioned by ZyFi's predeployment
+> service are already deployed, already have the agent session enabled, and are
+> backend-owned until the user's first deposit rotates ownership to them. The SDK
+> detects these automatically from the sign-in response (`predeployed: true`) and
+> adjusts, with no extra flags from the integrator:
+>
+> - `deploySafe()` returns the assigned wallet without sending a deploy tx.
+> - `createSessionKey()` returns `{ alreadyActive: true }` without prompting a
+>   signature — the pool enabled the session at deploy time.
+> - The address is always the backend-assigned one; it is **never** derived with
+>   `getDeterministicSafeAddress`.
+>
+> Net effect: onboarding a predeployed wallet takes a **single signature — the
+> USDC deposit** (no wallet-deploy or session-key signatures).
+
 ### 1. Deploy Safe Smart Wallet
 
 Deploy a Safe smart wallet:
