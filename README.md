@@ -114,6 +114,10 @@ This method:
 >
 > Net effect: onboarding a predeployed wallet takes a **single signature — the
 > USDC deposit** (no wallet-deploy or session-key signatures).
+>
+> The pool's ERC-7579 module addresses are exported as reference constants
+> (`POOL_MODULE_ADDRESSES`, `INTENT_SMART_SESSIONS`, `PROXY_EXECUTOR`, …) for
+> parity/validation only — the SDK does not install them.
 
 ### 1. Deploy Safe Smart Wallet
 
