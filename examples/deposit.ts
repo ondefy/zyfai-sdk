@@ -20,11 +20,8 @@ async function main() {
   // WETH (18 decimals): "1000000000000000000" = 1 WETH, "100000000000000000" = 0.1 WETH
   // EURC is supported on Ethereum Mainnet (1) and Base (8453) only.
 
-  const asset = "WETH"; // Can be "USDC", "WETH", or "EURC"
-  const amount =
-    asset === "WETH"
-      ? "1000000000000000" // 0.001 WETH (18 decimals)
-      : "100000000"; // 100 USDC or EURC (6 decimals)
+  const asset = "USDC"; // Can be "USDC", "WETH", or "EURC"
+  const amount = "2000000"; // 2 USDC or EURC (6 decimals)
 
   const sdk = new ZyfaiSDK({
     apiKey,

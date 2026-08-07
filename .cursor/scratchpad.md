@@ -1,52 +1,37 @@
-# Scratchpad: Add EURC (Base + Mainnet)
+# Scratchpad: Protocols on first depositFunds
 
 ## Background and Motivation
 
-Add EURC as a first-class SDK asset on Ethereum Mainnet and Base only, mirroring the WETH path for deposits, withdrawals, profile/protocol calls, and docs. No Arbitrum support. No new minimum balance.
-
-(Prior unfinished work: `getSmartWalletAddress` ownership docs + debug log cleanup — paused; Tasks 1–2 of that effort remain done in code.)
+Partners stop using `deploySafe` for onboarding. Predeployed Safes exist on Mainnet/Base/Arbitrum. Protocol + asset patching must run from `depositFunds` before transfer + `log_deposit`, and only on the account's first deposit.
 
 ## Key Challenges and Analysis
 
-- Public symbol `"EURC"`; internal API `assetType` `"eurc"` (lowercase like `usdc`; WETH stays special as `eth`).
-- EURC addresses only on chain 1 and 8453; Arbitrum has no entry so `getDefaultTokenAddress` throws.
-- Post-`deploySafe` protocol patching: include EURC on Mainnet/Base; keep USDC+WETH only on Arbitrum.
+- Gate: USDC `chains` empty → first deposit (survives `pauseAgent` which clears protocols but keeps chains).
+- All chains `[1, 8453, 42161]` for USDC/WETH; EURC `[1, 8453]`.
+- Non-fatal on protocol patch failure so deposit still proceeds.
 
 ## High-level Task Breakdown
 
-1. **Config + SupportedAsset** — EURC in `ASSET_CONFIGS`, type `SupportedAsset`.
-2. **Conversion + protocol selection** — `convertAssetInternally` + `AssetSymbol`.
-3. **Wire ZyfaiSDK** — profile, protocols loop, deposit, getVolume.
-4. **Docs + examples** — README, SDK_DOCUMENTATION_SUMMARY, deposit/withdraw examples.
+1. Refactor `updateUserProtocols` for all chains
+2. Wire into `depositFunds` (first deposit only, before transfer)
+3. Clean `deploySafe` (no protocol patch, no debug logs)
+4. Docs
 
 ## Project Status Board
 
-- [x] Task 1: Add EURC to ASSET_CONFIGS + SupportedAsset type
-- [x] Task 2: Extend convertAssetInternally and protocol-selection
-- [x] Task 3: Wire SupportedAsset through ZyfaiSDK
-- [x] Task 4: Update docs and light examples
+- [x] Task 1: Refactor updateUserProtocols
+- [x] Task 2: Wire depositFunds first-deposit gate
+- [x] Task 3: Clean deploySafe
+- [x] Task 4: Docs
 
 ## Current Status / Progress Tracking
 
-All EURC plan tasks implemented. Follow-up: aligned remaining examples + `pauseAgent`/`resumeAgent` to include EURC. Vault examples left USDC-only.
+Implementation complete. Awaiting user verification.
 
 ## Executor's Feedback or Assistance Requests
 
-**Implementation complete — please verify.**
-
-Circle addresses used:
-- Mainnet: `0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c`
-- Base: `0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42`
-
-Key changes:
-- `SupportedAsset = "USDC" | "WETH" | "EURC"` exported from package
-- `convertAssetInternally("EURC")` → `"eurc"`
-- `updateUserProtocols` loops EURC on chains 1/8453 only
-- Docs + deposit/withdraw examples updated
-
-Please confirm: (1) internal API key is indeed `eurc`, (2) addresses correct, (3) mark project complete.
+Please verify with a fresh predeployed account: first `depositFunds` should patch protocols; second deposit should skip.
 
 ## Lessons
 
-- Keep asset imports at top of file (`SupportedAsset` from types in `strategy.ts`).
-- WETH maps to `eth`; new stablecoins should use lowercase symbol as internal key.
+- Gate first-deposit init on `chains` length, not empty `protocols` (pause clears protocols).

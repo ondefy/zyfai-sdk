@@ -124,6 +124,8 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 
 ### 1. Deploy Safe Smart Wallet
 
+> **Deprecated** for partner integrations. Prefer `depositFunds()` — predeployed Safes and session keys are handled on first deposit. `deploySafe` remains available for legacy flows; calling it emits a console warning, and failures append the same guidance.
+
 Deploy an ERC-4337 with ERC-7579 launchpad + smart session module standard compliant Safe Smart Account for a user.
 
 **Note:** Safe deployment is now handled by the backend API, which manages all RPC calls and bundler interactions. This avoids rate limiting issues.
@@ -168,12 +170,7 @@ interface DeploySafeResponse {
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting issues
 - If no strategy is provided, `"conservative"` is used as the default
-- **Automatic protocol patching**: after a successful deploy (or on the already-deployed early-return path), the SDK computes and persists the protocol selection for the `chainId` + `strategy` on **USDC, WETH, and EURC** (EURC on Mainnet/Base only; Arbitrum stays USDC + WETH):
-  1. Fetches `GET /api/v1/protocols` and filters protocols by chain, strategy, and asset support (`aggressive` keeps protocols supporting either `safe_strategy` or `degen_strategy`).
-  2. For each remaining protocol, calls `GET /api/v1/customization/pools?protocolId=…&strategy=degen_strategy` (master strategy — returns both safe + degen pools) and drops protocols with no pool matching the asset's valid token symbols.
-  3. Reads the user's existing chains via `getUserDetails(asset)` and computes `effectiveChains = union(existing, [chainId])` — **never overwrites** chains already configured.
-  4. Persists via `updateUserProfile({ asset, protocols, chains })` → `assetTypeSettings.[usdc|eth|eurc]`.
-- SDK consumers do not need to call `updateUserProfile` after `deploySafe`.
+- **Protocol patching is not performed by `deploySafe`**. It runs once on the account's first `depositFunds` call (see Deposit Funds).
 
 #### Example Response (New Deployment)
 
@@ -208,7 +205,9 @@ Create a session key with limited permissions for delegated transactions.
 - `GET /api/v1/session-keys/config`
 - `POST /api/v1/session-keys/add`
 
-#### Simple Usage (Recommended)
+#### Simple Usage (Legacy — deprecated)
+
+> **Deprecated** for partner integrations. Prefer `depositFunds()` — predeployed wallets already have the agent session enabled. `createSessionKey` remains available for legacy flows; calling it emits a console warning, and failures append the same guidance.
 
 Automatically fetches optimal session configuration from Zyfai API:
 
@@ -232,8 +231,8 @@ createSessionKey(
 
 - **Authentication**: User must be connected via `connectAccount()` (which automatically authenticates)
 - **User Profile**: User record must have `smartWallet` and `chainId` fields populated
-  - Automatically set by `deploySafe` method
-- **Protocols/chains**: Set by `deploySafe` (not by `createSessionKey`). `createSessionKey` no longer touches `assetTypeSettings`.
+  - Automatically set by `deploySafe` / predeployed wallet assignment
+- **Protocols/chains**: Set on the first `depositFunds` call (not by `createSessionKey` or `deploySafe`). `createSessionKey` no longer touches `assetTypeSettings`.
 
 **Important**:
 
@@ -398,6 +397,13 @@ Token address is automatically selected based on chain and requested asset (defa
 - All other (chain, asset) pairs: no minimum enforced
 
 Only deposits on Mainnet in USDC that would leave the Safe below 5 USDC are rejected. Top-ups smaller than the minimum are allowed if the Safe already holds enough of the asset to meet it.
+
+**First-deposit protocol patching** (before transfer + `log_deposit`):
+
+- Runs only when the USDC profile has no `chains` configured yet (later deposits / `pauseAgent` do not re-trigger it).
+- Patches **USDC, WETH, and EURC** with chains `[1, 8453, 42161]` (EURC limited to `[1, 8453]`).
+- Fetches protocols, filters by strategy/chain/asset + pool availability, persists via `updateUserProfile` → `assetTypeSettings.[usdc|eth|eurc]`.
+- Failures are non-fatal (`console.warn`); the deposit still proceeds.
 
 #### Request Parameters
 

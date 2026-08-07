@@ -119,6 +119,18 @@ export class ZyfaiSDK {
   private rpcUrls?: RpcUrlsConfig;
   private referralSource?: string;
 
+  /**
+   * Warn that a legacy method is deprecated in favor of depositFunds.
+   * Predeployed wallets no longer require deploySafe / createSessionKey.
+   */
+  private warnDeprecatedOnboardingMethod(methodName: string): void {
+    console.warn(
+      `[ZyfaiSDK] ${methodName}() is deprecated for partner integrations. ` +
+        `Prefer depositFunds() — predeployed Safes and session keys are handled ` +
+        `automatically on first deposit.`
+    );
+  }
+
   constructor(config: SDKConfig | string) {
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
@@ -226,6 +238,7 @@ export class ZyfaiSDK {
       // Step 6: Store auth token, userId, and session key status
       this.httpClient.setAuthToken(authToken);
       this.authenticatedUserId = loginResponse.userId || null;
+      console.log("this.authenticatedUserId", loginResponse);
       this.hasActiveSessionKey = loginResponse.hasActiveSessionKey || false;
       this.isPredeployed = loginResponse.predeployed || false;
       this.connectedSmartWallet =
@@ -951,6 +964,10 @@ export class ZyfaiSDK {
   /**
    * Deploy Safe Smart Wallet for a user
    *
+   * @deprecated Prefer `depositFunds()`. Predeployed Safes and session keys are
+   * managed automatically on first deposit. This method remains available for
+   * legacy flows.
+   *
    * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
    * @param strategy - Optional strategy selection: "conservative" (default) or "aggressive"
@@ -959,14 +976,11 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * // Deploy with default conservative strategy
+   * // Preferred: depositFunds handles predeployed wallet onboarding
+   * await sdk.depositFunds(userAddress, 8453, amount, "USDC");
+   *
+   * // Legacy: deploy with default conservative strategy
    * await sdk.deploySafe(userAddress, 8453);
-   *
-   * // Deploy with aggressive strategy
-   * await sdk.deploySafe(userAddress, 8453, "aggressive");
-   *
-   * // Deploy and automatically create session key
-   * await sdk.deploySafe(userAddress, 8453, "conservative", true);
    * ```
    */
   async deploySafe(
@@ -975,6 +989,7 @@ export class ZyfaiSDK {
     strategy?: Strategy,
     createSessionKey?: boolean
   ): Promise<DeploySafeResponse> {
+    this.warnDeprecatedOnboardingMethod("deploySafe");
     try {
       // Validate inputs
       if (!userAddress) {
@@ -991,17 +1006,13 @@ export class ZyfaiSDK {
       // Predeployed (pool) wallets are already deployed with the agent session
       // enabled by the pool. Never derive an address or send a deploy tx for
       // them - return the backend-assigned wallet as already deployed.
-      console.log("this.isPredeployed", this.isPredeployed);
-      console.log("this.isConnectedUser(userAddress)", this.isConnectedUser(userAddress));
-      console.log("userAddress", userAddress);
+      // Protocol patching happens on the first depositFunds call instead.
       if (this.isPredeployed && this.isConnectedUser(userAddress)) {
         const predeployedAddress = await this.getSafeAddressFor(
           userAddress,
           chainId
         );
-        console.log("strategy", strategy);
-        await this.updateUserProtocols(chainId, strategy);
-        console.log("predeployedAddress", predeployedAddress);
+        await this.updateUserProtocols(strategy);
         return {
           success: true,
           safeAddress: predeployedAddress,
@@ -1040,11 +1051,10 @@ export class ZyfaiSDK {
       //   }
       // }
 
-      // If already deployed, patch protocol selection for the current
-      // chain + strategy (merges with existing chains) and optionally
-      // (re)create a session key.
+      // If already deployed, optionally (re)create a session key.
+      // Protocol patching happens on the first depositFunds call instead.
       if (alreadyDeployed) {
-        await this.updateUserProtocols(chainId, strategy);
+        await this.updateUserProtocols(strategy);
 
         let sessionKeyCreated = false;
         if (createSessionKey) {
@@ -1096,10 +1106,7 @@ export class ZyfaiSDK {
         );
       }
 
-      // Patch protocol selection for the deployed chain + strategy on USDC,
-      // WETH, and EURC when supported (never overwrites chains already
-      // configured for the user). Runs after initializeUser so the user row exists.
-      await this.updateUserProtocols(chainId, strategy);
+      // Protocol patching happens on the first depositFunds call instead.
 
       // Optionally create session key after deployment
       let sessionKeyCreated = false;
@@ -1125,7 +1132,10 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       console.error("Safe deployment failed:", error);
-      throw new Error(`Safe deployment failed: ${(error as Error).message}`);
+      throw new Error(
+        `Safe deployment failed: ${(error as Error).message}. ` +
+          `deploySafe() is deprecated — prefer depositFunds() for predeployed wallet onboarding.`
+      );
     }
   }
 
@@ -1133,21 +1143,28 @@ export class ZyfaiSDK {
    * Create session key with auto-fetched configuration from Zyfai API
    * This is the simplified method that automatically fetches session configuration
    *
+   * @deprecated Prefer `depositFunds()`. Predeployed wallets already have the
+   * agent session enabled; session activation is handled after first deposit.
+   * This method remains available for legacy flows.
+   *
    * @param userAddress - User's EOA or Safe address
    * @param chainId - Target chain ID
    * @returns Session key response with signature and nonces
    *
    * @example
    * ```typescript
-   * // Simple usage - no need to configure sessions manually
+   * // Preferred: depositFunds handles session onboarding for predeployed wallets
+   * await sdk.depositFunds(userAddress, 8453, amount, "USDC");
+   *
+   * // Legacy:
    * const result = await sdk.createSessionKey(userAddress, 8453);
-   * console.log("Session created:", result.signature);
    * ```
    */
   async createSessionKey(
     userAddress: string,
     chainId: SupportedChainId
   ): Promise<SessionKeyResponse> {
+    this.warnDeprecatedOnboardingMethod("createSessionKey");
     try {
       // Authenticate to ensure user exists and JWT token is available
       // This also stores the userId and hasActiveSessionKey from the login response
@@ -1261,7 +1278,8 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to create session key: ${(error as Error).message}`
+        `Failed to create session key: ${(error as Error).message}. ` +
+          `createSessionKey() is deprecated — prefer depositFunds() for predeployed wallet onboarding.`
       );
     }
   }
@@ -1339,39 +1357,36 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Patch the user's protocol selection for the given chain + strategy on
-   * USDC, WETH, and EURC (EURC only on Mainnet/Base). Mirrors the front-end
+   * Patch the user's protocol selection on USDC, WETH, and EURC across all
+   * supported chains (EURC limited to Mainnet/Base). Mirrors the front-end
    * customization flow:
-   * 1. Merge existing chains from `getUserDetails` with the new `chainId`
+   * 1. Merge existing chains from `getUserDetails` with the target chains
    *    (never overwrite already-configured chains).
    * 2. Filter protocols by strategy, chain and asset support.
    * 3. Drop protocols that don't have any pools available for the
    *    asset/chain/strategy combo.
    * 4. Persist via `updateUserProfile` (writes `assetTypeSettings`).
    *
-   * Called from `deploySafe` — SDK consumers don't handle protocols manually.
+   * Called once from `depositFunds` on the account's first deposit.
    *
    * @internal
    */
-  private async updateUserProtocols(
-    chainId: SupportedChainId,
-    strategy?: Strategy
-  ): Promise<void> {
+  private async updateUserProtocols(strategy?: Strategy): Promise<void> {
     try {
       const allProtocols = await this.httpClient.get<any[]>(
         ENDPOINTS.PROTOCOLS()
       );
 
-      const assets: SupportedAsset[] =
-        chainId === 42161
-          ? ["USDC", "WETH"]
-          : ["USDC", "WETH", "EURC"];
+      const allChains: SupportedChainId[] = [1, 8453, 42161];
+      const assets: SupportedAsset[] = ["USDC", "WETH", "EURC"];
 
       for (const asset of assets) {
         try {
+          const chainsForAsset: SupportedChainId[] =
+            asset === "EURC" ? [1, 8453] : allChains;
           await this.updateUserProtocolsForAsset(
             asset,
-            chainId,
+            chainsForAsset,
             strategy,
             allProtocols
           );
@@ -1394,19 +1409,19 @@ export class ZyfaiSDK {
    */
   private async updateUserProtocolsForAsset(
     asset: SupportedAsset,
-    chainId: SupportedChainId,
+    chains: SupportedChainId[],
     strategy: Strategy | undefined,
     allProtocols: any[]
   ): Promise<void> {
     const userDetails = await this.getUserDetails(asset);
 
-    // Merge existing chains with the new chain — never overwrite.
+    // Merge existing chains with the target chains — never overwrite.
     const existingChains = userDetails.chains ?? [];
     const effectiveChains = Array.from(
-      new Set<number>([...existingChains, chainId])
+      new Set<number>([...existingChains, ...chains])
     );
 
-    // Deploy strategy wins; otherwise keep the user's current strategy for
+    // Explicit strategy wins; otherwise keep the user's current strategy for
     // this asset, defaulting to conservative for fresh accounts.
     const publicStrategy: Strategy =
       strategy ??
@@ -1513,6 +1528,10 @@ export class ZyfaiSDK {
    * Token is automatically selected based on chain (USDC by default):
    * - Ethereum Mainnet (1), Base (8453), Arbitrum (42161)
    *
+   * On the account's first deposit (USDC profile has no chains yet), patches
+   * protocol selection for USDC, WETH, and EURC across all supported chains
+   * (EURC on Mainnet/Base only) before the transfer and log_deposit.
+   *
    * Minimum portfolio balance enforced (Safe balance + deposit amount),
    * configured per-chain in `MIN_PORTFOLIO_BALANCE`:
    * - Ethereum Mainnet (1): 5 USDC (test threshold)
@@ -1584,7 +1603,22 @@ export class ZyfaiSDK {
 
       if (!isDeployed) {
         throw new Error(
-          `Safe not deployed for ${userAddress}. Please deploy the Safe first using deploySafe().`
+          `Safe not available for ${userAddress} on chain ${chainId}.`
+        );
+      }
+
+      // First deposit on the account: patch protocols/chains for all assets.
+      // Gate on empty USDC chains so pauseAgent (clears protocols, keeps chains)
+      // does not re-run this on later deposits.
+      try {
+        const usdcDetails = await this.getUserDetails("USDC");
+        if ((usdcDetails.chains?.length ?? 0) === 0) {
+          await this.updateUserProtocols();
+        }
+      } catch (protocolError) {
+        console.warn(
+          "Failed to update user protocols before deposit:",
+          (protocolError as Error).message
         );
       }
 
@@ -1634,6 +1668,12 @@ export class ZyfaiSDK {
 
       // Log deposit to backend
       try {
+        console.log("Logging deposit to backend", {
+          chainId,
+          transaction: txHash,
+          token,
+          amount,
+        });
         await this.httpClient.post(ENDPOINTS.LOG_DEPOSIT, {
           chainId,
           transaction: txHash,

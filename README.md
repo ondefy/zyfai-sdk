@@ -295,6 +295,8 @@ Get the Smart Wallet (Safe) address for a user.
 
 ##### `deploySafe(userAddress: string, chainId: SupportedChainId, strategy?: Strategy): Promise<DeploySafeResponse>`
 
+> **Deprecated** for partner integrations. Prefer `depositFunds()` — predeployed Safes and session keys are handled on first deposit. This method remains available for legacy flows and emits a console warning when called.
+
 Deploy a Safe smart wallet for a user. **Deployment is handled by the backend API**, which manages all RPC calls and bundler interactions. This avoids rate limiting issues.
 
 **Parameters:**
@@ -320,12 +322,7 @@ Deploy a Safe smart wallet for a user. **Deployment is handled by the backend AP
 
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting
-- After deployment, the SDK automatically patches the user's protocol selection for the target `chainId` and `strategy` on **USDC, WETH, and EURC** (EURC on Ethereum Mainnet and Base only; Arbitrum stays USDC + WETH):
-  - Fetches protocols compatible with the strategy (`aggressive` includes both `safe` and `degen` protocols)
-  - Drops any protocol that has no pool available for the asset/chain (via `/customization/pools`)
-  - **Merges** the new `chainId` with the user's existing chains (never overwrites — safe to call again on a new chain)
-  - Persists via `updateUserProfile` into `assetTypeSettings.[usdc|eth|eurc]`
-- No need to call `updateUserProfile` manually after `deploySafe` — the SDK handles it
+- Protocol / asset patching is **not** done in `deploySafe` — it runs once on the account's **first** `depositFunds` call (see Deposit Funds below)
 
 ##### `addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>`
 
@@ -350,7 +347,9 @@ Add a wallet address to the SDK API key's allowedWallets list. This endpoint req
 
 Session keys enable delegated transaction execution without exposing the main private key.
 
-#### Simple Usage (Recommended)
+#### Simple Usage (Legacy — deprecated)
+
+> **Deprecated** for partner integrations. Prefer `depositFunds()` — predeployed wallets already have the agent session enabled. This method remains available for legacy flows and emits a console warning when called.
 
 The SDK automatically fetches optimal session configuration from Zyfai API:
 
@@ -380,8 +379,9 @@ console.log("User ID:", result.userId);
 
 - User must be authenticated (automatically done via `connectAccount()`)
 - The SDK proactively checks if the user already has an active session key and returns early without requiring any signature if one exists
-- The user record must have `smartWallet` and `chainId` set (automatically handled after calling `deploySafe`)
-- Protocol selection is **not** touched by `createSessionKey` — it's set by `deploySafe`
+- The user record must have `smartWallet` and `chainId` set (predeployed assignment / first deposit)
+- Protocol selection is **not** touched by `createSessionKey` — it's set on the first `depositFunds` call
+- **Deprecated**: prefer `depositFunds()` for partner onboarding; `createSessionKey` remains for legacy flows
 - When `alreadyActive` is `true`, `sessionKeyAddress` and `signature` are not available in the response
 
 ### 4. Deposit Funds
@@ -418,6 +418,7 @@ if (result.success) {
 - Token address is automatically selected based on chain (USDC by default; pass `asset: "WETH"` or `asset: "EURC"` — EURC on Mainnet/Base only)
 - On Ethereum Mainnet, the total Safe balance in USDC must be at least 5 USDC after the deposit (test threshold); smaller top-ups are allowed if the Safe already holds enough USDC to meet the minimum
 - The SDK automatically authenticates via SIWE before logging the deposit with Zyfai's API, so no extra steps are required on your end once the transfer confirms
+- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Later deposits skip this.
 
 #### Log External Deposit (For Sponsored Transactions)
 
