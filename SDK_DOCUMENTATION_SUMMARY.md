@@ -114,6 +114,14 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 
 ## 📚 API Functions
 
+> **Predeployed (pool) wallets** are auto-detected from the sign-in response
+> (`predeployed: true`). For them the SDK skips client-side deploy, returns
+> `createSessionKey()` as `{ alreadyActive: true }` without a signature, and
+> always uses the backend-assigned address (never `getDeterministicSafeAddress`).
+> Onboarding then needs a single signature: the USDC deposit. The pool's
+> ERC-7579 module set is exported as reference constants (`POOL_MODULE_ADDRESSES`)
+> for parity/validation only — the SDK installs nothing.
+
 ### 1. Deploy Safe Smart Wallet
 
 Deploy an ERC-4337 with ERC-7579 launchpad + smart session module standard compliant Safe Smart Account for a user.

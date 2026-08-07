@@ -110,6 +110,8 @@ export class ZyfaiSDK {
   private walletClient: WalletClient | null = null;
   private authenticatedUserId: string | null = null;
   private hasActiveSessionKey: boolean = false;
+  private isPredeployed: boolean = false;
+  private connectedSmartWallet: Address | null = null;
   private currentProvider: any = null;
   private currentChainId: SupportedChainId | null = null;
   private rpcUrls?: RpcUrlsConfig;
@@ -223,6 +225,9 @@ export class ZyfaiSDK {
       this.httpClient.setAuthToken(authToken);
       this.authenticatedUserId = loginResponse.userId || null;
       this.hasActiveSessionKey = loginResponse.hasActiveSessionKey || false;
+      this.isPredeployed = loginResponse.predeployed || false;
+      this.connectedSmartWallet =
+        (loginResponse.smartWallet as Address) || null;
     } catch (error) {
       throw new Error(
         `Failed to authenticate user: ${(error as Error).message}`
@@ -656,6 +661,8 @@ export class ZyfaiSDK {
 
     // Reset authentication when connecting a new account
     this.authenticatedUserId = null;
+    this.isPredeployed = false;
+    this.connectedSmartWallet = null;
     this.currentChainId = null;
     this.httpClient.clearAuthToken();
 
@@ -780,6 +787,8 @@ export class ZyfaiSDK {
     // Clear authentication state
     this.authenticatedUserId = null;
     this.hasActiveSessionKey = false;
+    this.isPredeployed = false;
+    this.connectedSmartWallet = null;
 
     // Clear JWT token
     this.httpClient.clearAuthToken();
@@ -811,6 +820,63 @@ export class ZyfaiSDK {
   }
 
   /**
+   * True when userAddress is the currently connected/authenticated wallet.
+   * @private
+   */
+  private isConnectedUser(userAddress: string): boolean {
+    const connected =
+      this.signer?.address ?? this.walletClient?.account?.address;
+    return (
+      !!connected && connected.toLowerCase() === userAddress.toLowerCase()
+    );
+  }
+
+  /**
+   * Resolve the Safe smart wallet address for a user on a chain.
+   *
+   * Predeployed (pool) wallets are provisioned and owned by the backend at
+   * deploy time, so their address CANNOT be derived from the user's EOA with
+   * getDeterministicSafeAddress (CREATE2 from the EOA yields the wrong address).
+   * For the connected predeployed user we always use the backend-assigned
+   * address. Legacy wallets keep the API-first, deterministic-fallback behavior.
+   * @private
+   */
+  private async getSafeAddressFor(
+    userAddress: string,
+    chainId: SupportedChainId
+  ): Promise<Address> {
+    if (this.isPredeployed && this.isConnectedUser(userAddress)) {
+      // Pool wallets share one address across all chains.
+      if (this.connectedSmartWallet) return this.connectedSmartWallet;
+      try {
+        const info = await this.getSmartWalletByEOA(userAddress);
+        if (info.smartWallet) return info.smartWallet as Address;
+      } catch {
+        // fall through to the explicit error below
+      }
+      throw new Error(
+        "Predeployed smart wallet address is not available from the API yet. " +
+          "Ensure the user has signed in so the pool can reserve their wallet."
+      );
+    }
+
+    // Legacy wallets: prefer the registered address, derive as a fallback.
+    try {
+      const info = await this.getSmartWalletByEOA(userAddress);
+      if (info.smartWallet) return info.smartWallet as Address;
+    } catch {
+      // ignore and derive deterministically below
+    }
+
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+    return getDeterministicSafeAddress({
+      safeOwnerAddress: userAddress as Address,
+      chain: chainConfig.chain,
+      publicClient: chainConfig.publicClient,
+    });
+  }
+
+  /**
    * Get smart wallet address for a user
    * Returns the deterministic Safe address for an EOA, or the address itself if already a Safe
    *
@@ -833,30 +899,8 @@ export class ZyfaiSDK {
 
     const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
-    // Try to get smart wallet address from API first (if already registered)
-    try {
-      const smartWalletInfo = await this.getSmartWalletByEOA(userAddress);
-      if (smartWalletInfo.smartWallet) {
-        // Check if Safe is deployed
-        const isDeployed = await isSafeDeployed(
-          smartWalletInfo.smartWallet,
-          chainConfig.publicClient
-        );
-        return {
-          address: smartWalletInfo.smartWallet,
-          isDeployed,
-        };
-      }
-    } catch {
-      // API call failed or no smart wallet found - fall through to deterministic calculation
-    }
-
-    // If not found in API, calculate deterministic Safe address
-    const safeAddress = await getDeterministicSafeAddress({
-      safeOwnerAddress: userAddress as Address,
-      chain: chainConfig.chain,
-      publicClient: chainConfig.publicClient,
-    });
+    // Resolve the address (predeployed wallets are never derived locally).
+    const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
 
     const isDeployed = await isSafeDeployed(
       safeAddress,
@@ -908,6 +952,24 @@ export class ZyfaiSDK {
 
       // Ensure user is authenticated (required for safe-deploy endpoint)
       await this.authenticateUser();
+
+      // Predeployed (pool) wallets are already deployed with the agent session
+      // enabled by the pool. Never derive an address or send a deploy tx for
+      // them - return the backend-assigned wallet as already deployed.
+      if (this.isPredeployed && this.isConnectedUser(userAddress)) {
+        const predeployedAddress = await this.getSafeAddressFor(
+          userAddress,
+          chainId
+        );
+        await this.updateUserProtocols(chainId, strategy);
+        return {
+          success: true,
+          safeAddress: predeployedAddress,
+          txHash: "0x0",
+          status: "deployed",
+          sessionKeyCreated: true,
+        };
+      }
 
       const walletClient = this.getWalletClient(chainId);
       const chainConfig = getChainConfig(chainId, this.rpcUrls);
@@ -1056,6 +1118,19 @@ export class ZyfaiSDK {
         throw new Error(
           "User ID not available. Please ensure authentication completed successfully."
         );
+      }
+
+      // Predeployed (pool) wallets already have the agent session enabled
+      // on-chain by the pool at deploy time. Never prompt the user to sign a
+      // session key - the backend records it after the first deposit.
+      if (this.isPredeployed) {
+        return {
+          success: true,
+          userId: this.authenticatedUserId,
+          message:
+            "Predeployed wallet: agent session is managed by the backend",
+          alreadyActive: true,
+        };
       }
 
       // Check if user already has an active session key (from login response)
@@ -1452,12 +1527,9 @@ export class ZyfaiSDK {
       const walletClient = this.getWalletClient();
       const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
-      // Get Safe address
-      const safeAddress = await getDeterministicSafeAddress({
-        safeOwnerAddress: userAddress as Address,
-        chain: chainConfig.chain,
-        publicClient: chainConfig.publicClient,
-      });
+      // Get Safe address (predeployed wallets use the backend-assigned
+      // address; they are never derived from the EOA).
+      const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
 
       // Check if Safe is deployed
       const isDeployed = await isSafeDeployed(
@@ -1659,27 +1731,9 @@ export class ZyfaiSDK {
 
       const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
-      // Try to get smart wallet address from API first
-      let safeAddress: Address;
-      try {
-        const smartWalletInfo = await this.getSmartWalletByEOA(userAddress);
-        if (smartWalletInfo.smartWallet) {
-          safeAddress = smartWalletInfo.smartWallet;
-        } else {
-          // No smart wallet found in API, calculate deterministically
-          safeAddress = await getDeterministicSafeAddress({
-            safeOwnerAddress: userAddress as Address,
-            chain: chainConfig.chain,
-            publicClient: chainConfig.publicClient,
-          });
-        }
-      } catch {
-        safeAddress = await getDeterministicSafeAddress({
-          safeOwnerAddress: userAddress as Address,
-          chain: chainConfig.chain,
-          publicClient: chainConfig.publicClient,
-        });
-      }
+      // Resolve the Safe address (predeployed wallets use the backend-assigned
+      // address and are never derived locally).
+      const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
 
       // Check if Safe is deployed
       const isDeployed = await isSafeDeployed(

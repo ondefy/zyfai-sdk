@@ -149,3 +149,17 @@ export type {
 
 // Vault constants
 export { VAULT_ADDRESS } from "./config/abis";
+
+// Predeployment (pool) module addresses - reference/validation constants.
+// The SDK does not install these; they mirror the predeployment service's set.
+export {
+  SMART_SESSIONS_VALIDATOR,
+  SMART_SESSIONS_FALLBACK,
+  INTENT_EXECUTOR,
+  PROXY_EXECUTOR,
+  INTENT_SMART_SESSIONS,
+  OWNABLE_VALIDATOR,
+  SAFE_7579_ADDRESS,
+  ERC7579_LAUNCHPAD_ADDRESS,
+  POOL_MODULE_ADDRESSES,
+} from "./config/modules";
