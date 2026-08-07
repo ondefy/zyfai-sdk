@@ -2,7 +2,7 @@
  * Example: Update User Profile with Protocols
  *
  * This example demonstrates how to configure your user profile with:
- * - Asset-based configuration (USDC or WETH)
+ * - Asset-based configuration (USDC, WETH, or EURC on Mainnet/Base)
  * - Strategy selection (conservative/aggressive)
  * - Protocol selection and configuration
  * - Advanced features (splitting, cross-chain, etc.)
@@ -68,13 +68,13 @@ async function main() {
 
   console.log("response:", response);
 
-  // // Get ETH-specific user details
+  // // Get asset-specific user details
   // const userDetailsETH = await sdk.getUserDetails("WETH");
   // console.log("userDetails (eth):", userDetailsETH);
-
-  // // Get USDC-specific user details for comparison
   // const userDetailsUSDC = await sdk.getUserDetails("USDC");
   // console.log("userDetails (usdc):", userDetailsUSDC);
+  // const userDetailsEURC = await sdk.getUserDetails("EURC");
+  // console.log("userDetails (eurc):", userDetailsEURC);
 
   // // ===========================================================================
   // // Example 3: Update ETH Strategy (explicit asset)
@@ -182,6 +182,17 @@ async function main() {
   //   autocompounding: true,
   // });
   // console.log("ETH profile configured (conservative)");
+
+  // // Configure EURC (Mainnet / Base only)
+  // await sdk.updateUserProfile({
+  //   asset: "EURC",
+  //   strategy: "conservative",
+  //   protocols: allProtocolIds,
+  //   autoSelectProtocols: true,
+  //   chains: [8453],
+  //   autocompounding: true,
+  // });
+  // console.log("EURC profile configured (conservative)");
 
   // // Global settings
   // await sdk.updateUserProfile({

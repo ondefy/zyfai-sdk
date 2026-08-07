@@ -30,6 +30,7 @@ export type {
   Address,
   Hex,
   Strategy,
+  SupportedAsset,
 
   // Core Response Types
   DeploySafeResponse,

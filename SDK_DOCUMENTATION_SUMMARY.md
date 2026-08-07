@@ -168,11 +168,11 @@ interface DeploySafeResponse {
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting issues
 - If no strategy is provided, `"conservative"` is used as the default
-- **Automatic protocol patching**: after a successful deploy (or on the already-deployed early-return path), the SDK computes and persists the protocol selection for the `chainId` + `strategy` on **both USDC and WETH**:
+- **Automatic protocol patching**: after a successful deploy (or on the already-deployed early-return path), the SDK computes and persists the protocol selection for the `chainId` + `strategy` on **USDC, WETH, and EURC** (EURC on Mainnet/Base only; Arbitrum stays USDC + WETH):
   1. Fetches `GET /api/v1/protocols` and filters protocols by chain, strategy, and asset support (`aggressive` keeps protocols supporting either `safe_strategy` or `degen_strategy`).
   2. For each remaining protocol, calls `GET /api/v1/customization/pools?protocolId=…&strategy=degen_strategy` (master strategy — returns both safe + degen pools) and drops protocols with no pool matching the asset's valid token symbols.
   3. Reads the user's existing chains via `getUserDetails(asset)` and computes `effectiveChains = union(existing, [chainId])` — **never overwrites** chains already configured.
-  4. Persists via `updateUserProfile({ asset, protocols, chains })` → `assetTypeSettings.[usdc|eth]`.
+  4. Persists via `updateUserProfile({ asset, protocols, chains })` → `assetTypeSettings.[usdc|eth|eurc]`.
 - SDK consumers do not need to call `updateUserProfile` after `deploySafe`.
 
 #### Example Response (New Deployment)
@@ -381,7 +381,7 @@ depositFunds(
   userAddress: string,
   chainId: number,
   amount: string,
-  asset?: "USDC" | "WETH"
+  asset?: "USDC" | "WETH" | "EURC"
 ): Promise<DepositResponse>
 ```
 
@@ -390,6 +390,7 @@ depositFunds(
 Token address is automatically selected based on chain and requested asset (defaults to USDC):
 
 - **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC (default) or WETH
+- **Ethereum Mainnet (1), Base (8453)**: EURC (not available on Arbitrum)
 
 **Minimum portfolio balance (enforced on Safe balance + deposit amount):**
 
@@ -405,7 +406,7 @@ Only deposits on Mainnet in USDC that would leave the Safe below 5 USDC are reje
 | `userAddress` | string | ✅       | User's EOA address                                                             |
 | `chainId`     | number | ✅       | Chain to deposit on                                                            |
 | `amount`      | string | ✅       | Amount in least decimal units (e.g., "10000000000" for 10,000 USDC)            |
-| `asset`       | string | ❌       | Asset to deposit: `"USDC"` (default) or `"WETH"`                               |
+| `asset`       | string | ❌       | Asset to deposit: `"USDC"` (default), `"WETH"`, or `"EURC"` (Mainnet/Base)     |
 
 #### Response Type
 
@@ -596,7 +597,8 @@ Funds are always withdrawn to the Safe owner's address (userAddress).
 withdrawFunds(
   userAddress: string,
   chainId: number,
-  amount?: string
+  amount?: string,
+  tokenSymbol?: string
 ): Promise<WithdrawResponse>
 ```
 
@@ -607,6 +609,7 @@ withdrawFunds(
 | `userAddress` | string | ✅       | User's EOA address                                                   |
 | `chainId`     | number | ✅       | Chain to withdraw from                                               |
 | `amount`      | string | ❌       | Amount in least decimal units to withdraw (omit for full withdrawal) |
+| `tokenSymbol` | string | ❌       | Asset symbol: `"USDC"`, `"WETH"`, or `"EURC"` (Mainnet/Base)         |
 
 #### Response Type
 
@@ -637,8 +640,10 @@ Retrieve authenticated user details.
 #### Function Signature
 
 ```typescript
-getUserDetails(): Promise<UserDetailsResponse>
+getUserDetails(asset?: "USDC" | "WETH" | "EURC"): Promise<UpdateUserProfileResponse>
 ```
+
+`asset` defaults to `"USDC"`. Pass `"EURC"` for EURC profile settings (Mainnet/Base).
 
 #### Response Type
 
@@ -667,8 +672,9 @@ interface UserDetailsResponse {
 const tvl = await sdk.getTVL();
 // Returns: { success, totalTvl, byChain? }
 
-// Get total volume
+// Get total volume (assetType: "usdc" | "eth" | "eurc", default "usdc")
 const volume = await sdk.getVolume();
+const eurcVolume = await sdk.getVolume("eurc");
 // Returns: { success, volumeInUSD }
 ```
 

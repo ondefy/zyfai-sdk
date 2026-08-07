@@ -1,45 +1,52 @@
-# Scratchpad: getSmartWalletAddress ownership check
+# Scratchpad: Add EURC (Base + Mainnet)
 
 ## Background and Motivation
 
-Predeployed (pool) wallets are already deployed and reserved for a user, but OwnableValidator ownership stays backend-owned until the first deposit. `getSmartWalletAddress` currently only returns `isDeployed`, which is misleading for reserved-but-not-owned wallets. We need an on-chain ownership check against the passed `userAddress`.
+Add EURC as a first-class SDK asset on Ethereum Mainnet and Base only, mirroring the WETH path for deposits, withdrawals, profile/protocol calls, and docs. No Arbitrum support. No new minimum balance.
+
+(Prior unfinished work: `getSmartWalletAddress` ownership docs + debug log cleanup — paused; Tasks 1–2 of that effort remain done in code.)
 
 ## Key Challenges and Analysis
 
-- Pool OwnableValidator address (`OWNABLE_VALIDATOR` in `src/config/modules.ts`: `0x000000000013fdB5234E4E3162a810F54d9f7E98`) differs from `@rhinestone/module-sdk` 0.2.x (`0x2483DA3A...`). Must use the pool address for predeployed wallets; also check the legacy SDK address for wallets deployed via this SDK.
-- OwnableValidator API: `getOwners(address account) returns (address[])`.
-- Field naming: `isOwner` — true when `userAddress` appears in OwnableValidator owners for the Safe. False if not deployed or not yet rotated.
-- Keep `getSmartWalletAddress` public for now (docs will clarify reserved vs owned).
+- Public symbol `"EURC"`; internal API `assetType` `"eurc"` (lowercase like `usdc`; WETH stays special as `eth`).
+- EURC addresses only on chain 1 and 8453; Arbitrum has no entry so `getDefaultTokenAddress` throws.
+- Post-`deploySafe` protocol patching: include EURC on Mainnet/Base; keep USDC+WETH only on Arbitrum.
 
 ## High-level Task Breakdown
 
-1. **Add on-chain ownership helper** — ABI fragment + `isOwnableValidatorOwner` in `src/utils/safe-account.ts` (check pool + legacy OwnableValidator addresses). Success: helper exported, reads `getOwners`, returns boolean, fails closed (false) on RPC/revert.
-2. **Wire into `getSmartWalletAddress` + types** — extend `SmartWalletResponse` with `isOwner`; call helper when deployed. Success: TypeScript builds; response includes `isOwner`.
-3. **Update docs** — README.md + SDK_DOCUMENTATION_SUMMARY.md for the new field and predeployed ownership semantics. Success: docs match API.
-4. **Cleanup** — remove debug `console.log` in `deploySafe` predeployed path. Success: no debug logs left in that block.
+1. **Config + SupportedAsset** — EURC in `ASSET_CONFIGS`, type `SupportedAsset`.
+2. **Conversion + protocol selection** — `convertAssetInternally` + `AssetSymbol`.
+3. **Wire ZyfaiSDK** — profile, protocols loop, deposit, getVolume.
+4. **Docs + examples** — README, SDK_DOCUMENTATION_SUMMARY, deposit/withdraw examples.
 
 ## Project Status Board
 
-- [x] Task 1: Add on-chain ownership helper
-- [x] Task 2: Wire into getSmartWalletAddress + types
-- [ ] Task 3: Update docs
-- [ ] Task 4: Remove debug console.logs
+- [x] Task 1: Add EURC to ASSET_CONFIGS + SupportedAsset type
+- [x] Task 2: Extend convertAssetInternally and protocol-selection
+- [x] Task 3: Wire SupportedAsset through ZyfaiSDK
+- [x] Task 4: Update docs and light examples
 
 ## Current Status / Progress Tracking
 
-Task 2 done. Waiting for user verification before Task 3.
+All EURC plan tasks implemented. Follow-up: aligned remaining examples + `pauseAgent`/`resumeAgent` to include EURC. Vault examples left USDC-only.
 
 ## Executor's Feedback or Assistance Requests
 
-**Task 2 complete — please verify before I start Task 3 (docs).**
+**Implementation complete — please verify.**
 
-Changes:
-- `SmartWalletResponse.isOwner: boolean` in `src/types/index.ts`
-- `getSmartWalletAddress` now returns `isOwner` via on-chain OwnableValidator check (skipped / false when not deployed)
+Circle addresses used:
+- Mainnet: `0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c`
+- Base: `0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42`
 
-`tsc --noEmit` passes. Next: README + SDK_DOCUMENTATION_SUMMARY.
+Key changes:
+- `SupportedAsset = "USDC" | "WETH" | "EURC"` exported from package
+- `convertAssetInternally("EURC")` → `"eurc"`
+- `updateUserProtocols` loops EURC on chains 1/8453 only
+- Docs + deposit/withdraw examples updated
+
+Please confirm: (1) internal API key is indeed `eurc`, (2) addresses correct, (3) mark project complete.
 
 ## Lessons
 
-- Pool module addresses can diverge from `@rhinestone/module-sdk` pin; always prefer `src/config/modules.ts` for predeployed on-chain reads.
-- Do not use `getOwnableValidatorOwners` from module-sdk for pool wallets — it targets the wrong OwnableValidator address.
+- Keep asset imports at top of file (`SupportedAsset` from types in `strategy.ts`).
+- WETH maps to `eth`; new stablecoins should use lowercase symbol as internal key.

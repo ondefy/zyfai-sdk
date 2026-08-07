@@ -45,17 +45,17 @@ async function main() {
   const connectedAddress = await sdk.connectAccount(privateKey, chainId);
   console.log(`Account connected: ${connectedAddress}\n`);
 
-  // Get the Safe smart wallet address
-  console.log("Getting Safe smart wallet address...");
-  const walletInfo = await sdk.getSmartWalletAddress(connectedAddress, chainId);
-  console.log(`Safe Address: ${walletInfo.address}`);
-  console.log(`Safe Deployed: ${walletInfo.isDeployed} Owner: ${walletInfo.isOwner}\n`);
+  // // Get the Safe smart wallet address
+  // console.log("Getting Safe smart wallet address...");
+  // const walletInfo = await sdk.getSmartWalletAddress(connectedAddress, chainId);
+  // console.log(`Safe Address: ${walletInfo.address}`);
+  // console.log(`Safe Deployed: ${walletInfo.isDeployed} Owner: ${walletInfo.isOwner}\n`);
 
-  if (walletInfo.isDeployed) {
-    console.log("Safe is already deployed. No action needed.");
-    console.log(`Safe Address: ${walletInfo.address}`);
-    console.log(`Safe Deployed: ${walletInfo.isDeployed} Owner: ${walletInfo.isOwner}\n`);
-  } else {
+  // if (walletInfo.isDeployed) {
+  //   console.log("Safe is already deployed. No action needed.");
+  //   console.log(`Safe Address: ${walletInfo.address}`);
+  //   console.log(`Safe Deployed: ${walletInfo.isDeployed} Owner: ${walletInfo.isOwner}\n`);
+  // } else {
     console.log("Safe not deployed. Deploying now ...");
     const deployment = await sdk.deploySafe(connectedAddress, chainId, "aggressive", false);
 
@@ -69,7 +69,6 @@ async function main() {
       console.error("\n❌ Safe deployment failed");
       throw new Error("Failed to deploy Safe");
     }
-  }
 }
 
 main().catch((error) => {

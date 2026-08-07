@@ -255,6 +255,7 @@ export const deploySafeAccount = async (
       );
     }
 
+    console.log("strategy", strategy);
     // Step 1: Call backend to get userOpHashToSign
     const prepareResponse = (await httpClient.post(
       `${ENDPOINTS.SAFE_DEPLOY}?chainId=${chainId}`,
@@ -264,6 +265,8 @@ export const deploySafeAccount = async (
       userOpHashToSign?: Hex;
       status: string;
     };
+
+    console.log("prepareResponse", prepareResponse);
 
     if (!prepareResponse.userOpHashToSign) {
       throw new Error(

@@ -320,11 +320,11 @@ Deploy a Safe smart wallet for a user. **Deployment is handled by the backend AP
 
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting
-- After deployment, the SDK automatically patches the user's protocol selection for the target `chainId` and `strategy` on **both USDC and WETH**:
+- After deployment, the SDK automatically patches the user's protocol selection for the target `chainId` and `strategy` on **USDC, WETH, and EURC** (EURC on Ethereum Mainnet and Base only; Arbitrum stays USDC + WETH):
   - Fetches protocols compatible with the strategy (`aggressive` includes both `safe` and `degen` protocols)
   - Drops any protocol that has no pool available for the asset/chain (via `/customization/pools`)
   - **Merges** the new `chainId` with the user's existing chains (never overwrites — safe to call again on a new chain)
-  - Persists via `updateUserProfile` into `assetTypeSettings.[usdc|eth]`
+  - Persists via `updateUserProfile` into `assetTypeSettings.[usdc|eth|eurc]`
 - No need to call `updateUserProfile` manually after `deploySafe` — the SDK handles it
 
 ##### `addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>`
@@ -389,13 +389,14 @@ console.log("User ID:", result.userId);
 Transfer tokens to your Safe smart wallet. Token address is automatically selected based on chain and the requested asset (defaults to USDC):
 
 - **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC (default) or WETH
+- **Ethereum Mainnet (1), Base (8453)**: EURC (6 decimals; not available on Arbitrum)
 
 **Minimum portfolio balance (enforced on Safe balance + deposit amount):**
 
 - Ethereum Mainnet (1) / USDC: 5 USDC (test threshold — will be raised before production)
 - All other (chain, asset) pairs: no minimum enforced
 
-Only deposits on Mainnet in USDC that would leave the Safe below 5 USDC are rejected. Deposits on Base or Arbitrum, or in WETH, have no minimum today.
+Only deposits on Mainnet in USDC that would leave the Safe below 5 USDC are rejected. Deposits on Base or Arbitrum, or in WETH/EURC, have no minimum today.
 
 ```typescript
 // Deposit 10 USDC (6 decimals) to Safe on Base — no minimum on Base
@@ -414,7 +415,7 @@ if (result.success) {
 **Note:**
 
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
-- Token address is automatically selected based on chain (USDC by default; pass `asset: "WETH"` to deposit WETH instead)
+- Token address is automatically selected based on chain (USDC by default; pass `asset: "WETH"` or `asset: "EURC"` — EURC on Mainnet/Base only)
 - On Ethereum Mainnet, the total Safe balance in USDC must be at least 5 USDC after the deposit (test threshold); smaller top-ups are allowed if the Safe already holds enough USDC to meet the minimum
 - The SDK automatically authenticates via SIWE before logging the deposit with Zyfai's API, so no extra steps are required on your end once the transfer confirms
 
@@ -586,8 +587,8 @@ console.log("Active protocols:", userDetails.user.protocols.length); // Should b
 
 **Note**:
 - User must be authenticated (automatically done via `connectAccount()`)
-- This sets the user's protocols to an empty array
-- To resume operations, call `updateUserProfile()` with the desired protocols
+- Clears protocols for USDC, WETH, and EURC
+- To resume operations, call `resumeAgent()` or `updateUserProfile()` with the desired protocols
 
 #### Splitting Management
 

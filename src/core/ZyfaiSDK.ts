@@ -64,6 +64,7 @@ import type {
   VaultWithdrawStatusResponse,
   VaultSharesResponse,
   VaultAsset,
+  SupportedAsset,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -261,7 +262,7 @@ export class ZyfaiSDK {
       // Default asset to "usdc" if not provided
       const asset = request.asset || "USDC";
 
-      const internalAsset = convertAssetInternally(asset as "USDC" | "WETH");
+      const internalAsset = convertAssetInternally(asset as SupportedAsset);
 
       // Convert strategy if provided
       let rebalanceStrategy: string | undefined;
@@ -333,14 +334,19 @@ export class ZyfaiSDK {
    */
   async pauseAgent(): Promise<UpdateUserProfileResponse> {
     try {
-      // Pause both assets by clearing protocols for each
+      // Pause all assets by clearing protocols for each
       await this.updateUserProfile({
         asset: "USDC",
         protocols: [],
       });
 
-      const response = await this.updateUserProfile({
+      await this.updateUserProfile({
         asset: "WETH",
+        protocols: [],
+      });
+
+      const response = await this.updateUserProfile({
+        asset: "EURC",
         protocols: [],
       });
 
@@ -372,26 +378,38 @@ export class ZyfaiSDK {
     try {
       const userDetailsUSDC = await this.getUserDetails("USDC");
       const userDetailsETH = await this.getUserDetails("WETH");
+      const userDetailsEURC = await this.getUserDetails("EURC");
 
       // If user has no chains configured, use all supported chains
       const chains: number[] =
-        userDetailsUSDC.chains && userDetailsUSDC.chains.length > 0 ? userDetailsUSDC.chains : [8453, 42161];
+        userDetailsUSDC.chains && userDetailsUSDC.chains.length > 0
+          ? userDetailsUSDC.chains
+          : [8453, 42161];
+      // EURC is Mainnet/Base only
+      const eurcChains: number[] =
+        userDetailsEURC.chains && userDetailsEURC.chains.length > 0
+          ? userDetailsEURC.chains.filter((c) => c === 1 || c === 8453)
+          : [1, 8453];
 
       // Fetch all protocols (API returns array directly, not { protocols: [...] })
       const allProtocols = await this.httpClient.get<Protocol[]>(
         ENDPOINTS.PROTOCOLS()
       );
 
-      // Get strategies for both assets
+      // Get strategies for each asset
       const usdcStrategy = userDetailsUSDC.strategy || "safe_strategy";
       const ethStrategy = userDetailsETH.strategy || "safe_strategy";
+      const eurcStrategy = userDetailsEURC.strategy || "safe_strategy";
 
-      // Helper function to filter protocols by strategy
-      const filterProtocolsByStrategy = (strategy: string): string[] => {
+      // Helper function to filter protocols by strategy (+ optional chain list)
+      const filterProtocolsByStrategy = (
+        strategy: string,
+        selectedChains: number[]
+      ): string[] => {
         return allProtocols
           .filter((protocol: Protocol) => {
             const hasMatchingChain = protocol.chains.some((chain: number) =>
-              chains.includes(chain)
+              selectedChains.includes(chain)
             );
             if (!hasMatchingChain) {
               return false;
@@ -410,21 +428,25 @@ export class ZyfaiSDK {
       };
 
       // Get filtered protocols for each asset based on their strategy
-      const usdcProtocols = filterProtocolsByStrategy(usdcStrategy);
-      const ethProtocols = filterProtocolsByStrategy(ethStrategy);
+      const usdcProtocols = filterProtocolsByStrategy(usdcStrategy, chains);
+      const ethProtocols = filterProtocolsByStrategy(ethStrategy, chains);
+      const eurcProtocols = filterProtocolsByStrategy(eurcStrategy, eurcChains);
 
-      // Update both assets with their respective protocols
+      // Update each asset with its respective protocols
       await this.updateUserProfile({
         asset: "USDC",
         protocols: usdcProtocols,
       });
 
-      const updatedUserDetailsETH = await this.updateUserProfile({
+      await this.updateUserProfile({
         asset: "WETH",
         protocols: ethProtocols,
       });
 
-      return updatedUserDetailsETH;
+      return await this.updateUserProfile({
+        asset: "EURC",
+        protocols: eurcProtocols,
+      });
     } catch (error) {
       throw new Error(`Failed to resume agent: ${(error as Error).message}`);
     }
@@ -1074,9 +1096,9 @@ export class ZyfaiSDK {
         );
       }
 
-      // Patch protocol selection for the deployed chain + strategy on both
-      // USDC and WETH (never overwrites chains already configured for the
-      // user). Runs after initializeUser so the user row exists.
+      // Patch protocol selection for the deployed chain + strategy on USDC,
+      // WETH, and EURC when supported (never overwrites chains already
+      // configured for the user). Runs after initializeUser so the user row exists.
       await this.updateUserProtocols(chainId, strategy);
 
       // Optionally create session key after deployment
@@ -1318,7 +1340,8 @@ export class ZyfaiSDK {
 
   /**
    * Patch the user's protocol selection for the given chain + strategy on
-   * both USDC and WETH. Mirrors the front-end customization flow:
+   * USDC, WETH, and EURC (EURC only on Mainnet/Base). Mirrors the front-end
+   * customization flow:
    * 1. Merge existing chains from `getUserDetails` with the new `chainId`
    *    (never overwrite already-configured chains).
    * 2. Filter protocols by strategy, chain and asset support.
@@ -1339,7 +1362,12 @@ export class ZyfaiSDK {
         ENDPOINTS.PROTOCOLS()
       );
 
-      for (const asset of ["USDC", "WETH"] as const) {
+      const assets: SupportedAsset[] =
+        chainId === 42161
+          ? ["USDC", "WETH"]
+          : ["USDC", "WETH", "EURC"];
+
+      for (const asset of assets) {
         try {
           await this.updateUserProtocolsForAsset(
             asset,
@@ -1365,7 +1393,7 @@ export class ZyfaiSDK {
    * @internal
    */
   private async updateUserProtocolsForAsset(
-    asset: "USDC" | "WETH",
+    asset: SupportedAsset,
     chainId: SupportedChainId,
     strategy: Strategy | undefined,
     allProtocols: any[]
@@ -1417,7 +1445,7 @@ export class ZyfaiSDK {
   private async filterProtocolIdsWithPools(
     protocolIds: string[],
     chains: number[],
-    asset: "USDC" | "WETH"
+    asset: SupportedAsset
   ): Promise<string[]> {
     if (protocolIds.length === 0) return [];
 
@@ -1496,7 +1524,8 @@ export class ZyfaiSDK {
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
    * @param amount - Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals)
-   * @param asset - Optional asset symbol ("USDC" or "WETH"). Defaults to "USDC".
+   * @param asset - Optional asset symbol ("USDC", "WETH", or "EURC"). Defaults to "USDC".
+   *   EURC is supported on Ethereum Mainnet and Base only.
    * @returns Deposit response with transaction hash
    *
    * @example
@@ -1532,7 +1561,7 @@ export class ZyfaiSDK {
       const assetConfig = ASSET_CONFIGS[assetSymbol];
       if (!assetConfig) {
         throw new Error(
-          `Unsupported asset: ${assetSymbol}. Supported: USDC, WETH.`
+          `Unsupported asset: ${assetSymbol}. Supported: USDC, WETH, EURC.`
         );
       }
 
@@ -1978,7 +2007,7 @@ export class ZyfaiSDK {
    * console.log("Chains:", user.user.chains);
    * ```
    */
-  async getUserDetails(asset: "USDC" | "WETH" = "USDC"): Promise<UpdateUserProfileResponse> {
+  async getUserDetails(asset: SupportedAsset = "USDC"): Promise<UpdateUserProfileResponse> {
     try {
       await this.authenticateUser();
 
@@ -2110,7 +2139,7 @@ export class ZyfaiSDK {
    * console.log("Total Volume:", volume.volumeInUSD);
    * ```
    */
-  async getVolume(assetType: "usdc" | "eth" = "usdc"): Promise<VolumeResponse> {
+  async getVolume(assetType: "usdc" | "eth" | "eurc" = "usdc"): Promise<VolumeResponse> {
     try {
       const response = await this.httpClient.get<any>(ENDPOINTS.DATA_VOLUME(assetType));
 

@@ -31,27 +31,32 @@ async function main() {
   console.log(`Connected EOA: ${connected}\n`);
 
   console.log("Fetching user details (requires SIWE authentication)...\n");
-  const userDetails = await sdk.getUserDetails();
+  const usdcDetails = await sdk.getUserDetails("USDC");
   const ethDetails = await sdk.getUserDetails("WETH");
+  const eurcDetails = await sdk.getUserDetails("EURC");
 
-  if (!userDetails.success || !ethDetails.success) {
+  if (!usdcDetails.success || !ethDetails.success || !eurcDetails.success) {
     console.log("Failed to fetch user details");
     return;
   }
 
-  const user = userDetails;
-  const eth = ethDetails;
-
   console.log("User Details:");
   console.log("-".repeat(50));
-  console.log(`  USDC Strategy:             ${user.strategy || "n/a"}`);
-  console.log(`  ETH Strategy:             ${eth.strategy || "n/a"}`);
-  console.log(`  USDC Protocols:            ${user.protocols?.join(", ") || "n/a"}`);
-  console.log(`  ETH Protocols:             ${eth.protocols?.join(", ") || "n/a"}`);
+  console.log(`  USDC Strategy:  ${usdcDetails.strategy || "n/a"}`);
+  console.log(`  WETH Strategy:  ${ethDetails.strategy || "n/a"}`);
+  console.log(`  EURC Strategy:  ${eurcDetails.strategy || "n/a"}`);
+  console.log(
+    `  USDC Protocols: ${usdcDetails.protocols?.join(", ") || "n/a"}`
+  );
+  console.log(
+    `  WETH Protocols: ${ethDetails.protocols?.join(", ") || "n/a"}`
+  );
+  console.log(
+    `  EURC Protocols: ${eurcDetails.protocols?.join(", ") || "n/a"}`
+  );
 }
 
 main().catch((error) => {
   console.error("Script failed:", error);
   process.exit(1);
 });
-

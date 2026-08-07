@@ -7,6 +7,9 @@ export type Hex = `0x${string}`;
 
 export type Strategy = "conservative" | "aggressive";
 
+/** Public asset symbols supported by the SDK */
+export type SupportedAsset = "USDC" | "WETH" | "EURC";
+
 export interface RpcUrlsConfig {
   1?: string;
   8453?: string;
@@ -42,7 +45,7 @@ export interface UpdateUserProfileRequest {
   crosschainStrategy?: boolean;
   splitting?: boolean;
   minSplits?: number;
-  asset?: "USDC" | "WETH";
+  asset?: SupportedAsset;
 }
 
 /** @internal */
@@ -70,7 +73,7 @@ export interface UpdateUserProfileResponse {
   splitting?: boolean;
   minSplits?: number;
   customization?: Record<string, any>;
-  asset?: "USDC" | "WETH";
+  asset?: SupportedAsset;
 }
 
 /** @internal */

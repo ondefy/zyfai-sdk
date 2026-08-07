@@ -1,4 +1,4 @@
-import { staleBalances } from "../types";
+import { staleBalances, type SupportedAsset } from "../types";
 
 export type PublicStrategy = "conservative" | "aggressive";
 export type InternalStrategy = "safe_strategy" | "degen_strategy";
@@ -87,14 +87,21 @@ export function removeUnusedFields(obj: any): any {
   return result;
 }
 
-export function convertAssetInternally(asset: "USDC" | "WETH"): "usdc" | "eth" {
+export function convertAssetInternally(
+  asset: SupportedAsset
+): "usdc" | "eth" | "eurc" {
   if (asset === "USDC") {
     return "usdc";
   }
   if (asset === "WETH") {
     return "eth";
   }
-  throw new Error(`Invalid asset: ${asset}. Must be "USDC" or "WETH".`);
+  if (asset === "EURC") {
+    return "eurc";
+  }
+  throw new Error(
+    `Invalid asset: ${asset}. Must be "USDC", "WETH", or "EURC".`
+  );
 }
 
 export function convertStrategiesToPublic<T extends { strategy?: string }>(

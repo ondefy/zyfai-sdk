@@ -12,8 +12,8 @@ import { SupportedChainId, ZyfaiSDK } from "../dist/index";
 config();
 
 // Token addresses are automatically selected based on chain:
-// - Ethereum Mainnet (1), Base (8453), and Arbitrum (42161): USDC (default)
-// Pass asset: "WETH" to depositFunds to deposit WETH instead.
+// - Ethereum Mainnet (1), Base (8453), and Arbitrum (42161): USDC (default) or WETH
+// - Ethereum Mainnet (1), Base (8453): also EURC (pass asset: "EURC")
 
 async function main() {
   // Validate environment variables

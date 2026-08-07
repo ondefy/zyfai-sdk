@@ -16,13 +16,15 @@ async function main() {
   const chainId = Number(process.env.CHAIN_ID ?? 42161) as SupportedChainId;
   
   // Examples of amounts in correct decimal units:
-  // USDC (6 decimals): "1000000" = 1 USDC, "100000000" = 100 USDC
+  // USDC / EURC (6 decimals): "1000000" = 1, "100000000" = 100
   // WETH (18 decimals): "1000000000000000000" = 1 WETH, "100000000000000000" = 0.1 WETH
-  
-  const asset = "WETH"; // Can be "USDC" or "WETH"
-  const amount = asset === "WETH" 
-    ? "1000000000000000" // 0.002 WETH (18 decimals) -- minimum amount 0.001 on L2s
-    : "100000000"; // 100 USDC (6 decimals) -- minimum amount 1.5 on L2s
+  // EURC is supported on Ethereum Mainnet (1) and Base (8453) only.
+
+  const asset = "WETH"; // Can be "USDC", "WETH", or "EURC"
+  const amount =
+    asset === "WETH"
+      ? "1000000000000000" // 0.001 WETH (18 decimals)
+      : "100000000"; // 100 USDC or EURC (6 decimals)
 
   const sdk = new ZyfaiSDK({
     apiKey,
@@ -37,7 +39,7 @@ async function main() {
   console.log(`Safe address: ${wallet.address}`);
 
   console.log("Depositing funds...", amount, asset, chainId);
-  // Deposit with specified asset (USDC by default, or WETH)
+  // Deposit with specified asset (USDC by default, or WETH / EURC)
   const response = await sdk.depositFunds(connected, chainId, amount, asset);
 
   console.log("Deposit submitted:");

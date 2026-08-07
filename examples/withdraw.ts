@@ -14,10 +14,12 @@ async function main() {
   }
 
   const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
-  const asset = "WETH"; // Can be "USDC" or "WETH"
-  const withdrawAmount = asset === "WETH" 
-    ? "1000000000000000" // 0.001 WETH (18 decimals)
-    : "100000000"; // 100 USDC (6 decimals)
+  // EURC is supported on Ethereum Mainnet (1) and Base (8453) only.
+  const asset = "WETH"; // Can be "USDC", "WETH", or "EURC"
+  const withdrawAmount =
+    asset === "WETH"
+      ? "1000000000000000" // 0.001 WETH (18 decimals)
+      : "100000000"; // 100 USDC or EURC (6 decimals)
 
   const sdk = new ZyfaiSDK({
     apiKey,
@@ -45,7 +47,7 @@ async function main() {
   }
 
   // Funds are always withdrawn to the Safe owner's address (connected)
-  const response = await sdk.withdrawFunds(connected, chainId, undefined, "WETH");
+  const response = await sdk.withdrawFunds(connected, chainId, undefined, asset);
 
   console.log("Withdraw submitted:");
   console.log(`  Success: ${response.success}`);

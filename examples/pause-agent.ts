@@ -50,14 +50,21 @@ async function main() {
 
     // Verify the protocols were cleared
     console.log("\nVerifying agent is paused...");
-    const updatedDetails = await sdk.getUserDetails("USDC");
+    const usdcDetails = await sdk.getUserDetails("USDC");
     const ethDetails = await sdk.getUserDetails("WETH");
-    if (updatedDetails.success && ethDetails.success) {
-      const usdcProtocols = updatedDetails.protocols || [];
+    const eurcDetails = await sdk.getUserDetails("EURC");
+    if (usdcDetails.success && ethDetails.success && eurcDetails.success) {
+      const usdcProtocols = usdcDetails.protocols || [];
       const ethProtocols = ethDetails.protocols || [];
-      console.log(`  Active USDC protocols: ${usdcProtocols?.length || 0}`);
-      console.log(`  Active ETH protocols: ${ethProtocols?.length || 0}`);
-      if (usdcProtocols?.length === 0 && ethProtocols?.length === 0) {
+      const eurcProtocols = eurcDetails.protocols || [];
+      console.log(`  Active USDC protocols: ${usdcProtocols.length}`);
+      console.log(`  Active WETH protocols: ${ethProtocols.length}`);
+      console.log(`  Active EURC protocols: ${eurcProtocols.length}`);
+      if (
+        usdcProtocols.length === 0 &&
+        ethProtocols.length === 0 &&
+        eurcProtocols.length === 0
+      ) {
         console.log("✓ Agent is now paused (no active protocols)");
       } else {
         console.log("✗ Agent is not paused (active protocols)");

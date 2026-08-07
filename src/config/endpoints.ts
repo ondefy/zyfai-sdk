@@ -47,7 +47,7 @@ export const ENDPOINTS = {
   DATA_HISTORY: (walletAddress: string, chainId: SupportedChainId) =>
     `/data/history?walletAddress=${walletAddress}&chainId=${chainId}`,
   DATA_TVL: "/data/usd-tvl",
-  DATA_VOLUME: (assetType: "usdc" | "eth") => `/data/volume?assetType=${assetType}`,
+  DATA_VOLUME: (assetType: "usdc" | "eth" | "eurc") => `/data/volume?assetType=${assetType}`,
   DATA_FIRST_TOPUP: (walletAddress: string, chainId: number) =>
     `/data/first-topup?walletAddress=${walletAddress}&chainId=${chainId}`,
   DATA_ACTIVE_WALLETS: (chainId: number) =>

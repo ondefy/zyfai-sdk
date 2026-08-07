@@ -67,6 +67,23 @@ export const ASSET_CONFIGS: Readonly<Record<string, any>> = {
     },
     enabled: true,
   },
+  EURC: {
+    symbol: 'EURC',
+    assetType: 'eurc',
+    displayName: 'EURC',
+    icon: '/ai-dashboard/eurc-token.png',
+    decimals: 6,
+    tokenSymbols: ['EURC'],
+    tokenSymbolsByChainId: {
+      1: 'EURC',
+      8453: 'EURC',
+    },
+    addresses: {
+      1: '0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c', // Ethereum
+      8453: '0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42', // Base
+    },
+    enabled: true,
+  },
 };
 
 export const getDefaultTokenAddress = (chainId: SupportedChainId, asset?: string): string => {

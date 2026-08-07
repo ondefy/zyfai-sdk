@@ -53,12 +53,19 @@ async function main() {
     console.log("\nVerifying agent is paused...");
     const usdcDetails = await sdk.getUserDetails("USDC");
     const ethDetails = await sdk.getUserDetails("WETH");
-    if (usdcDetails.success && ethDetails.success) {
+    const eurcDetails = await sdk.getUserDetails("EURC");
+    if (usdcDetails.success && ethDetails.success && eurcDetails.success) {
       const usdcProtocols = usdcDetails.protocols || [];
       const ethProtocols = ethDetails.protocols || [];
+      const eurcProtocols = eurcDetails.protocols || [];
       console.log(`  Active USDC protocols: ${usdcProtocols.length}`);
-      console.log(`  Active ETH protocols: ${ethProtocols.length}`);
-      if (usdcProtocols.length === 0 && ethProtocols.length === 0) {
+      console.log(`  Active WETH protocols: ${ethProtocols.length}`);
+      console.log(`  Active EURC protocols: ${eurcProtocols.length}`);
+      if (
+        usdcProtocols.length === 0 &&
+        ethProtocols.length === 0 &&
+        eurcProtocols.length === 0
+      ) {
         console.log("✓ Agent is now paused (no active protocols)");
       }
     }
