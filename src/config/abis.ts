@@ -5,6 +5,20 @@
 import { parseAbi } from "viem";
 
 /**
+ * OwnableValidator (ERC-7579) — used to read whether an EOA owns a Safe.
+ * Call getOwners(safeAddress) on the validator singleton.
+ */
+export const OWNABLE_VALIDATOR_ABI = [
+  {
+    name: "getOwners",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "ownersArray", type: "address[]" }],
+  },
+] as const;
+
+/**
  * ERC20 Token Standard ABI
  * Contains essential functions for token interactions
  */

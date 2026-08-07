@@ -5,6 +5,7 @@
 
 import {
   RHINESTONE_ATTESTER_ADDRESS,
+  OWNABLE_VALIDATOR_ADDRESS,
   getOwnableValidator,
   getAccount,
   getEnableSessionDetails,
@@ -30,6 +31,8 @@ import {
 } from "viem/account-abstraction";
 import type { SupportedChainId } from "../config/chains";
 import { ENDPOINTS } from "../config/endpoints";
+import { OWNABLE_VALIDATOR_ABI } from "../config/abis";
+import { OWNABLE_VALIDATOR } from "../config/modules";
 
 export interface SafeAccountReadConfig {
   safeOwnerAddress: Address;
@@ -134,6 +137,51 @@ export const isSafeDeployed = async (
     console.error("Error checking if Safe is deployed:", error);
     return false;
   }
+};
+
+/**
+ * Checks on-chain whether userAddress is an OwnableValidator owner of the Safe.
+ *
+ * Predeployed (pool) wallets use OWNABLE_VALIDATOR from modules.ts; legacy
+ * wallets deployed via this SDK use OWNABLE_VALIDATOR_ADDRESS from
+ * @rhinestone/module-sdk. Both are queried so either wallet type works.
+ * Returns false if the Safe is not initialized on a validator or on RPC errors.
+ */
+export const isOwnableValidatorOwner = async (
+  safeAddress: Address,
+  userAddress: Address,
+  publicClient: PublicClient
+): Promise<boolean> => {
+  const normalizedUser = getAddress(userAddress);
+  const normalizedSafe = getAddress(safeAddress);
+
+  const validatorAddresses = Array.from(
+    new Set([
+      getAddress(OWNABLE_VALIDATOR),
+      getAddress(OWNABLE_VALIDATOR_ADDRESS as Address),
+    ])
+  );
+
+  for (const validatorAddress of validatorAddresses) {
+    try {
+      const owners = await publicClient.readContract({
+        address: validatorAddress,
+        abi: OWNABLE_VALIDATOR_ABI,
+        functionName: "getOwners",
+        args: [normalizedSafe],
+      });
+
+      if (
+        owners.some((owner) => getAddress(owner) === normalizedUser)
+      ) {
+        return true;
+      }
+    } catch {
+      // Not initialized on this validator, or RPC failure — try the next one.
+    }
+  }
+
+  return false;
 };
 
 /**

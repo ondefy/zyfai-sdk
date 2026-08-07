@@ -86,6 +86,7 @@ import {
   getDeterministicSafeAddress,
   getAccountType,
   isSafeDeployed,
+  isOwnableValidatorOwner,
   signSessionKey,
   type SigningParams,
 } from "../utils/safe-account";
@@ -878,11 +879,14 @@ export class ZyfaiSDK {
 
   /**
    * Get smart wallet address for a user
-   * Returns the deterministic Safe address for an EOA, or the address itself if already a Safe
+   * Returns the Safe address for an EOA (deterministic for legacy wallets,
+   * backend-assigned for predeployed pool wallets).
    *
    * @param userAddress - User's EOA address
    * @param chainId - Target chain ID
-   * @returns Smart wallet information including address and deployment status
+   * @returns Smart wallet address, deployment status, and whether userAddress
+   *   is an on-chain OwnableValidator owner (false for reserved predeployed
+   *   wallets until the first deposit rotates ownership)
    */
   async getSmartWalletAddress(
     userAddress: string,
@@ -907,9 +911,18 @@ export class ZyfaiSDK {
       chainConfig.publicClient
     );
 
+    const isOwner = isDeployed
+      ? await isOwnableValidatorOwner(
+          safeAddress,
+          userAddress as Address,
+          chainConfig.publicClient
+        )
+      : false;
+
     return {
       address: safeAddress,
       isDeployed,
+      isOwner,
     };
   }
 
@@ -956,12 +969,17 @@ export class ZyfaiSDK {
       // Predeployed (pool) wallets are already deployed with the agent session
       // enabled by the pool. Never derive an address or send a deploy tx for
       // them - return the backend-assigned wallet as already deployed.
+      console.log("this.isPredeployed", this.isPredeployed);
+      console.log("this.isConnectedUser(userAddress)", this.isConnectedUser(userAddress));
+      console.log("userAddress", userAddress);
       if (this.isPredeployed && this.isConnectedUser(userAddress)) {
         const predeployedAddress = await this.getSafeAddressFor(
           userAddress,
           chainId
         );
+        console.log("strategy", strategy);
         await this.updateUserProtocols(chainId, strategy);
+        console.log("predeployedAddress", predeployedAddress);
         return {
           success: true,
           safeAddress: predeployedAddress,
@@ -1381,8 +1399,6 @@ export class ZyfaiSDK {
       effectiveChains,
       asset
     );
-
-    console.log("withPools", withPools, "effectiveChains", effectiveChains, "asset", asset);
 
     await this.updateUserProfile({
       asset,

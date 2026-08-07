@@ -137,6 +137,13 @@ export interface SessionKeyResponse {
 export interface SmartWalletResponse {
   address: Address;
   isDeployed: boolean;
+  /**
+   * True when userAddress is an OwnableValidator owner of the Safe on-chain.
+   * For predeployed (pool) wallets this becomes true only after the first
+   * deposit rotates ownership from the backend to the user. Always false when
+   * the Safe is not deployed.
+   */
+  isOwner: boolean;
 }
 
 export interface Protocol {

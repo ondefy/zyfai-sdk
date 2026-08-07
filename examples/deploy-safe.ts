@@ -49,11 +49,12 @@ async function main() {
   console.log("Getting Safe smart wallet address...");
   const walletInfo = await sdk.getSmartWalletAddress(connectedAddress, chainId);
   console.log(`Safe Address: ${walletInfo.address}`);
-  console.log(`Safe Deployed: ${walletInfo.isDeployed}\n`);
+  console.log(`Safe Deployed: ${walletInfo.isDeployed} Owner: ${walletInfo.isOwner}\n`);
 
   if (walletInfo.isDeployed) {
     console.log("Safe is already deployed. No action needed.");
     console.log(`Safe Address: ${walletInfo.address}`);
+    console.log(`Safe Deployed: ${walletInfo.isDeployed} Owner: ${walletInfo.isOwner}\n`);
   } else {
     console.log("Safe not deployed. Deploying now ...");
     const deployment = await sdk.deploySafe(connectedAddress, chainId, "aggressive", false);
