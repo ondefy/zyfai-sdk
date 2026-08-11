@@ -2447,7 +2447,6 @@ export class ZyfaiSDK {
       );
 
       const data = response.data || response;
-      console.log(JSON.stringify(data, null, 2));
       const withFee = enrichOnchainEarningsTotals(data);
 
       return {
