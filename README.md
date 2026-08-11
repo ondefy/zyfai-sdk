@@ -532,6 +532,32 @@ positions.positions.forEach((bundle) => {
 
 **Note**: This endpoint uses `/api/v1/data/position?walletAddress={address}` (Smart wallet address) and returns bundles with nested slot data. Use each slot's `underlyingAmount` for the canonical token balance.
 
+#### Get Portfolio (with fee-adjusted balances)
+
+Returns the full wallet portfolio plus net-of-pending-fee fields. Pending fee is
+`current` onchain earnings × 10%. Gross balances are unchanged.
+
+```typescript
+const { portfolio } = await sdk.getPortfolio(userAddress);
+
+// Gross vs net (after pending Zyfi fee)
+console.log(portfolio.portfolioByAssetType?.usdc?.balance);
+console.log(portfolio.portfolioByAssetType?.usdc?.balanceWithFee);
+
+portfolio.positions?.forEach((slot) => {
+  console.log(slot.pool, slot.underlyingAmount, slot.underlyingAmountWithFee);
+});
+```
+
+**Fee formula**
+
+- Pending fee = `current_earnings × 0.1` (unrealised yield only)
+- `balanceWithFee` / `underlyingAmountWithFee` = live − pending fee share
+- If earnings cannot be fetched, `*WithFee` equals the gross value
+
+**Note**: Portfolio balances are live; earnings used for the fee may come from a
+snapshot, so net values can differ slightly from a fully live calculation.
+
 ### 8. Analytics & Data Endpoints
 
 The SDK provides access to various analytics and data endpoints:
@@ -729,13 +755,23 @@ const earnings = await sdk.getOnchainEarnings(walletAddress);
 console.log("Total by token:", earnings.data.totalEarningsByToken);
 // Per-chain totals (chain → token → amount): { "8453": { "USDC": "0.01" }, "42161": {...} }
 console.log("Total by chain:", earnings.data.totalEarningsByChain);
+// Net totals: lifetime + unrealized + current × 0.9 (never total × 0.9)
+console.log("Net by token:", earnings.data.totalEarningsByTokenWithFee);
+console.log("Net by chain:", earnings.data.totalEarningsByChainWithFee);
 ```
+
+**Fee formula for `*WithFee` earnings fields**
+
+- `totalWithFee = lifetime + unrealized + current × 0.9`
+- Do **not** apply `× 0.9` to lifetime or unrealized
+- Aligns with portfolio: pending fee = `current × 0.1` only
 
 #### Calculate Onchain Earnings (Refresh)
 
 ```typescript
 const updated = await sdk.calculateOnchainEarnings(walletAddress);
 console.log("Updated earnings:", updated.data.totalEarningsByToken);
+console.log("Net earnings:", updated.data.totalEarningsByTokenWithFee);
 ```
 
 #### Get Daily Earnings
