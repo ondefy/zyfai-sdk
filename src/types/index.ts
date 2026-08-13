@@ -204,6 +204,8 @@ export interface Portfolio {
 
 export interface PortfolioAssetBalance {
   balance: Hex;
+  /** Net balance after pending Zyfi fee (live − current × feeRate). */
+  balanceWithFee?: Hex;
   decimals: number;
 }
 
@@ -241,8 +243,12 @@ export interface PositionSlot {
   token_id?: string;
   token_symbol?: string;
   token_icon?: string;
+  assetType?: string;
+  decimals?: number;
   amount?: string;
   underlyingAmount?: string;
+  /** Net underlying amount after this position's share of pending Zyfi fee. */
+  underlyingAmountWithFee?: string;
   pool_apy?: number;
   pool_tvl?: number;
   liquidity?: number;
@@ -405,6 +411,13 @@ export interface OnchainEarnings {
   walletAddress: string;
   totalEarningsByToken: TokenEarnings;
   totalEarningsByChain?: ChainTokenEarnings;
+  /**
+   * Net totals: lifetime + unrealized + current × (1 - feeRate).
+   * Unrealized is treated like lifetime (no pending fee).
+   * Does not apply feeRate to lifetime (already crystallised).
+   */
+  totalEarningsByTokenWithFee: TokenEarnings;
+  totalEarningsByChainWithFee?: ChainTokenEarnings;
   lastCheckTimestamp?: string;
   lastLogDate?: Record<string, string | null>;
 }

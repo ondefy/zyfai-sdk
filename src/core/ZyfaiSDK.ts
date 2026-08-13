@@ -105,6 +105,10 @@ import {
   getMatchingProtocolIds,
   hasMatchingPool,
 } from "../utils/protocol-selection";
+import {
+  enrichOnchainEarningsTotals,
+  enrichPortfolioWithFees,
+} from "../utils/zyfi-fees";
 import { SiweMessage } from "siwe";
 
 export class ZyfaiSDK {
@@ -2051,19 +2055,23 @@ export class ZyfaiSDK {
 
 
   /**
-   * Get all active positions and portfolio for a user
+   * Get portfolio positions and balances for a user, enriched with
+   * net-of-pending-fee fields (`balanceWithFee`, `underlyingAmountWithFee`).
+   *
+   * Pending fee is derived from onchain `current` earnings × fee rate.
+   * Gross balances are unchanged. If earnings cannot be fetched, `*WithFee`
+   * equals the gross value so the response shape stays stable.
+   *
+   * Note: portfolio balances are live; earnings used for the fee may be from
+   * a snapshot, so net values can differ slightly from a fully live calc.
    *
    * @param userAddress - User's EOA address
-   * @param chainId - Optional: Filter by specific chain ID
-   * @returns User's positions across all protocols
+   * @returns Portfolio with optional fee-adjusted balance fields
    *
    * @example
    * ```typescript
-   * // Get all positions across all chains
-   * const positions = await sdk.getPositions(userAddress);
-   *
-   * // Get positions on a specific chain
-   * const basePositions = await sdk.getPositions(userAddress, 8453);
+   * const { portfolio } = await sdk.getPortfolio(userAddress);
+   * console.log(portfolio.portfolioByAssetType?.usdc?.balanceWithFee);
    * ```
    */
   async getPortfolio(
@@ -2085,22 +2093,34 @@ export class ZyfaiSDK {
         };
       }
 
-      console.log("Getting portfolio for", smartWalletInfo.smartWallet);
+      const smartWallet = smartWalletInfo.smartWallet;
 
-      // Use the /data/position endpoint with smart wallet address
-      const response = await this.httpClient.get<PortfolioDetailed>(
-        ENDPOINTS.DATA_PORTFOLIO(smartWalletInfo.smartWallet)
-      );
+      const [response, earningsResult] = await Promise.all([
+        this.httpClient.get<PortfolioDetailed>(
+          ENDPOINTS.DATA_PORTFOLIO(smartWallet)
+        ),
+        this.httpClient
+          .dataGet<any>(DATA_ENDPOINTS.ONCHAIN_EARNINGS(smartWallet))
+          .catch(() => null),
+      ]);
 
       const convertedResponse = removeUnusedFields(response as any);
+      const earningsData = earningsResult?.data || earningsResult;
+      const currentEarningsByChain =
+        earningsData?.current_earnings_by_chain ?? null;
+
+      const portfolio = enrichPortfolioWithFees(
+        convertedResponse,
+        currentEarningsByChain
+      );
 
       return {
         success: true,
         userAddress,
-        portfolio: convertedResponse,
+        portfolio,
       };
     } catch (error) {
-      throw new Error(`Failed to get positions: ${(error as Error).message}`);
+      throw new Error(`Failed to get portfolio: ${(error as Error).message}`);
     }
   }
 
@@ -2462,6 +2482,10 @@ export class ZyfaiSDK {
   /**
    * Get onchain earnings for a wallet
    *
+   * Includes gross totals plus net-of-fee totals:
+   * `totalEarningsByTokenWithFee = lifetime + unrealized + current × (1 - feeRate)`.
+   * Lifetime and unrealized are never multiplied by the keep-rate.
+   *
    * @param walletAddress - Smart wallet address
    * @returns Onchain earnings data with per-token breakdowns
    *
@@ -2469,6 +2493,7 @@ export class ZyfaiSDK {
    * ```typescript
    * const earnings = await sdk.getOnchainEarnings("0x...");
    * console.log("Total USDC:", earnings.data.totalEarningsByToken["USDC"]);
+   * console.log("Net USDC:", earnings.data.totalEarningsByTokenWithFee["USDC"]);
    * console.log("Total on Arbitrum:", earnings.data.totalEarningsByChain?.["42161"]);
    * ```
    */
@@ -2485,6 +2510,7 @@ export class ZyfaiSDK {
       );
 
       const data = response.data || response;
+      const withFee = enrichOnchainEarningsTotals(data);
 
       return {
         success: true,
@@ -2492,6 +2518,8 @@ export class ZyfaiSDK {
           walletAddress,
           totalEarningsByToken: data.total_earnings_by_token || {},
           totalEarningsByChain: data.total_earnings_by_chain || {},
+          totalEarningsByTokenWithFee: withFee.totalEarningsByTokenWithFee,
+          totalEarningsByChainWithFee: withFee.totalEarningsByChainWithFee,
           lastCheckTimestamp: data.last_check_timestamp,
           lastLogDate: data.last_log_date,
         },
@@ -2505,7 +2533,8 @@ export class ZyfaiSDK {
 
   /**
    * Calculate/refresh onchain earnings for a wallet
-   * This triggers a recalculation of earnings on the backend
+   * This triggers a recalculation of earnings on the backend.
+   * Response shape matches `getOnchainEarnings` (includes `*WithFee` nets).
    *
    * @param walletAddress - Smart wallet address
    * @returns Updated onchain earnings data with per-token breakdowns
@@ -2514,7 +2543,7 @@ export class ZyfaiSDK {
    * ```typescript
    * const earnings = await sdk.calculateOnchainEarnings("0x...");
    * console.log("Total USDC:", earnings.data.totalEarningsByToken["USDC"]);
-   * console.log("Per-chain total:", earnings.data.totalEarningsByChain);
+   * console.log("Net USDC:", earnings.data.totalEarningsByTokenWithFee["USDC"]);
    * ```
    */
   async calculateOnchainEarnings(
@@ -2531,6 +2560,7 @@ export class ZyfaiSDK {
       );
 
       const data = response.data || response;
+      const withFee = enrichOnchainEarningsTotals(data);
 
       return {
         success: true,
@@ -2538,6 +2568,8 @@ export class ZyfaiSDK {
           walletAddress,
           totalEarningsByToken: data.total_earnings_by_token || {},
           totalEarningsByChain: data.total_earnings_by_chain || {},
+          totalEarningsByTokenWithFee: withFee.totalEarningsByTokenWithFee,
+          totalEarningsByChainWithFee: withFee.totalEarningsByChainWithFee,
           lastCheckTimestamp: data.last_check_timestamp,
           lastLogDate: data.last_log_date,
         },

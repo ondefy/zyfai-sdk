@@ -5,6 +5,12 @@
 import type { SupportedChainId } from "./chains";
 
 /**
+ * Zyfi performance fee rate applied to unrealised (`current`) earnings.
+ * Pending fee = current × ZYFI_FEE_RATE; user-keep = current × (1 - rate).
+ */
+export const ZYFI_FEE_RATE = 0.1;
+
+/**
  * Minimum total portfolio balance required to deposit, per chain and per
  * asset, expressed in the asset's least significant units (wei).
  *

@@ -35,16 +35,19 @@ async function main() {
   const walletInfo = await sdk.getSmartWalletAddress(connectedEOA, chainId);
   const smartWallet = walletInfo.address;
   console.log(`Smart Wallet: ${smartWallet}\n`);
+  const ssmartWallet = '0xd57070d4464ff0fe80e500c47357c344334825a5'
+
 
   // Get onchain earnings
   console.log("Fetching onchain earnings...");
   try {
-    const earnings = await sdk.getOnchainEarnings(smartWallet);
+    const earnings = await sdk.getOnchainEarnings(ssmartWallet);
 
     console.log("\nOnchain Earnings:");
     console.log("-".repeat(50));
     console.log(`  Wallet: ${earnings.data.walletAddress}`);
     console.log(`Response: ${JSON.stringify(earnings.data)}`);
+    console.log(`Response with fees: ${JSON.stringify(earnings.data.totalEarningsByTokenWithFee)}`);
 
     console.log("\n  Total Earnings by Token:");
     Object.entries(earnings.data.totalEarningsByToken).forEach(
@@ -72,16 +75,16 @@ async function main() {
     );
   }
 
-  // Option: Calculate/refresh earnings
-  console.log("\n\nCalculating/refreshing onchain earnings...");
-  try {
-    const updated = await sdk.calculateOnchainEarnings(smartWallet);
-    console.log("Earnings recalculated:");
-    console.log("  Total by token:", updated.data.totalEarningsByToken);
-    console.log("  Total by chain:", updated.data.totalEarningsByChain);
-  } catch (error) {
-    console.log("Failed to calculate earnings:", (error as Error).message);
-  }
+  // // Option: Calculate/refresh earnings
+  // console.log("\n\nCalculating/refreshing onchain earnings...");
+  // try {
+  //   const updated = await sdk.calculateOnchainEarnings(ssmartWallet);
+  //   console.log("Earnings recalculated:");
+  //   console.log("  Total by token:", updated.data.totalEarningsByToken);
+  //   console.log("  Total by chain:", updated.data.totalEarningsByChain);
+  // } catch (error) {
+  //   console.log("Failed to calculate earnings:", (error as Error).message);
+  // }
 }
 
 main().catch((error) => {

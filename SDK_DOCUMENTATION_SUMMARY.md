@@ -88,7 +88,7 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 | `withdrawFunds`                | Execution API | Yes (SIWE)    |
 | `getAvailableProtocols`        | Execution API | No            |
 | `getPositions`                 | Execution API | No            |
-| `getPortfolio`                 | Execution API | No            |
+| `getPortfolio`                 | Execution + Data API | No     |
 | `getUserDetails`               | Execution API | No            |
 | `getTVL`                       | Execution API | No            |
 | `getVolume`                    | Execution API | No            |
@@ -595,6 +595,34 @@ interface PositionsResponse {
 
 ---
 
+### 7b. Get Portfolio
+
+Returns wallet portfolio balances/positions enriched with net-of-pending-fee fields.
+
+#### Function Signature
+
+```typescript
+getPortfolio(userAddress: string): Promise<PortfolioDetailedResponse>
+```
+
+#### Fee-adjusted fields
+
+| Field | Location | Meaning |
+| ----- | -------- | ------- |
+| `balanceWithFee` | `portfolioByAssetType` / `portfolioByChain` | `live − pendingFee` (hex) |
+| `underlyingAmountWithFee` | each `positions[]` entry | position share of `live − pendingFee` (decimal wei) |
+
+Pending fee = `current_earnings_by_chain × 0.1` (unrealised only). Gross fields are unchanged. If earnings cannot be fetched, `*WithFee` equals the gross value.
+
+```typescript
+const { portfolio } = await sdk.getPortfolio(userAddress);
+console.log(portfolio.portfolioByAssetType?.usdc?.balanceWithFee);
+```
+
+**Note:** Portfolio is live; earnings may be from a snapshot — net values can diverge slightly.
+
+---
+
 ### 8. Withdraw Funds
 
 Initiate a full or partial withdrawal from active positions to user's EOA. **Note: Withdrawals are processed asynchronously by the backend.**
@@ -740,16 +768,29 @@ Earnings are returned per-token (multi-asset: USDC, WETH, WBTC, etc.).
 
 ```typescript
 const earnings = await sdk.getOnchainEarnings(walletAddress);
-// Returns: { success, data: { walletAddress, totalEarningsByToken, totalEarningsByChain, lastCheckTimestamp?, lastLogDate? } }
+// Returns: {
+//   success,
+//   data: {
+//     walletAddress,
+//     totalEarningsByToken,          // gross
+//     totalEarningsByChain,          // gross
+//     totalEarningsByTokenWithFee,   // lifetime + unrealized + current × 0.9
+//     totalEarningsByChainWithFee,   // same per chain
+//     lastCheckTimestamp?,
+//     lastLogDate?
+//   }
+// }
 // TokenEarnings = Record<string, string>, e.g. { "USDC": "0.020667", "WETH": "0.000009" }
 // ChainTokenEarnings = Record<string, TokenEarnings>, e.g. { "8453": { "USDC": "0.01" }, "42161": { "USDC": "0.02", "WETH": "0.0001" } }
 ```
+
+**Net earnings formula:** `totalWithFee = lifetime + unrealized + current × 0.9`. Do not apply `× 0.9` to lifetime or unrealized. Pending fee = `current × 0.1` only.
 
 ---
 
 ### 15. Calculate Onchain Earnings
 
-Trigger recalculation of earnings. Returns same per-token structure.
+Trigger recalculation of earnings. Returns same per-token structure (including `*WithFee` fields).
 
 ```typescript
 const updated = await sdk.calculateOnchainEarnings(walletAddress);
