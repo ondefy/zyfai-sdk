@@ -32,6 +32,10 @@ export const ENDPOINTS = {
   // Safe Deployment (single endpoint)
   SAFE_DEPLOY: "/users/safe-deploy",
 
+  // Multichain deploy for predeployed (pool) wallets — deploys + rotates the
+  // same address on the requested chains (sponsored, no user signature).
+  DEPLOY_CHAINS: "/users/deploy-chains",
+
   // Session Keys
   SESSION_KEYS_CONFIG: "/session-keys/config",
   SESSION_KEYS_ADD: "/session-keys/add",

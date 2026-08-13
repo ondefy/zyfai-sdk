@@ -74,6 +74,7 @@ import {
   getAddress,
   encodeFunctionData,
   type WalletClient,
+  type PublicClient,
 } from "viem";
 import {
   getChainConfig,
@@ -1565,6 +1566,51 @@ export class ZyfaiSDK {
    * await sdk.depositFunds(userAddress, 8453, "10000000000", "USDC", "aggressive");
    * ```
    */
+  /**
+   * Deploy the connected predeployed (pool) wallet on one or more chains.
+   *
+   * A pool wallet is only deployed on the chains it has been onboarded to (see
+   * the `chains` array from getSmartWalletByEOA); every other supported chain is
+   * counterfactual until deployed here. The backend deploys + rotates the same
+   * address on each chain in parallel (sponsored, no user signature) and only
+   * resolves once all requested chains have landed on-chain. Idempotent — chains
+   * already deployed are a no-op.
+   *
+   * `depositFunds` calls this automatically when the target chain isn't deployed,
+   * so most integrations never need it directly; use it to pre-provision chains.
+   *
+   * @param chainIds - Chain IDs to deploy the wallet on (e.g. [1, 42161])
+   */
+  async deployOnChains(
+    chainIds: SupportedChainId[]
+  ): Promise<{ success: boolean; safeAddress: string; chains: number[]; status: string }> {
+    if (!chainIds?.length) {
+      throw new Error("At least one chainId is required");
+    }
+    for (const c of chainIds) {
+      if (!isSupportedChain(c)) throw new Error(`Unsupported chain ID: ${c}`);
+    }
+    await this.authenticateUser();
+    return this.httpClient.post(ENDPOINTS.DEPLOY_CHAINS, { chainIds });
+  }
+
+  /**
+   * Poll until the Safe has code on-chain. The backend awaits landing before it
+   * responds, so this only guards against read-after-write RPC lag.
+   */
+  private async waitForSafeDeployed(
+    safeAddress: Address,
+    publicClient: PublicClient,
+    tries = 5,
+    delayMs = 2000
+  ): Promise<boolean> {
+    for (let i = 0; i < tries; i++) {
+      if (await isSafeDeployed(safeAddress, publicClient)) return true;
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+    return isSafeDeployed(safeAddress, publicClient);
+  }
+
   async depositFunds(
     userAddress: string,
     chainId: SupportedChainId,
@@ -1621,9 +1667,26 @@ export class ZyfaiSDK {
       );
 
       if (!isDeployed) {
-        throw new Error(
-          `Safe not available for ${userAddress} on chain ${chainId}.`
-        );
+        // Predeployed (pool) wallets are only deployed on the chains they've been
+        // onboarded to; others are counterfactual. Deploy this one on demand
+        // (sponsored, no signature) instead of failing. Legacy wallets can't —
+        // they need their own userOp-signed deploySafe, so keep throwing.
+        if (this.isPredeployed && this.isConnectedUser(userAddress)) {
+          await this.deployOnChains([chainId]);
+          const landed = await this.waitForSafeDeployed(
+            safeAddress,
+            chainConfig.publicClient
+          );
+          if (!landed) {
+            throw new Error(
+              `Safe deploy on chain ${chainId} for ${userAddress} did not land — retry the deposit.`
+            );
+          }
+        } else {
+          throw new Error(
+            `Safe not available for ${userAddress} on chain ${chainId}.`
+          );
+        }
       }
 
       // First deposit on the account: patch protocols/chains for all assets.
