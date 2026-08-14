@@ -571,8 +571,8 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Initialize user after Safe deployment
-   * This method is automatically called after deploySafe to initialize user state
+   * Initialize earnings tracking for a smart wallet on the Data API.
+   * Called from `deploySafe` after a fresh deploy and for predeployed wallets.
    *
    * @param smartWallet - Safe smart wallet address
    * @param chainId - Target chain ID
@@ -1010,12 +1010,19 @@ export class ZyfaiSDK {
       // Predeployed (pool) wallets are already deployed with the agent session
       // enabled by the pool. Never derive an address or send a deploy tx for
       // them - return the backend-assigned wallet as already deployed.
-      // Protocol patching happens on the first depositFunds call instead.
       if (this.isPredeployed && this.isConnectedUser(userAddress)) {
         const predeployedAddress = await this.getSafeAddressFor(
           userAddress,
           chainId
         );
+        try {
+          await this.initializeUser(predeployedAddress, chainId);
+        } catch (initError) {
+          console.warn(
+            "Failed to initialize user after Safe deployment:",
+            (initError as Error).message
+          );
+        }
         await this.updateUserProtocols(strategy);
         return {
           success: true,
@@ -1055,8 +1062,7 @@ export class ZyfaiSDK {
       //   }
       // }
 
-      // If already deployed, optionally (re)create a session key.
-      // Protocol patching happens on the first depositFunds call instead.
+      // If already deployed, patch protocols and optionally (re)create a session key.
       if (alreadyDeployed) {
         await this.updateUserProtocols(strategy);
 
@@ -1110,7 +1116,7 @@ export class ZyfaiSDK {
         );
       }
 
-      // Protocol patching happens on the first depositFunds call instead.
+      await this.updateUserProtocols(strategy);
 
       // Optionally create session key after deployment
       let sessionKeyCreated = false;
@@ -1371,7 +1377,8 @@ export class ZyfaiSDK {
    *    asset/chain/strategy combo.
    * 4. Persist via `updateUserProfile` (writes `assetTypeSettings`).
    *
-   * Called once from `depositFunds` on the account's first deposit.
+   * Called from `deploySafe` after every path, and from `depositFunds` on
+   * the account's first deposit (when USDC chains are still empty).
    *
    * @internal
    */

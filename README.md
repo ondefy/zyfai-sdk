@@ -322,7 +322,7 @@ Deploy a Safe smart wallet for a user. **Deployment is handled by the backend AP
 
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting
-- Protocol / asset patching is **not** done in `deploySafe` — it runs once on the account's **first** `depositFunds` call (see Deposit Funds below)
+- Protocol / asset patching runs in `deploySafe` (all paths). `depositFunds` still patches on the account's **first** deposit if USDC `chains` are empty (see Deposit Funds below)
 
 ##### `addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>`
 
@@ -380,7 +380,7 @@ console.log("User ID:", result.userId);
 - User must be authenticated (automatically done via `connectAccount()`)
 - The SDK proactively checks if the user already has an active session key and returns early without requiring any signature if one exists
 - The user record must have `smartWallet` and `chainId` set (predeployed assignment / first deposit)
-- Protocol selection is **not** touched by `createSessionKey` — it's set on the first `depositFunds` call
+- Protocol selection is **not** touched by `createSessionKey` — it's set by `deploySafe` and on the first `depositFunds` call if USDC `chains` are still empty
 - **Deprecated**: prefer `depositFunds()` for partner onboarding; `createSessionKey` remains for legacy flows
 - When `alreadyActive` is `true`, `sessionKeyAddress` and `signature` are not available in the response
 

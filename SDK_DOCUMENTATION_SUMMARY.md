@@ -170,7 +170,7 @@ interface DeploySafeResponse {
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting issues
 - If no strategy is provided, `"conservative"` is used as the default
-- **Protocol patching is not performed by `deploySafe`**. It runs once on the account's first `depositFunds` call (see Deposit Funds).
+- **Protocol patching runs in `deploySafe`** (predeployed, already-deployed, and fresh deploy). `depositFunds` still patches on the account's first deposit if USDC `chains` are empty (see Deposit Funds).
 
 #### Example Response (New Deployment)
 
@@ -232,7 +232,7 @@ createSessionKey(
 - **Authentication**: User must be connected via `connectAccount()` (which automatically authenticates)
 - **User Profile**: User record must have `smartWallet` and `chainId` fields populated
   - Automatically set by `deploySafe` / predeployed wallet assignment
-- **Protocols/chains**: Set on the first `depositFunds` call (not by `createSessionKey` or `deploySafe`). `createSessionKey` no longer touches `assetTypeSettings`.
+- **Protocols/chains**: Set by `deploySafe` and on the first `depositFunds` call if USDC `chains` are still empty. `createSessionKey` does not touch `assetTypeSettings`.
 
 **Important**:
 
