@@ -49,7 +49,7 @@ async function main() {
   console.log("Connected:", connected);
 
   const targetEoa =
-    process.env.PORTFOLIO_EOA ?? "0x233678715ab644073512C513d00a0f0b922C2074";
+    process.env.PORTFOLIO_EOA ?? "0x17C916D5FAb3Be7CD219795703195B42dc992597";
 
   console.log("\nFetching portfolio for:", targetEoa, "\n");
   const portfolio = await sdk.getPortfolio(targetEoa);

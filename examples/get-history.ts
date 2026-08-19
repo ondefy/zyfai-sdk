@@ -37,6 +37,7 @@ async function main() {
   const response = await sdk.getHistory(smartWallet, chainId, {
     limit: 20,
     offset: 0,
+    assetType: "usdc",
   });
 
   console.log("\nTransaction History:");

@@ -2433,12 +2433,15 @@ export class ZyfaiSDK {
    *
    * @param walletAddress - Smart wallet address
    * @param chainId - Chain ID
-   * @param options - Optional pagination and date filters
+   * @param options - Optional pagination, date, and assetType filters
    * @returns Transaction history
    *
    * @example
    * ```typescript
-   * const history = await sdk.getHistory("0x...", 8453, { limit: 50 });
+   * const history = await sdk.getHistory("0x...", 8453, {
+   *   limit: 50,
+   *   assetType: "eth",
+   * });
    * history.data.forEach(tx => console.log(tx.type, tx.amount));
    * ```
    */
@@ -2450,6 +2453,7 @@ export class ZyfaiSDK {
       offset?: number;
       fromDate?: string;
       toDate?: string;
+      assetType?: "usdc" | "eth" | "eurc";
     }
   ): Promise<HistoryResponse> {
     try {
@@ -2460,7 +2464,11 @@ export class ZyfaiSDK {
         throw new Error("Chain ID is required");
       }
 
-      let endpoint = ENDPOINTS.DATA_HISTORY(walletAddress, chainId);
+      let endpoint = ENDPOINTS.DATA_HISTORY(
+        walletAddress,
+        chainId,
+        options?.assetType
+      );
       if (options?.limit) endpoint += `&limit=${options.limit}`;
       if (options?.offset) endpoint += `&offset=${options.offset}`;
       if (options?.fromDate) endpoint += `&fromDate=${options.fromDate}`;

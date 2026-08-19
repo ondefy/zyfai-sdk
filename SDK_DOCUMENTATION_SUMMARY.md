@@ -756,8 +756,10 @@ const history = await sdk.getHistory(walletAddress, chainId, {
   offset: 0,
   fromDate: "2024-01-01",
   toDate: "2024-12-31",
+  assetType: "eth",
 });
 // Returns: { success, walletAddress, data, total }
+// assetType: "usdc" | "eth" | "eurc" — filters history to that asset
 ```
 
 ---

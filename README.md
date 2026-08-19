@@ -739,6 +739,7 @@ console.log("Chain ID:", firstTopup.chainId);
 const history = await sdk.getHistory(walletAddress, 8453, {
   limit: 50,
   fromDate: "2024-01-01",
+  assetType: "eth",
 });
 history.data.forEach((tx) => console.log(tx.type, tx.amount));
 ```
