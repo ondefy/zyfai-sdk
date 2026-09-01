@@ -8,7 +8,9 @@
 
 import { ZYFI_FEE_RATE } from "../config/constants";
 import type {
+  ApyPosition,
   ChainTokenEarnings,
+  HistoryRebalanceLog,
   PortfolioAssetBalance,
   PortfolioDetailed,
   PositionSlot,
@@ -94,6 +96,23 @@ export function humanAmountToRaw(human: number, decimals: number): bigint {
   const wholePart = BigInt(whole);
   const fracPart = BigInt(frac.padEnd(decimals, "0").slice(0, decimals) || "0");
   return wholePart * 10n ** BigInt(decimals) + fracPart;
+}
+
+/**
+ * Apply the Zyfi performance fee to a gross APY.
+ * Net APY = gross × (1 - FEE_RATE).
+ */
+export function applyApyFee(apy: number): number {
+  return apy * (1 - ZYFI_FEE_RATE);
+}
+
+/**
+ * Apply the Zyfi performance fee to a string APY, preserving the string shape.
+ */
+export function applyApyFeeToString(apy: string): string {
+  const parsed = Number.parseFloat(apy);
+  if (!Number.isFinite(parsed)) return apy;
+  return String(applyApyFee(parsed));
 }
 
 /**
@@ -299,21 +318,50 @@ function enrichPositions(
   });
 
   return positions.map((position, index) => {
+    const enriched: PositionSlot = { ...position };
+    if (typeof position.pool_apy === "number") {
+      enriched.pool_apy_withFee = applyApyFee(position.pool_apy);
+    }
     const underlying = position.underlyingAmount;
     if (underlying === undefined) {
-      return { ...position };
+      return enriched;
     }
     const feeShare = feeShareByIndex.get(index) ?? 0;
     const decimals = resolvePositionDecimals(position);
-    return {
-      ...position,
-      underlyingAmountWithFee: applyFeeToDecimalWei(
-        underlying,
-        feeShare,
-        decimals
-      ),
-    };
+    enriched.underlyingAmountWithFee = applyFeeToDecimalWei(
+      underlying,
+      feeShare,
+      decimals
+    );
+    return enriched;
   });
+}
+
+/**
+ * Add net-of-fee APY on a daily APY history position.
+ */
+export function enrichApyPosition(position: ApyPosition): ApyPosition {
+  return {
+    ...position,
+    apy_withFee: applyApyFee(position.apy),
+  };
+}
+
+/**
+ * Add net-of-fee APYs on a history rebalance log.
+ */
+export function enrichRebalanceLog(
+  log: HistoryRebalanceLog
+): HistoryRebalanceLog {
+  return {
+    ...log,
+    ...(log.oldApy !== undefined
+      ? { oldApy_withFee: applyApyFeeToString(log.oldApy) }
+      : {}),
+    ...(log.newApy !== undefined
+      ? { newApy_withFee: applyApyFeeToString(log.newApy) }
+      : {}),
+  };
 }
 
 /**

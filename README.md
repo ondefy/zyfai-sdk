@@ -546,6 +546,7 @@ console.log(portfolio.portfolioByAssetType?.usdc?.balanceWithFee);
 
 portfolio.positions?.forEach((slot) => {
   console.log(slot.pool, slot.underlyingAmount, slot.underlyingAmountWithFee);
+  console.log(slot.pool_apy, slot.pool_apy_withFee);
 });
 ```
 
@@ -553,6 +554,7 @@ portfolio.positions?.forEach((slot) => {
 
 - Pending fee = `current_earnings × 0.1` (unrealised yield only)
 - `balanceWithFee` / `underlyingAmountWithFee` = live − pending fee share
+- `pool_apy_withFee` = `pool_apy × 0.9`
 - If earnings cannot be fetched, `*WithFee` equals the gross value
 
 **Note**: Portfolio balances are live; earnings used for the fee may come from a
@@ -741,7 +743,13 @@ const history = await sdk.getHistory(walletAddress, 8453, {
   fromDate: "2024-01-01",
   assetType: "eth",
 });
-history.data.forEach((tx) => console.log(tx.type, tx.amount));
+history.data.forEach((tx) => {
+  console.log(tx.action, tx.transactionHash);
+  if (tx.rebalanceLog) {
+    console.log(tx.rebalanceLog.oldApy, tx.rebalanceLog.oldApy_withFee);
+    console.log(tx.rebalanceLog.newApy, tx.rebalanceLog.newApy_withFee);
+  }
+});
 ```
 
 ### 9. Earnings & Performance
@@ -803,7 +811,7 @@ console.log("Avg rZFI Merkl APR:", apyHistory.averageRzfiMerklApr);
 // Per-chain breakdowns: { "8453": { "USDC": 4.59 }, "42161": { "WETH": 1.82 } }
 console.log("By chain:", apyHistory.weightedApyAfterFeeByChain);
 console.log("By chain (with rZFI):", apyHistory.weightedApyWithRzfiAfterFeeByChain);
-// Each date entry has positions (with tokenSymbol), and per-token weighted_apy, fee, etc.
+// Each date entry has positions (with tokenSymbol and apy_withFee = apy × 0.9), and per-token weighted_apy, fee, etc.
 ```
 
 ### 10. Opportunities & Strategies
@@ -836,6 +844,7 @@ aggressiveOpps.data.forEach((o) => {
 // Get same-chain rebalances, optionally filter by chainId and tokenSymbol
 const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative", 8453, "USDC");
 console.log("APY per strategy:", apyPerStrategy.data);
+// Each item includes average_apy_withFee and average_apy_with_rzfi_withFee
 ```
 
 ### 12. SDK API Key Management

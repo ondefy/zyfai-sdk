@@ -117,6 +117,9 @@ async function main() {
         `  [${pos.chain}] ${pos.token_symbol} @ ${pos.pool ?? pos.protocol_name}`
       );
       console.log(`    underlying=${underlying}  withFee=${withFee}`);
+      console.log(
+        `    pool_apy=${pos.pool_apy ?? "n/a"}  withFee=${pos.pool_apy_withFee ?? "n/a"}`
+      );
     }
   }
 }

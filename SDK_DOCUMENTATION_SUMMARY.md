@@ -573,6 +573,7 @@ interface PositionSlot {
   token_symbol?: string;
   underlyingAmount?: string;
   pool_apy?: number;
+  pool_apy_withFee?: number;
   pool_tvl?: string;
   liquidity?: number;
 }
@@ -611,8 +612,9 @@ getPortfolio(userAddress: string): Promise<PortfolioDetailedResponse>
 | ----- | -------- | ------- |
 | `balanceWithFee` | `portfolioByAssetType` / `portfolioByChain` | `live − pendingFee` (hex) |
 | `underlyingAmountWithFee` | each `positions[]` entry | position share of `live − pendingFee` (decimal wei) |
+| `pool_apy_withFee` | each `positions[]` entry | `pool_apy × 0.9` |
 
-Pending fee = `current_earnings_by_chain × 0.1` (unrealised only). Gross fields are unchanged. If earnings cannot be fetched, `*WithFee` equals the gross value.
+Pending fee = `current_earnings_by_chain × 0.1` (unrealised only). Gross fields are unchanged. If earnings cannot be fetched, `*WithFee` equals the gross value. APY fields use `gross × 0.9`.
 
 ```typescript
 const { portfolio } = await sdk.getPortfolio(userAddress);
@@ -758,7 +760,9 @@ const history = await sdk.getHistory(walletAddress, chainId, {
   toDate: "2024-12-31",
   assetType: "eth",
 });
-// Returns: { success, walletAddress, data, total }
+// Returns: { success, walletAddress, data: HistoryEntry[], total }
+// HistoryEntry includes tokenId, feeData, rebalanceLog
+// rebalanceLog: { oldApy, newApy, oldApy_withFee, newApy_withFee, oldOpportunity, newOpportunity }
 // assetType: "usdc" | "eth" | "eurc" — filters history to that asset
 ```
 
@@ -847,7 +851,7 @@ const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
 // DailyApyEntry: { positions: ApyPosition[], weighted_apy: TokenApy, fee: TokenApy, weighted_apy_after_fee: TokenApy, rzfi_merkl_apr: TokenApy, final_weighted_apy: TokenApy }
 // TokenApy = Record<string, number>, e.g. { "USDC": 5.05, "WETH": 1.58 }
 // ChainTokenApy = Record<string, TokenApy>, e.g. { "8453": { "USDC": 4.59 }, "42161": { "WETH": 1.82 } }
-// ApyPosition includes tokenSymbol field
+// ApyPosition includes tokenSymbol and apy_withFee (apy × 0.9)
 ```
 
 ---
@@ -858,7 +862,7 @@ const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
 // Optionally filter by chainId and tokenSymbol (e.g. "USDC", "WETH", "WBTC")
 const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative", 8453, "USDC");
 // Returns: { success, count, data }
-// Data includes: token_symbol, average_apy_without_fee, average_apy_with_rzfi_without_fee, events_average_apy
+// Data includes: token_symbol, average_apy_withFee, average_apy_with_rzfi_withFee, events_average_apy, events_average_apy_withFee
 ```
 
 ---

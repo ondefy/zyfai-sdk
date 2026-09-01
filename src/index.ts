@@ -53,6 +53,8 @@ export type {
   SmartWalletByEOAResponse,
   FirstTopupResponse,
   HistoryPosition,
+  HistoryFeeData,
+  HistoryRebalanceLog,
   HistoryEntry,
   HistoryResponse,
 

@@ -110,7 +110,7 @@ export function convertStrategiesToPublic<T extends { strategy?: string }>(
   return array.map((item) => convertStrategyToPublic(item));
 }
 
-// Renames "without_fee" to "with_fee" and removes the old properties
+// Renames "without_fee" to "withFee" and removes the old properties
 export function convertStrategyToPublicAndNaming(obj: any): any {
   const result = { ...obj };
 
@@ -123,21 +123,22 @@ export function convertStrategyToPublicAndNaming(obj: any): any {
     }
   }
 
-  // Rename without_fee -> with_fee
+  // Rename without_fee -> withFee
   if (result.average_apy_without_fee !== undefined) {
-    result.average_apy_with_fee = result.average_apy_without_fee;
+    result.average_apy_withFee = result.average_apy_without_fee;
     delete result.average_apy_without_fee;
   }
   if (result.average_apy_with_rzfi_without_fee !== undefined) {
-    result.average_apy_with_rzfi_with_fee = result.average_apy_with_rzfi_without_fee;
+    result.average_apy_with_rzfi_withFee = result.average_apy_with_rzfi_without_fee;
     delete result.average_apy_with_rzfi_without_fee;
   }
   if (result.events_average_apy_without_fee !== undefined) {
-    result.events_average_apy_with_fee = result.events_average_apy_without_fee;
+    result.events_average_apy_withFee = result.events_average_apy_without_fee;
     delete result.events_average_apy_without_fee;
   }
   if (result.events_average_apy_with_rzfi_without_fee !== undefined) {
-    result.events_average_apy_with_rzfi_with_fee = result.events_average_apy_with_rzfi_without_fee;
+    result.events_average_apy_with_rzfi_withFee =
+      result.events_average_apy_with_rzfi_without_fee;
     delete result.events_average_apy_with_rzfi_without_fee;
   }
 

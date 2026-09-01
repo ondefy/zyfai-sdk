@@ -33,11 +33,13 @@ import type {
   APYPerStrategyResponse,
   SmartWalletByEOAResponse,
   FirstTopupResponse,
+  HistoryEntry,
   HistoryResponse,
   OnchainEarningsResponse,
   DailyEarningsResponse,
   DebankPortfolioResponse,
   OpportunitiesResponse,
+  DailyApyEntry,
   DailyApyHistoryResponse,
   RebalanceFrequencyResponse,
   AddWalletToSdkResponse,
@@ -106,8 +108,10 @@ import {
   hasMatchingPool,
 } from "../utils/protocol-selection";
 import {
+  enrichApyPosition,
   enrichOnchainEarningsTotals,
   enrichPortfolioWithFees,
+  enrichRebalanceLog,
 } from "../utils/zyfi-fees";
 import { SiweMessage } from "siwe";
 
@@ -2063,7 +2067,8 @@ export class ZyfaiSDK {
 
   /**
    * Get portfolio positions and balances for a user, enriched with
-   * net-of-pending-fee fields (`balanceWithFee`, `underlyingAmountWithFee`).
+   * net-of-pending-fee fields (`balanceWithFee`, `underlyingAmountWithFee`)
+   * and net APY (`pool_apy_withFee` = `pool_apy × 0.9`).
    *
    * Pending fee is derived from onchain `current` earnings × fee rate.
    * Gross balances are unchanged. If earnings cannot be fetched, `*WithFee`
@@ -2477,7 +2482,16 @@ export class ZyfaiSDK {
       const response = await this.httpClient.get<any>(endpoint);
 
       // Convert strategy field in each history entry from backend format to public format
-      const convertedData = convertStrategiesToPublic(response.data || []);
+      const convertedData = convertStrategiesToPublic<HistoryEntry>(
+        response.data || []
+      ).map((entry) =>
+        entry.rebalanceLog
+          ? {
+              ...entry,
+              rebalanceLog: enrichRebalanceLog(entry.rebalanceLog),
+            }
+          : entry
+      );
 
       return {
         success: true,
@@ -2987,11 +3001,24 @@ export class ZyfaiSDK {
       );
 
       const data = response.data || response;
+      const rawHistory = data.history || {};
+      const history = Object.fromEntries(
+        Object.entries(rawHistory).map(([date, entry]) => {
+          const day = entry as DailyApyEntry;
+          return [
+            date,
+            {
+              ...day,
+              positions: (day.positions || []).map(enrichApyPosition),
+            },
+          ];
+        })
+      );
 
       return {
         success: true,
         walletAddress,
-        history: data.history || {},
+        history,
         totalDays: data.total_days || data.totalDays || 0,
         requestedDays: data.requested_days || data.requestedDays,
         weightedApyWithRzfiAfterFee: data.average_final_weighted_apy_after_fee_with_rzfi,

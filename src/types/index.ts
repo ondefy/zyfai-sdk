@@ -250,6 +250,8 @@ export interface PositionSlot {
   /** Net underlying amount after this position's share of pending Zyfi fee. */
   underlyingAmountWithFee?: string;
   pool_apy?: number;
+  /** Net pool APY after Zyfi performance fee (gross × 0.9). */
+  pool_apy_withFee?: number;
   pool_tvl?: number;
   liquidity?: number;
 }
@@ -298,11 +300,11 @@ export interface APYPerStrategy {
   created_at: string;
   strategy: string;
   token_symbol?: string;
-  average_apy_with_fee: number;
-  average_apy_with_rzfi_with_fee: number;
-  average_apy_without_fee?: number;
-  average_apy_with_rzfi_without_fee?: number;
+  average_apy_withFee: number;
+  average_apy_with_rzfi_withFee: number;
   events_average_apy?: Record<string, number>;
+  events_average_apy_withFee?: Record<string, number>;
+  events_average_apy_with_rzfi_withFee?: Record<string, number>;
 }
 
 export interface APYPerStrategyResponse {
@@ -372,6 +374,21 @@ export interface HistoryPosition {
   protocol_name?: string;
 }
 
+export interface HistoryFeeData {
+  gasCostInToken?: string;
+  gasDeducted?: boolean;
+  actualGasCost?: string;
+}
+
+export interface HistoryRebalanceLog {
+  oldApy?: string;
+  newApy?: string;
+  oldApy_withFee?: string;
+  newApy_withFee?: string;
+  oldOpportunity?: string;
+  newOpportunity?: string;
+}
+
 export interface HistoryEntry {
   id?: string;
   action?: string;
@@ -379,11 +396,14 @@ export interface HistoryEntry {
   strategy?: string;
   positions?: HistoryPosition[];
   chainId?: number;
+  tokenId?: string;
   transactionHash?: string;
   destinationChainId?: number;
   sourceChains?: number[];
   crosschain?: boolean;
   rebalance?: boolean;
+  feeData?: HistoryFeeData;
+  rebalanceLog?: HistoryRebalanceLog;
   zkProofIpfsHash?: string;
   validationRegistryTxHash?: string;
   validationRegistryChainId?: number;
@@ -507,6 +527,8 @@ export interface OpportunitiesResponse {
 
 export interface ApyPosition {
   apy: number;
+  /** Net APY after Zyfi performance fee (gross × 0.9). */
+  apy_withFee?: number;
   balance: number;
   chainId: number;
   protocol: string;

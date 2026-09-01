@@ -8,13 +8,17 @@ import { describe, it } from "node:test";
 import { ZYFI_FEE_RATE } from "../config/constants";
 import type { PortfolioDetailed } from "../types";
 import {
+  applyApyFee,
+  applyApyFeeToString,
   applyFeeToDecimalWei,
   applyFeeToHexBalance,
   assetTypeToSymbol,
   chainNameToId,
   computePendingFees,
+  enrichApyPosition,
   enrichOnchainEarningsTotals,
   enrichPortfolioWithFees,
+  enrichRebalanceLog,
   humanAmountToRaw,
   symbolToAssetType,
 } from "./zyfi-fees";
@@ -92,6 +96,7 @@ describe("enrichPortfolioWithFees", () => {
         assetType: "usdc",
         decimals: 6,
         underlyingAmount: "1000000000",
+        pool_apy: 5,
       },
       {
         chain: "Base",
@@ -99,6 +104,7 @@ describe("enrichPortfolioWithFees", () => {
         assetType: "usdc",
         decimals: 6,
         underlyingAmount: "1000000000",
+        pool_apy: 5,
       },
     ],
     portfolioByAssetType: {
@@ -138,6 +144,12 @@ describe("enrichPortfolioWithFees", () => {
     );
   });
 
+  it("adds pool_apy_withFee as gross x 0.9", () => {
+    const enriched = enrichPortfolioWithFees(portfolio, undefined);
+    assert.equal(enriched.positions?.[0].pool_apy_withFee, 4.5);
+    assert.equal(enriched.positions?.[1].pool_apy_withFee, 4.5);
+  });
+
   it("splits position fee proportionally by underlyingAmount", () => {
     const enriched = enrichPortfolioWithFees(portfolio, {
       "8453": { USDC: "1" },
@@ -145,6 +157,38 @@ describe("enrichPortfolioWithFees", () => {
     // Total fee 0.1 USDC = 100_000 raw, split 50/50 → 50_000 each
     assert.equal(enriched.positions?.[0].underlyingAmountWithFee, "999950000");
     assert.equal(enriched.positions?.[1].underlyingAmountWithFee, "999950000");
+  });
+});
+
+describe("applyApyFee", () => {
+  it("multiplies gross APY by 0.9", () => {
+    assert.equal(applyApyFee(10), 9);
+    assert.equal(applyApyFeeToString("1.8865050828133896"), String(1.8865050828133896 * 0.9));
+  });
+});
+
+describe("enrichApyPosition / enrichRebalanceLog", () => {
+  it("adds apy_withFee on daily APY positions", () => {
+    const enriched = enrichApyPosition({
+      apy: 3.8174328990443924,
+      balance: 1,
+      chainId: 8453,
+      protocol: "Euler",
+      pool: "Clearstar ETH Fusion",
+      strategy: "aggressive",
+    });
+    assert.equal(enriched.apy_withFee, 3.8174328990443924 * 0.9);
+  });
+
+  it("adds oldApy_withFee and newApy_withFee on rebalance logs", () => {
+    const enriched = enrichRebalanceLog({
+      oldApy: "1.8865050828133896",
+      newApy: "3.8174328990443924",
+      oldOpportunity: "Aave V3 (WETH)",
+      newOpportunity: "Euler (Clearstar ETH Fusion)",
+    });
+    assert.equal(enriched.oldApy_withFee, String(1.8865050828133896 * 0.9));
+    assert.equal(enriched.newApy_withFee, String(3.8174328990443924 * 0.9));
   });
 });
 
