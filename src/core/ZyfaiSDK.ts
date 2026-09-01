@@ -5,7 +5,11 @@
 import { HttpClient } from "../utils/http-client";
 import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT, WS_ENDPOINT } from "../config/endpoints";
 import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS, VAULT_ABI, VAULT_ADDRESS } from "../config/abis";
-import { MIN_PORTFOLIO_BALANCE, formatMinPortfolioLabel } from "../config/constants";
+import {
+  MIN_PORTFOLIO_BALANCE,
+  formatMinPortfolioLabel,
+  type DailyApyHistoryPeriod,
+} from "../config/constants";
 import type {
   SDKConfig,
   DeploySafeResponse,
@@ -2978,7 +2982,7 @@ export class ZyfaiSDK {
    * Get daily APY history with weighted average for a wallet
    *
    * @param walletAddress - Smart wallet address
-   * @param days - Period: "7D", "14D", or "30D" (default: "7D")
+   * @param days - Period: "7D", "14D", "30D", "60D", "120D", or "180D" (default: "7D")
    * @returns Daily APY history with per-position breakdowns and weighted averages
    *
    * @example
@@ -2989,7 +2993,7 @@ export class ZyfaiSDK {
    */
   async getDailyApyHistory(
     walletAddress: string,
-    days: "7D" | "14D" | "30D" = "7D"
+    days: DailyApyHistoryPeriod = "7D"
   ): Promise<DailyApyHistoryResponse> {
     try {
       if (!walletAddress) {

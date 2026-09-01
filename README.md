@@ -804,6 +804,7 @@ Returns per-position APY breakdowns with per-token weighted averages.
 
 ```typescript
 const apyHistory = await sdk.getDailyApyHistory(walletAddress, "30D");
+// days: "7D" | "14D" | "30D" | "60D" | "120D" | "180D" (default "7D")
 // Per-token weighted APY: { "USDC": 4.64, "WETH": 1.94 }
 console.log("Weighted APY after fee:", apyHistory.weightedApyAfterFee);
 console.log("Weighted APY (with rZFI Merkl):", apyHistory.weightedApyWithRzfiAfterFee);

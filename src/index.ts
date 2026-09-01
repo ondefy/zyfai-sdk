@@ -22,6 +22,12 @@ export {
   type ChainConfig,
 } from "./config/chains";
 
+export {
+  ALLOWED_HISTORY_DAYS,
+  type AllowedHistoryDays,
+  type DailyApyHistoryPeriod,
+} from "./config/constants";
+
 export type {
   // Configuration
   SDKConfig,

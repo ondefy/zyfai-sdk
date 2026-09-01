@@ -6,7 +6,7 @@
  */
 
 import { config } from "dotenv";
-import { SupportedChainId, ZyfaiSDK } from "../dist/index";
+import { ALLOWED_HISTORY_DAYS, SupportedChainId, ZyfaiSDK } from "../dist/index";
 
 config();
 
@@ -38,7 +38,7 @@ async function main() {
   console.log(`Smart Wallet: ${smartWallet}\n`);
 
   // Test different periods
-  const periods: Array<"7D" | "14D" | "30D"> = ["7D", "14D", "30D"];
+  const periods = ALLOWED_HISTORY_DAYS.map((d) => `${d}D` as const);
 
   for (const period of periods) {
     console.log(`\nFetching ${period} APY History...`);

@@ -10,6 +10,14 @@ import type { SupportedChainId } from "./chains";
  */
 export const ZYFI_FEE_RATE = 0.1;
 
+/** Allowed lookback windows for `getDailyApyHistory`, in days. */
+export const ALLOWED_HISTORY_DAYS = [7, 14, 30, 60, 120, 180] as const;
+
+export type AllowedHistoryDays = (typeof ALLOWED_HISTORY_DAYS)[number];
+
+/** Query period passed to the daily APY history endpoint, e.g. `"30D"`. */
+export type DailyApyHistoryPeriod = `${AllowedHistoryDays}D`;
+
 /**
  * Minimum total portfolio balance required to deposit, per chain and per
  * asset, expressed in the asset's least significant units (wei).
