@@ -750,6 +750,10 @@ history.data.forEach((tx) => {
     console.log(tx.rebalanceLog.oldApy, tx.rebalanceLog.oldApy_withFee);
     console.log(tx.rebalanceLog.newApy, tx.rebalanceLog.newApy_withFee);
   }
+  tx.positions?.forEach((pos) => {
+    console.log(pos.amount); // resulting position balance after the action
+    console.log(pos.deltaAmount); // amount actually moved by the action (optional, not on older entries)
+  });
 });
 ```
 

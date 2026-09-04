@@ -72,7 +72,8 @@ async function main() {
         tx.positions.forEach((pos: any, posIndex: number) => {
           console.log(`       ${posIndex + 1}. ${pos.protocol_name || "Unknown"} - ${pos.pool || "n/a"}`);
           console.log(`          Token: ${pos.token_symbol || "n/a"}`);
-          console.log(`          Amount: ${pos.amount || "n/a"}`);
+          console.log(`          Amount (resulting position): ${pos.amount || "n/a"}`);
+          console.log(`          Delta amount (moved by this action): ${pos.deltaAmount || "n/a"}`);
         });
       }
       console.log();
