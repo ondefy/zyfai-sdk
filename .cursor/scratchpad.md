@@ -24,7 +24,9 @@ Partners/integrators need the same fee-adjusted portfolio and earnings numbers t
 
 ## Current Status / Progress Tracking
 
-**Mode: Executor** — all tasks implemented. 14/14 unit tests pass; `npm run build` succeeds.
+**Mode: Executor** — `getPositions` / `getPortfolio` call `getSafeAddressFor(..., false)`. No registered agent => empty portfolio, never CREATE2. Deposit/withdraw still derive for legacy.
+
+**Previous:** all fee-adjusted tasks implemented. 14/14 unit tests pass; `npm run build` succeeds.
 
 Please verify manually:
 1. `getPortfolio(eoa)` returns `balanceWithFee` / `underlyingAmountWithFee`

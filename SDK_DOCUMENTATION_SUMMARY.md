@@ -561,7 +561,7 @@ getPositions(
 | Parameter     | Type   | Required | Description                           |
 | ------------- | ------ | -------- | ------------------------------------- |
 | `userAddress` | string | ✅       | User's EOA address                    |
-| `chainId`     | number | ❌       | Filter by chain (omit for all chains) |
+| `chainId`     | number | ❌       | Used to resolve the Safe address (defaults to Base 8453). Position data itself is wallet-level. |
 
 #### Response Type
 
@@ -592,7 +592,7 @@ interface PositionsResponse {
 }
 ```
 
-**Note:** Each `Position` represents a smart wallet + strategy bundle with nested slots. Use `underlyingAmount` from each slot as the canonical token balance.
+**Note:** Each `Position` represents a smart wallet + strategy bundle with nested slots. Use `underlyingAmount` from each slot as the canonical token balance. Safe resolution uses `getSafeAddressFor` without CREATE2 fallback: no registered agent means an empty portfolio.
 
 ---
 
@@ -605,6 +605,8 @@ Returns wallet portfolio balances/positions enriched with net-of-pending-fee fie
 ```typescript
 getPortfolio(userAddress: string): Promise<PortfolioDetailedResponse>
 ```
+
+Safe address resolution matches `getPositions` (`getSafeAddressFor` on Base 8453, no CREATE2 fallback). An EOA with no registered agent returns an empty portfolio.
 
 #### Fee-adjusted fields
 

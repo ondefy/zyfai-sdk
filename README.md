@@ -530,7 +530,7 @@ positions.positions.forEach((bundle) => {
 });
 ```
 
-**Note**: This endpoint uses `/api/v1/data/position?walletAddress={address}` (Smart wallet address) and returns bundles with nested slot data. Use each slot's `underlyingAmount` for the canonical token balance.
+**Note**: This endpoint uses `/api/v1/data/position?walletAddress={address}` (Smart wallet address) and returns bundles with nested slot data. Use each slot's `underlyingAmount` for the canonical token balance. The Safe is resolved via `getSafeAddressFor` (backend-assigned for predeployed wallets, registered agent for legacy). An EOA with no agent returns an empty portfolio — the SDK does not derive a CREATE2 address. Optional `chainId` defaults to Base (8453) for that resolution only.
 
 #### Get Portfolio (with fee-adjusted balances)
 
