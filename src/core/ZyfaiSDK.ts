@@ -1595,8 +1595,9 @@ export class ZyfaiSDK {
    * resolves once all requested chains have landed on-chain. Idempotent — chains
    * already deployed are a no-op.
    *
-   * `depositFunds` calls this automatically when the target chain isn't deployed,
-   * so most integrations never need it directly; use it to pre-provision chains.
+   * Optional for deposits: `depositFunds` no longer pre-deploys the target chain — the ERC20
+   * transfer lands on the counterfactual address and the backend deploys + hands over on first
+   * deposit (report-deposit). Use this only to pre-provision chains ahead of time.
    *
    * @param chainIds - Chain IDs to deploy the wallet on (e.g. [1, 42161])
    */
@@ -1611,23 +1612,6 @@ export class ZyfaiSDK {
     }
     await this.authenticateUser();
     return this.httpClient.post(ENDPOINTS.DEPLOY_CHAINS, { chainIds });
-  }
-
-  /**
-   * Poll until the Safe has code on-chain. The backend awaits landing before it
-   * responds, so this only guards against read-after-write RPC lag.
-   */
-  private async waitForSafeDeployed(
-    safeAddress: Address,
-    publicClient: PublicClient,
-    tries = 5,
-    delayMs = 2000
-  ): Promise<boolean> {
-    for (let i = 0; i < tries; i++) {
-      if (await isSafeDeployed(safeAddress, publicClient)) return true;
-      await new Promise((r) => setTimeout(r, delayMs));
-    }
-    return isSafeDeployed(safeAddress, publicClient);
   }
 
   async depositFunds(
@@ -1686,22 +1670,13 @@ export class ZyfaiSDK {
       );
 
       if (!isDeployed) {
-        // Predeployed (pool) wallets are only deployed on the chains they've been
-        // onboarded to; others are counterfactual. Deploy this one on demand
-        // (sponsored, no signature) instead of failing. Legacy wallets can't —
-        // they need their own userOp-signed deploySafe, so keep throwing.
-        if (this.isPredeployed && this.isConnectedUser(userAddress)) {
-          await this.deployOnChains([chainId]);
-          const landed = await this.waitForSafeDeployed(
-            safeAddress,
-            chainConfig.publicClient
-          );
-          if (!landed) {
-            throw new Error(
-              `Safe deploy on chain ${chainId} for ${userAddress} did not land — retry the deposit.`
-            );
-          }
-        } else {
+        // Predeployed (pool) wallets are only deployed on the chains they've been onboarded to;
+        // others are counterfactual. The ERC20 transfer below lands on the counterfactual address
+        // even before it has code, and the backend deploys + hands over the chain when we log the
+        // deposit (report-deposit deploys-on-first-deposit) — so we no longer force a separate
+        // deployOnChains round-trip here. Legacy wallets can't be used counterfactually (they need
+        // their own userOp-signed deploySafe), so keep failing for them.
+        if (!(this.isPredeployed && this.isConnectedUser(userAddress))) {
           throw new Error(
             `Safe not available for ${userAddress} on chain ${chainId}.`
           );
