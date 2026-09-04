@@ -393,10 +393,11 @@ Transfer tokens to your Safe smart wallet. Token address is automatically select
 
 **Minimum portfolio balance (enforced on Safe balance + deposit amount):**
 
-- Ethereum Mainnet (1) / USDC: 5 USDC (test threshold — will be raised before production)
-- All other (chain, asset) pairs: no minimum enforced
+- Ethereum Mainnet (1) / USDC or EURC: 10,000 units
+- Base (8453) and Arbitrum (42161) / USDC or EURC: 100 units
+- WETH: about **$10,000** of ETH on Ethereum Mainnet, **$100** on Base and Arbitrum, using the live USD price from Data API `GET /api/v2/price?token=eth` (same API key as the SDK)
 
-Only deposits on Mainnet in USDC that would leave the Safe below 5 USDC are rejected. Deposits on Base or Arbitrum, or in WETH/EURC, have no minimum today.
+Top-ups smaller than the minimum are allowed if the Safe already holds enough of the asset to meet it after the deposit.
 
 ```typescript
 // Deposit 10 USDC (6 decimals) to Safe on Base — no minimum on Base
@@ -420,7 +421,7 @@ if (result.success) {
 
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
 - `asset` is required (`"USDC"`, `"WETH"`, or `"EURC"` — EURC on Mainnet/Base only); token address is selected from that for the chain
-- On Ethereum Mainnet, the total Safe balance in USDC must be at least 5 USDC after the deposit (test threshold); smaller top-ups are allowed if the Safe already holds enough USDC to meet the minimum
+- The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
 - The SDK automatically authenticates via SIWE before logging the deposit with Zyfai's API, so no extra steps are required on your end once the transfer confirms
 - **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Pass optional `strategy` (`"conservative"` default or `"aggressive"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 

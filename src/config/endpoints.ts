@@ -161,6 +161,9 @@ export const DATA_ENDPOINTS = {
     return params.length > 0 ? `/rebalance/rebalance-info?${params.join("&")}` : "/rebalance/rebalance-info";
   },
 
+  // Token USD price (e.g. token=eth)
+  TOKEN_PRICE: (token: string) => `/price?token=${encodeURIComponent(token)}`,
+
   // APY Per Strategy
   APY_PER_STRATEGY: (options: {
     isCrossChain?: boolean;

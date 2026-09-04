@@ -3,10 +3,16 @@
  */
 
 import { HttpClient } from "../utils/http-client";
+import {
+  minWethWeiForUsd,
+  parseEthUsdPrice,
+  type TokenPriceResponse,
+} from "../utils/eth-price";
 import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT, WS_ENDPOINT } from "../config/endpoints";
 import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS, VAULT_ABI, VAULT_ADDRESS } from "../config/abis";
 import {
   MIN_PORTFOLIO_BALANCE,
+  MIN_WETH_USD,
   formatMinPortfolioLabel,
   type DailyApyHistoryPeriod,
 } from "../config/constants";
@@ -1561,13 +1567,9 @@ export class ZyfaiSDK {
    * Pass `strategy` to select protocols for that first-deposit setup
    * (same role as the former `deploySafe` strategy argument).
    *
-   * Minimum portfolio balance enforced (Safe balance + deposit amount),
-   * configured per-chain in `MIN_PORTFOLIO_BALANCE`:
-   * - Ethereum Mainnet (1): 5 USDC (test threshold)
-   * - Base (8453) & Arbitrum (42161): no minimum
-   *
-   * If no minimum is configured for a given (chainId, asset) pair,
-   * the check is skipped.
+   * Minimum portfolio balance enforced (Safe balance + deposit amount):
+   * - Stablecoins: `MIN_PORTFOLIO_BALANCE` (Mainnet 10,000 USDC/EURC; Base/Arbitrum 100)
+   * - WETH: about $10,000 on Mainnet, $100 on Base/Arbitrum, from Data API `/price?token=eth`
    *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
@@ -1659,7 +1661,16 @@ export class ZyfaiSDK {
         );
       }
 
-      const minRequired = MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
+      let minRequired = MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
+      if (assetSymbol === "WETH") {
+        const priceResponse = await this.httpClient.dataGet<TokenPriceResponse>(
+          DATA_ENDPOINTS.TOKEN_PRICE("eth")
+        );
+        minRequired = minWethWeiForUsd(
+          parseEthUsdPrice(priceResponse),
+          MIN_WETH_USD[chainId]
+        );
+      }
 
       const token = getDefaultTokenAddress(chainId, assetSymbol);
 

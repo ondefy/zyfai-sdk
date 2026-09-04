@@ -29,18 +29,33 @@ export type DailyApyHistoryPeriod = `${AllowedHistoryDays}D`;
  * (current Safe balance + deposit amount). A deposit is rejected only if
  * a minimum is configured AND the resulting total would be below it.
  *
- * Current configuration (lowered for testing — restore before production):
- * - Ethereum Mainnet (1) / USDC: 100 USDC
- * - Ethereum Mainnet (1) / WETH: 0.005 WETH
- * - No minimums on Base or Arbitrum.
+ * Current configuration:
+ * - Mainnet USDC/EURC: 10,000 units; Base/Arbitrum USDC/EURC: 100 units
+ * - WETH: Data API `/price?token=eth` converted to ~`MIN_WETH_USD[chainId]`
+ *   (Mainnet $10,000; Base/Arbitrum $100).
  */
 export const MIN_PORTFOLIO_BALANCE: Partial<
   Record<SupportedChainId, Record<string, bigint>>
 > = {
   1: {
-    USDC: 100n * 10n ** 6n, // 100 USDC (6 decimals)
-    WETH: 5n * 10n ** 15n, // 0.005 WETH (18 decimals)
+    USDC: 10000n * 10n ** 6n, // 10,000 USDC (6 decimals)
+    EURC: 10000n * 10n ** 6n, // 10,000 EURC (6 decimals)
   },
+  8453: {
+    USDC: 100n * 10n ** 6n, // 100 USDC (6 decimals)
+    EURC: 100n * 10n ** 6n, // 100 EURC (6 decimals)
+  },
+  42161: {
+    USDC: 100n * 10n ** 6n, // 100 USDC (6 decimals)
+    EURC: 100n * 10n ** 6n, // 100 EURC (6 decimals)
+  },
+};
+
+/** Target USD value for the WETH minimum, per chain. */
+export const MIN_WETH_USD: Record<SupportedChainId, bigint> = {
+  1: 10000n,
+  8453: 100n,
+  42161: 100n,
 };
 
 /**

@@ -24,7 +24,7 @@ Partners/integrators need the same fee-adjusted portfolio and earnings numbers t
 
 ## Current Status / Progress Tracking
 
-**Mode: Executor** — `getPositions` / `getPortfolio` call `getSafeAddressFor(..., false)`. No registered agent => empty portfolio, never CREATE2. Deposit/withdraw still derive for legacy.
+**Mode: Executor** — WETH min is ~$10,000 on Mainnet and ~$100 on Base/Arbitrum via `GET /api/v2/price?token=eth`.
 
 **Previous:** all fee-adjusted tasks implemented. 14/14 unit tests pass; `npm run build` succeeds.
 

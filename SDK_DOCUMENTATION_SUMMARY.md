@@ -394,10 +394,11 @@ Token address is selected from the required `asset` for the given chain:
 
 **Minimum portfolio balance (enforced on Safe balance + deposit amount):**
 
-- Ethereum Mainnet (1) / USDC: 5 USDC (test threshold — will be raised before production)
-- All other (chain, asset) pairs: no minimum enforced
+- Ethereum Mainnet (1) / USDC or EURC: 10,000 units
+- Base (8453) and Arbitrum (42161) / USDC or EURC: 100 units
+- WETH: about $10,000 of ETH on Ethereum Mainnet, $100 on Base and Arbitrum, from Data API `GET /api/v2/price?token=eth`
 
-Only deposits on Mainnet in USDC that would leave the Safe below 5 USDC are rejected. Top-ups smaller than the minimum are allowed if the Safe already holds enough of the asset to meet it.
+Top-ups smaller than the minimum are allowed if the Safe already holds enough of the asset to meet it after the deposit.
 
 **First-deposit protocol patching** (before transfer + `log_deposit`):
 
