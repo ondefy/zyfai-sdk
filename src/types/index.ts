@@ -372,6 +372,12 @@ export interface HistoryPosition {
   token_symbol?: string;
   protocol_icon?: string;
   protocol_name?: string;
+  /**
+   * The amount actually moved by this action (deposit/withdraw/rebalance delta),
+   * as opposed to `amount`, which is the resulting position balance after the action.
+   * Optional: not present on older history entries or actions that predate this field.
+   */
+  deltaAmount?: string;
 }
 
 export interface HistoryFeeData {

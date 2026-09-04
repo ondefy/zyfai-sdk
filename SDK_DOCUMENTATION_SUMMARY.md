@@ -764,9 +764,12 @@ const history = await sdk.getHistory(walletAddress, chainId, {
   assetType: "eth",
 });
 // Returns: { success, walletAddress, data: HistoryEntry[], total }
-// HistoryEntry includes tokenId, feeData, rebalanceLog
+// HistoryEntry includes tokenId, feeData, rebalanceLog, positions
 // rebalanceLog: { oldApy, newApy, oldApy_withFee, newApy_withFee, oldOpportunity, newOpportunity }
 // assetType: "usdc" | "eth" | "eurc" — filters history to that asset
+// HistoryPosition.amount is the resulting position balance after the action (not the amount moved)
+// HistoryPosition.deltaAmount is the amount actually moved by the action (deposit/withdraw/rebalance delta)
+// deltaAmount is optional — absent on older history entries or actions that predate this field
 ```
 
 ---
