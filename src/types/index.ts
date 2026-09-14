@@ -463,6 +463,8 @@ export interface DailyEarning {
   unrealized_earnings_by_token: ChainTokenEarnings;
   total_earnings_by_token: ChainTokenEarnings;
   daily_total_delta_by_token: ChainTokenEarnings;
+  /** Fee-exclusive: daily_total_delta_by_token × (1 - feeRate). */
+  daily_total_delta_by_token_withoutFee: ChainTokenEarnings;
   created_at?: string;
 }
 

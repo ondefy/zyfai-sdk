@@ -800,6 +800,8 @@ const daily = await sdk.getDailyEarnings(
 );
 daily.data.forEach((d) => {
   console.log(d.snapshot_date, d.total_earnings_by_token);
+  // daily_total_delta_by_token_withoutFee = daily_total_delta_by_token x (1 - feeRate), computed by the SDK
+  console.log("Delta without fee:", d.daily_total_delta_by_token_withoutFee);
 });
 ```
 
