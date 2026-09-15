@@ -94,10 +94,10 @@ export interface LoginResponse {
   hasActiveSessionKey?: boolean;
   smartWallet?: string | null;
   /**
-   * True when the smart wallet was provisioned by the predeployment pool
-   * (backend-owned at deploy, rotated to the user on first deposit). Such
-   * wallets are already deployed with the agent session enabled, so the client
-   * skips deploy, never signs a session key, and never derives the address.
+   * True when the smart wallet was assigned by the predeployment pool. It can
+   * be counterfactual until first deposit, when deployment, session setup, and
+   * ownership handover happen atomically. The assigned address is always
+   * backend-authoritative and must never be derived locally.
    */
   predeployed?: boolean;
 }

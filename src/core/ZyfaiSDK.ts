@@ -1024,9 +1024,9 @@ export class ZyfaiSDK {
       // Ensure user is authenticated (required for safe-deploy endpoint)
       await this.authenticateUser();
 
-      // Predeployed (pool) wallets are already deployed with the agent session
-      // enabled by the pool. Never derive an address or send a deploy tx for
-      // them - return the backend-assigned wallet as already deployed.
+      // Pool-assigned wallets can be counterfactual until first deposit. An
+      // explicit deploySafe call keeps its historical contract by asking the
+      // pool to actually deploy + hand over the requested chain first.
       if (this.isPredeployed && this.isConnectedUser(userAddress)) {
         const predeployedAddress = await this.getSafeAddressFor(
           userAddress,
@@ -1038,6 +1038,10 @@ export class ZyfaiSDK {
               "Ensure the user has signed in so the pool can reserve their wallet."
           );
         }
+        await this.httpClient.post(ENDPOINTS.DEPLOY_CHAINS, {
+          chainIds: [chainId],
+        });
+        this.hasActiveSessionKey = true;
         try {
           await this.initializeUser(predeployedAddress, chainId);
         } catch (initError) {
@@ -1210,10 +1214,22 @@ export class ZyfaiSDK {
         );
       }
 
-      // Predeployed (pool) wallets already have the agent session enabled
-      // on-chain by the pool at deploy time. Never prompt the user to sign a
-      // session key - the backend records it after the first deposit.
+      // A pool assignment alone is not a deployed Safe. Do not falsely report
+      // success before the first deposit (or explicit deploySafe) has activated
+      // the wallet and allowed the backend to record the agent session.
       if (this.isPredeployed) {
+        const address = await this.getSafeAddressFor(userAddress, chainId);
+        const chainConfig = getChainConfig(chainId, this.rpcUrls);
+        if (!address || !(await isSafeDeployed(address, chainConfig.publicClient))) {
+          throw new Error(
+            "Pool wallet is counterfactual. Use depositFunds() to activate it, or deploySafe() to provision it first."
+          );
+        }
+        if (!this.hasActiveSessionKey) {
+          throw new Error(
+            "Pool wallet is deployed but its agent session is still being reconciled. Please retry shortly."
+          );
+        }
         return {
           success: true,
           userId: this.authenticatedUserId,
