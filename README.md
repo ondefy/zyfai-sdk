@@ -427,7 +427,7 @@ if (result.success) {
 
 #### Log External Deposit (For Sponsored Transactions)
 
-If you execute deposits client-side (e.g., with Privy, Biconomy, or other sponsored/gasless transaction providers), use `logDeposit` to register the deposit with Zyfai's backend:
+`depositFunds()` already calls `logDeposit` after the transfer. If you **do not** use `depositFunds()` and send the ERC20 yourself (front, Privy, Biconomy, custom wallet), you **must** call `logDeposit` — otherwise the backend never sees the deposit: a reserved pool wallet stays reserved (no ownership rotation), and yield/agent tracking does not start.
 
 ```typescript
 // 1. Execute deposit with your own wallet implementation (e.g., Privy)
@@ -450,8 +450,9 @@ if (result.success) {
 
 **When to use `logDeposit`:**
 
+- You did **not** call `depositFunds()` (it already logs the deposit for you)
 - You use sponsored/gasless transactions (Privy, Biconomy, Gelato, etc.)
-- You have a custom wallet implementation
+- You have a custom wallet / frontend transfer
 - You need more control over transaction execution
 - You want to pay gas fees for your users
 

@@ -464,10 +464,15 @@ interface LogDepositResponse {
 
 #### When to Use
 
+`depositFunds()` already calls `logDeposit` after the transfer. If you send the
+ERC20 yourself, you **must** call `logDeposit` — otherwise a reserved pool wallet
+stays reserved (no ownership rotation) and yield/agent tracking does not start.
+
 Use `logDeposit` when you:
 
+- Did **not** call `depositFunds()` (it already logs the deposit for you)
 - Use sponsored/gasless transactions (Privy, Biconomy, Gelato, etc.)
-- Have a custom wallet implementation
+- Have a custom wallet / frontend transfer
 - Need more control over transaction execution
 - Want to pay gas fees for your users
 

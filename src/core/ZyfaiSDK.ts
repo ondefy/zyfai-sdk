@@ -1791,15 +1791,20 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Log a deposit that was executed client-side
+   * Log a deposit that was executed client-side.
    *
-   * Use this method when you execute the deposit transaction yourself (e.g., with Privy,
-   * sponsored transactions, or any custom wallet implementation) and need to register
-   * the deposit with the Zyfai backend for tracking and yield optimization.
+   * `depositFunds()` already calls this after the ERC20 transfer. If you send the
+   * transfer yourself (front, Privy, Biconomy, custom wallet) you **must** call
+   * `logDeposit` — otherwise the backend never sees the deposit: a reserved pool
+   * wallet stays reserved (no ownership rotation), and yield/agent tracking does
+   * not start.
    *
-   * This is useful for partners who:
+   * Use this method when you execute the deposit transaction yourself and need to
+   * register it with the Zyfai backend.
+   *
+   * This is required for partners who:
    * - Use sponsored/gasless transactions (Privy, Biconomy, etc.)
-   * - Have custom wallet implementations
+   * - Have a custom wallet / frontend transfer
    * - Need more control over transaction execution
    *
    * Token is automatically selected based on chain if not provided:
