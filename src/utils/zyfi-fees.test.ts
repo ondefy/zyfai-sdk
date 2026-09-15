@@ -16,6 +16,7 @@ import {
   chainNameToId,
   computePendingFees,
   enrichApyPosition,
+  enrichDailyEarningWithoutFee,
   enrichOnchainEarningsTotals,
   enrichPortfolioWithFees,
   enrichRebalanceLog,
@@ -233,5 +234,62 @@ describe("enrichOnchainEarningsTotals", () => {
       current_earnings_by_chain: { "8453": {} },
     });
     assert.equal(result.totalEarningsByTokenWithFee.USDC, "13");
+  });
+});
+
+describe("enrichDailyEarningWithoutFee", () => {
+  it("multiplies daily_total_delta_by_token by (1 - FEE_RATE) per chain/token", () => {
+    const entry = enrichDailyEarningWithoutFee({
+      snapshot_date: "2026-01-01",
+      current_earnings_by_token: {},
+      lifetime_earnings_by_token: {},
+      unrealized_earnings_by_token: {},
+      total_earnings_by_token: {},
+      daily_total_delta_by_token: {
+        "8453": { USDC: "1", WETH: "0.5" },
+        "42161": { USDC: "2" },
+      },
+      daily_total_delta_by_token_withoutFee: {},
+    });
+
+    assert.ok(
+      Math.abs(
+        Number(entry.daily_total_delta_by_token_withoutFee["8453"].USDC) -
+          1 * (1 - ZYFI_FEE_RATE)
+      ) < 1e-9
+    );
+    assert.ok(
+      Math.abs(
+        Number(entry.daily_total_delta_by_token_withoutFee["8453"].WETH) -
+          0.5 * (1 - ZYFI_FEE_RATE)
+      ) < 1e-9
+    );
+    assert.ok(
+      Math.abs(
+        Number(entry.daily_total_delta_by_token_withoutFee["42161"].USDC) -
+          2 * (1 - ZYFI_FEE_RATE)
+      ) < 1e-9
+    );
+  });
+
+  it("handles negative deltas without dropping the sign", () => {
+    const entry = enrichDailyEarningWithoutFee({
+      snapshot_date: "2026-01-02",
+      current_earnings_by_token: {},
+      lifetime_earnings_by_token: {},
+      unrealized_earnings_by_token: {},
+      total_earnings_by_token: {},
+      daily_total_delta_by_token: {
+        "8453": { USDC: "-2" },
+      },
+      daily_total_delta_by_token_withoutFee: {},
+    });
+
+    assert.ok(
+      Math.abs(
+        Number(entry.daily_total_delta_by_token_withoutFee["8453"].USDC) -
+          -2 * (1 - ZYFI_FEE_RATE)
+      ) < 1e-9
+    );
   });
 });

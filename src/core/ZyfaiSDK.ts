@@ -46,6 +46,7 @@ import type {
   HistoryEntry,
   HistoryResponse,
   OnchainEarningsResponse,
+  DailyEarning,
   DailyEarningsResponse,
   DebankPortfolioResponse,
   OpportunitiesResponse,
@@ -119,6 +120,7 @@ import {
 } from "../utils/protocol-selection";
 import {
   enrichApyPosition,
+  enrichDailyEarningWithoutFee,
   enrichOnchainEarningsTotals,
   enrichPortfolioWithFees,
   enrichRebalanceLog,
@@ -2630,7 +2632,10 @@ export class ZyfaiSDK {
    *
    * Reads from `user_onchain_daily_earnings_v2`. Each entry exposes
    * per-chain per-token maps for current / lifetime / unrealized / total
-   * earnings plus a daily total delta.
+   * earnings plus a daily total delta (gross and fee-exclusive).
+   *
+   * `daily_total_delta_by_token_withoutFee` is computed by the SDK, not the
+   * API: it is `daily_total_delta_by_token × (1 - feeRate)`.
    *
    * @param walletAddress - Smart wallet address
    * @param startDate - Start date (YYYY-MM-DD format)
@@ -2643,6 +2648,7 @@ export class ZyfaiSDK {
    * daily.data.forEach(d => {
    *   // d.total_earnings_by_token = { "8453": { "USDC": "143.10" } }
    *   console.log(d.snapshot_date, d.total_earnings_by_token);
+   *   console.log("Delta without fee:", d.daily_total_delta_by_token_withoutFee);
    * });
    * ```
    */
@@ -2660,15 +2666,18 @@ export class ZyfaiSDK {
         DATA_ENDPOINTS.DAILY_EARNINGS(walletAddress, startDate, endDate)
       );
 
-      const data = (response.data || []).map((entry: any) => ({
-        snapshot_date: entry.snapshot_date,
-        current_earnings_by_token: entry.current_earnings_by_token || {},
-        lifetime_earnings_by_token: entry.lifetime_earnings_by_token || {},
-        unrealized_earnings_by_token: entry.unrealized_earnings_by_token || {},
-        total_earnings_by_token: entry.total_earnings_by_token || {},
-        daily_total_delta_by_token: entry.daily_total_delta_by_token || {},
-        created_at: entry.created_at,
-      }));
+      const data = (response.data || []).map((entry: any) =>
+        enrichDailyEarningWithoutFee({
+          snapshot_date: entry.snapshot_date,
+          current_earnings_by_token: entry.current_earnings_by_token || {},
+          lifetime_earnings_by_token: entry.lifetime_earnings_by_token || {},
+          unrealized_earnings_by_token:
+            entry.unrealized_earnings_by_token || {},
+          total_earnings_by_token: entry.total_earnings_by_token || {},
+          daily_total_delta_by_token: entry.daily_total_delta_by_token || {},
+          created_at: entry.created_at,
+        } as DailyEarning)
+      );
 
       return {
         success: true,

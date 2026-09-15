@@ -10,6 +10,7 @@ import { ZYFI_FEE_RATE } from "../config/constants";
 import type {
   ApyPosition,
   ChainTokenEarnings,
+  DailyEarning,
   HistoryRebalanceLog,
   PortfolioAssetBalance,
   PortfolioDetailed,
@@ -361,6 +362,38 @@ export function enrichRebalanceLog(
     ...(log.newApy !== undefined
       ? { newApy_withFee: applyApyFeeToString(log.newApy) }
       : {}),
+  };
+}
+
+/**
+ * Remove the Zyfi fee directly from a per-chain per-token earnings map,
+ * e.g. a daily delta. value_withoutFee = value × (1 - FEE_RATE).
+ */
+function excludeFeeFromChainTokenEarnings(
+  earnings: ChainTokenEarnings
+): ChainTokenEarnings {
+  const keepRate = 1 - ZYFI_FEE_RATE;
+  const result: ChainTokenEarnings = {};
+  Object.entries(earnings).forEach(([chainId, tokens]) => {
+    const tokenMap: TokenEarnings = {};
+    Object.entries(tokens || {}).forEach(([symbol, amount]) => {
+      tokenMap[symbol] = formatHumanAmount(parseHumanAmount(amount) * keepRate);
+    });
+    result[chainId] = tokenMap;
+  });
+  return result;
+}
+
+/**
+ * Add a fee-exclusive daily delta on a daily earnings snapshot.
+ * daily_total_delta_by_token_withoutFee = daily_total_delta_by_token × (1 - FEE_RATE).
+ */
+export function enrichDailyEarningWithoutFee(entry: DailyEarning): DailyEarning {
+  return {
+    ...entry,
+    daily_total_delta_by_token_withoutFee: excludeFeeFromChainTokenEarnings(
+      entry.daily_total_delta_by_token
+    ),
   };
 }
 

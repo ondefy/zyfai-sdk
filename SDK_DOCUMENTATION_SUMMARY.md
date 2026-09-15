@@ -827,7 +827,8 @@ const daily = await sdk.getDailyEarnings(
   "2024-01-31"
 );
 // Returns: { success, walletAddress, data: DailyEarning[], count, filters }
-// DailyEarning fields: snapshot_date, current_earnings_by_token, lifetime_earnings_by_token, unrealized_earnings_by_token, total_earnings_by_token, daily_*_delta_by_token
+// DailyEarning fields: snapshot_date, current_earnings_by_token, lifetime_earnings_by_token, unrealized_earnings_by_token, total_earnings_by_token, daily_total_delta_by_token
+// daily_total_delta_by_token_withoutFee: computed by the SDK (not the API) = daily_total_delta_by_token x (1 - feeRate)
 ```
 
 ---
