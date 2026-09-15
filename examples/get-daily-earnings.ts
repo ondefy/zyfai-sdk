@@ -70,6 +70,7 @@ async function main() {
         console.log("    Unrealized Earnings:", JSON.stringify(day.unrealized_earnings_by_token));
         console.log("    Total Earnings:", JSON.stringify(day.total_earnings_by_token));
         console.log("    Daily Delta:", JSON.stringify(day.daily_total_delta_by_token));
+        console.log("    Daily Delta (without fee):", JSON.stringify(day.daily_total_delta_by_token_withoutFee));
       });
     }
   } catch (error) {
