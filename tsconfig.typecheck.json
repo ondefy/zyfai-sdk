@@ -1,7 +1,17 @@
 {
-  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": true
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020"],
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true
   },
-  "include": ["src"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }
