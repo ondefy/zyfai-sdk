@@ -26,15 +26,13 @@
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
-    "lint": "eslint src --ext .ts",
-    "test": "jest",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
+    "test:unit": "npx tsx --test src/utils/*.test.ts",
+    "check": "npm run typecheck && npm run test:unit && npm run build",
     "prepublishOnly": "npm run build",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch",
-    "docs:json": "typedoc --json docs/api.json",
-    "docs:dev": "cd website && pnpm start",
-    "docs:build": "pnpm docs && cd website && pnpm build",
-    "docs:serve": "cd website && pnpm serve"
+    "docs:json": "typedoc --json docs/api.json"
   },
   "keywords": [
     "zyfai",
@@ -78,6 +76,7 @@
     "tsup": "^8.0.0",
     "typedoc": "^0.28.15",
     "typedoc-plugin-markdown": "^4.9.0",
+    "tsx": "^4",
     "typescript": "^5.3.0"
   },
   "peerDependencies": {
