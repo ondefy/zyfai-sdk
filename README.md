@@ -100,19 +100,19 @@ This method:
 
 ## Core Features
 
-> **Predeployed (pool) wallets.** Wallets provisioned by ZyFi's predeployment
-> service are already deployed, already have the agent session enabled, and are
-> backend-owned until the user's first deposit rotates ownership to them. The SDK
-> detects these automatically from the sign-in response (`predeployed: true`) and
-> adjusts, with no extra flags from the integrator:
+> **Pool-managed wallets.** At sign-in the backend assigns a smart-wallet address
+> (`predeployed: true`). It may be counterfactual until the first funded-chain
+> deposit, which atomically deploys, configures, enables the agent session, and
+> hands ownership to the user. The SDK detects pool users from the sign-in
+> response and adjusts, with no extra flags from the integrator:
 >
-> - `deploySafe()` returns the assigned wallet without sending a deploy tx.
+> - `depositFunds()` is the supported onboarding path (do not call `deploySafe()`).
 > - `createSessionKey()` returns `{ alreadyActive: true }` without prompting a
->   signature — the pool enabled the session at deploy time.
+>   browser signature — the backend records the session after first deposit.
 > - The address is always the backend-assigned one; it is **never** derived with
 >   `getDeterministicSafeAddress`.
 >
-> Net effect: onboarding a predeployed wallet takes a **single signature — the
+> Net effect: onboarding a pool-managed wallet takes a **single signature — the
 > USDC deposit** (no wallet-deploy or session-key signatures).
 >
 > The pool's ERC-7579 module addresses are exported as reference constants
@@ -295,7 +295,7 @@ Get the Smart Wallet (Safe) address for a user.
 
 ##### `deploySafe(userAddress: string, chainId: SupportedChainId, strategy?: Strategy): Promise<DeploySafeResponse>`
 
-> **Deprecated** for partner integrations. Prefer `depositFunds()` — predeployed Safes and session keys are handled on first deposit. This method remains available for legacy flows and emits a console warning when called.
+> **Deprecated** for partner integrations. Pool-managed wallets are rejected by this method; use `depositFunds()` so first-deposit provisioning can deploy, configure, and hand over the wallet. This method remains available for legacy self-managed flows and emits a console warning when called.
 
 Deploy a Safe smart wallet for a user. **Deployment is handled by the backend API**, which manages all RPC calls and bundler interactions. This avoids rate limiting issues.
 
@@ -322,7 +322,7 @@ Deploy a Safe smart wallet for a user. **Deployment is handled by the backend AP
 
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting
-- Protocol / asset patching runs in `deploySafe` (all paths). `depositFunds` still patches on the account's **first** deposit if USDC `chains` are empty (see Deposit Funds below)
+- For legacy self-managed wallets, protocol / asset patching runs in `deploySafe`. Pool-managed wallets use `depositFunds`, which patches protocols on the account's **first** deposit when USDC `chains` are empty (see Deposit Funds below)
 
 ##### `addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>`
 
@@ -349,7 +349,7 @@ Session keys enable delegated transaction execution without exposing the main pr
 
 #### Simple Usage (Legacy — deprecated)
 
-> **Deprecated** for partner integrations. Prefer `depositFunds()` — predeployed wallets already have the agent session enabled. This method remains available for legacy flows and emits a console warning when called.
+> **Deprecated** for partner integrations. Prefer `depositFunds()` — pool-managed wallets never sign a browser session key; the backend enables and records the session during first-deposit provisioning. This method remains available for legacy flows and emits a console warning when called.
 
 The SDK automatically fetches optimal session configuration from Zyfai API:
 

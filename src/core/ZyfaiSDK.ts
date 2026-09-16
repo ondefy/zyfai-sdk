@@ -142,12 +142,12 @@ export class ZyfaiSDK {
 
   /**
    * Warn that a legacy method is deprecated in favor of depositFunds.
-   * Predeployed wallets no longer require deploySafe / createSessionKey.
+   * Pool-managed wallets use first-deposit provisioning instead of these browser flows.
    */
   private warnDeprecatedOnboardingMethod(methodName: string): void {
     console.warn(
       `[ZyfaiSDK] ${methodName}() is deprecated for partner integrations. ` +
-        `Prefer depositFunds() — predeployed Safes and session keys are handled ` +
+        `Prefer depositFunds() — pool-managed wallets and sessions are handled ` +
         `automatically on first deposit.`
     );
   }
@@ -588,7 +588,7 @@ export class ZyfaiSDK {
 
   /**
    * Initialize earnings tracking for a smart wallet on the Data API.
-   * Called from `deploySafe` after a fresh deploy and for predeployed wallets.
+   * Called from `deploySafe` after a fresh legacy self-managed deployment.
    *
    * @param smartWallet - Safe smart wallet address
    * @param chainId - Target chain ID
@@ -888,9 +888,10 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Resolve the Safe address: backend-assigned for the connected predeployed
-   * user, registered agent for everyone else. If none, CREATE2-derive when
-   * `deriveIfMissing` is true; otherwise return null (read paths).
+   * Resolve the Safe address: backend-assigned for the connected pool-managed
+   * user (may be counterfactual until funded), registered agent for everyone
+   * else. If none, CREATE2-derive when `deriveIfMissing` is true; otherwise
+   * return null (read paths).
    * @private
    */
   private async getSafeAddressFor(
@@ -908,7 +909,7 @@ export class ZyfaiSDK {
       }
       if (!deriveIfMissing) return null;
       throw new Error(
-        "Predeployed smart wallet address is not available from the API yet. " +
+        "Pool-managed smart wallet address is not available from the API yet. " +
           "Ensure the user has signed in so the pool can reserve their wallet."
       );
     }
@@ -933,13 +934,13 @@ export class ZyfaiSDK {
   /**
    * Get smart wallet address for a user
    * Returns the Safe address for an EOA (deterministic for legacy wallets,
-   * backend-assigned for predeployed pool wallets).
+   * backend-assigned for pool-managed wallets).
    *
    * @param userAddress - User's EOA address
    * @param chainId - Target chain ID
    * @returns Smart wallet address, deployment status, and whether userAddress
-   *   is an on-chain OwnableValidator owner (false for reserved predeployed
-   *   wallets until the first deposit rotates ownership)
+   *   is an on-chain OwnableValidator owner (false for counterfactual or
+   *   backend-owned pool wallets until the first deposit completes handover)
    */
   async getSmartWalletAddress(
     userAddress: string,
@@ -956,7 +957,7 @@ export class ZyfaiSDK {
 
     const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
-    // Resolve the address (predeployed wallets are never derived locally).
+    // Resolve the address (pool-managed wallets are never derived locally).
     const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
     if (!safeAddress) {
       throw new Error("Smart wallet address is not available");
@@ -985,9 +986,9 @@ export class ZyfaiSDK {
   /**
    * Deploy Safe Smart Wallet for a user
    *
-   * @deprecated Prefer `depositFunds()`. Predeployed Safes and session keys are
-   * managed automatically on first deposit. This method remains available for
-   * legacy flows.
+   * @deprecated Prefer `depositFunds()`. Pool-managed wallets are rejected here;
+   * first deposit atomically deploys, configures, and hands over. Legacy
+   * self-managed flows may still use this method.
    *
    * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
@@ -1024,36 +1025,14 @@ export class ZyfaiSDK {
       // Ensure user is authenticated (required for safe-deploy endpoint)
       await this.authenticateUser();
 
-      // Predeployed (pool) wallets are already deployed with the agent session
-      // enabled by the pool. Never derive an address or send a deploy tx for
-      // them - return the backend-assigned wallet as already deployed.
+      // Pool-managed wallets are assigned at login but may be counterfactual until
+      // funded. deploySafe cannot truthfully deploy them — first deposit does.
       if (this.isPredeployed && this.isConnectedUser(userAddress)) {
-        const predeployedAddress = await this.getSafeAddressFor(
-          userAddress,
-          chainId
+        throw new Error(
+          "Pool-managed wallets cannot be deployed via deploySafe(). " +
+            "Use depositFunds() — the first deposit atomically deploys, configures, " +
+            "and hands over the wallet."
         );
-        if (!predeployedAddress) {
-          throw new Error(
-            "Predeployed smart wallet address is not available from the API yet. " +
-              "Ensure the user has signed in so the pool can reserve their wallet."
-          );
-        }
-        try {
-          await this.initializeUser(predeployedAddress, chainId);
-        } catch (initError) {
-          console.warn(
-            "Failed to initialize user after Safe deployment:",
-            (initError as Error).message
-          );
-        }
-        await this.updateUserProtocols(strategy);
-        return {
-          success: true,
-          safeAddress: predeployedAddress,
-          txHash: "0x0",
-          status: "deployed",
-          sessionKeyCreated: true,
-        };
       }
 
       const walletClient = this.getWalletClient(chainId);
@@ -1176,9 +1155,9 @@ export class ZyfaiSDK {
    * Create session key with auto-fetched configuration from Zyfai API
    * This is the simplified method that automatically fetches session configuration
    *
-   * @deprecated Prefer `depositFunds()`. Predeployed wallets already have the
-   * agent session enabled; session activation is handled after first deposit.
-   * This method remains available for legacy flows.
+   * @deprecated Prefer `depositFunds()`. Pool-managed wallets never sign a browser
+   * session key; the backend enables and records it during first-deposit provisioning.
+   * This method remains available for legacy self-managed flows.
    *
    * @param userAddress - User's EOA or Safe address
    * @param chainId - Target chain ID
@@ -1210,15 +1189,14 @@ export class ZyfaiSDK {
         );
       }
 
-      // Predeployed (pool) wallets already have the agent session enabled
-      // on-chain by the pool at deploy time. Never prompt the user to sign a
-      // session key - the backend records it after the first deposit.
+      // Pool-managed wallets never sign a browser session key — the backend records
+      // the intent session after the first funded-chain deploy/handover userOp.
       if (this.isPredeployed) {
         return {
           success: true,
           userId: this.authenticatedUserId,
           message:
-            "Predeployed wallet: agent session is managed by the backend",
+            "Pool-managed wallet: agent session is managed by the backend",
           alreadyActive: true,
         };
       }
