@@ -114,17 +114,19 @@ await sdk.disconnectAccount(); // Clears wallet connection and JWT token
 
 ## 📚 API Functions
 
-> **Predeployed (pool) wallets** are auto-detected from the sign-in response
-> (`predeployed: true`). For them the SDK skips client-side deploy, returns
-> `createSessionKey()` as `{ alreadyActive: true }` without a signature, and
-> always uses the backend-assigned address (never `getDeterministicSafeAddress`).
-> Onboarding then needs a single signature: the USDC deposit. The pool's
+> **Pool-managed wallets** are auto-detected from the sign-in response
+> (`predeployed: true`). The backend assigns an address at login; it may be
+> counterfactual until the first funded-chain deposit, which atomically deploys,
+> configures, enables the agent session, and hands ownership to the user. The SDK
+> skips client-side deploy, returns `createSessionKey()` as `{ alreadyActive: true }`
+> without a browser signature, and always uses the backend-assigned address (never
+> `getDeterministicSafeAddress`). Use `depositFunds()` for onboarding. The pool's
 > ERC-7579 module set is exported as reference constants (`POOL_MODULE_ADDRESSES`)
 > for parity/validation only — the SDK installs nothing.
 
 ### 1. Deploy Safe Smart Wallet
 
-> **Deprecated** for partner integrations. Prefer `depositFunds()` — predeployed Safes and session keys are handled on first deposit. `deploySafe` remains available for legacy flows; calling it emits a console warning, and failures append the same guidance.
+> **Deprecated** for partner integrations. Pool-managed wallets are rejected by this method; use `depositFunds()` so first-deposit provisioning can deploy, configure, and hand over the wallet. `deploySafe` remains available for legacy self-managed flows; calling it emits a console warning, and failures append the same guidance.
 
 Deploy an ERC-4337 with ERC-7579 launchpad + smart session module standard compliant Safe Smart Account for a user.
 
@@ -170,7 +172,7 @@ interface DeploySafeResponse {
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting issues
 - If no strategy is provided, `"conservative"` is used as the default
-- **Protocol patching runs in `deploySafe`** (predeployed, already-deployed, and fresh deploy). `depositFunds` still patches on the account's first deposit if USDC `chains` are empty (see Deposit Funds).
+- **Protocol patching runs in `deploySafe` for legacy self-managed wallets** (already-deployed and fresh deploy). Pool-managed wallets use `depositFunds`, which patches on the account's first deposit if USDC `chains` are empty (see Deposit Funds).
 
 #### Example Response (New Deployment)
 
@@ -207,7 +209,7 @@ Create a session key with limited permissions for delegated transactions.
 
 #### Simple Usage (Legacy — deprecated)
 
-> **Deprecated** for partner integrations. Prefer `depositFunds()` — predeployed wallets already have the agent session enabled. `createSessionKey` remains available for legacy flows; calling it emits a console warning, and failures append the same guidance.
+> **Deprecated** for partner integrations. Prefer `depositFunds()` — pool-managed wallets never sign a browser session key; the backend enables and records the session during first-deposit provisioning. `createSessionKey` remains available for legacy flows; calling it emits a console warning, and failures append the same guidance.
 
 Automatically fetches optimal session configuration from Zyfai API:
 
@@ -231,7 +233,7 @@ createSessionKey(
 
 - **Authentication**: User must be connected via `connectAccount()` (which automatically authenticates)
 - **User Profile**: User record must have `smartWallet` and `chainId` fields populated
-  - Automatically set by `deploySafe` / predeployed wallet assignment
+  - Legacy self-managed wallets are configured by `deploySafe`; pool-managed wallets short-circuit this method and use their backend-assigned address
 - **Protocols/chains**: Set by `deploySafe` and on the first `depositFunds` call if USDC `chains` are still empty. `createSessionKey` does not touch `assetTypeSettings`.
 
 **Important**:

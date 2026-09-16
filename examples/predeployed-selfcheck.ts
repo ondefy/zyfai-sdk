@@ -2,10 +2,10 @@
  * Self-check for predeployment (pool wallet) compatibility.
  * No network, no API key, no framework. Run: npx tsx examples/predeployed-selfcheck.ts
  *
- * Verifies the two guarantees for a predeployed wallet:
- *   1. The address is the backend-assigned one and is NEVER derived locally
- *      (getDeterministicSafeAddress is never reached).
+ * Verifies pool-managed wallet guarantees:
+ *   1. The address is the backend-assigned one and is NEVER derived locally.
  *   2. createSessionKey never signs - it short-circuits to alreadyActive.
+ *   3. deploySafe rejects pool users (use depositFunds instead).
  * Plus a regression guard that the legacy (non-pool) path is unchanged.
  */
 import assert from "node:assert";
@@ -42,9 +42,40 @@ async function predeployedSkipsSessionSigning() {
   };
 
   const res = await sdk.createSessionKey(EOA, CHAIN);
-  assert.strictEqual(res.alreadyActive, true, "predeployed session must be already active");
+  assert.strictEqual(
+    res.alreadyActive,
+    true,
+    "pool-managed session setup must short-circuit without browser signing"
+  );
   assert.strictEqual(res.success, true);
   console.log("ok: createSessionKey short-circuits for predeployed (no signature)");
+}
+
+async function predeployedRejectsDeploySafe() {
+  const sdk = newSdk();
+  sdk.signer = { address: EOA };
+  let deploymentPathEntered = false;
+  sdk.authenticateUser = async () => {
+    // Mirrors the state populated from a pool user's login response.
+    sdk.isPredeployed = true;
+    sdk.connectedSmartWallet = ASSIGNED;
+  };
+  sdk.getWalletClient = () => {
+    deploymentPathEntered = true;
+    throw new Error("deployment path must not be entered for a pool wallet");
+  };
+
+  await assert.rejects(
+    () => sdk.deploySafe(EOA, CHAIN),
+    /depositFunds/i,
+    "deploySafe must reject pool-managed wallets"
+  );
+  assert.strictEqual(
+    deploymentPathEntered,
+    false,
+    "deploySafe must reject before entering the deployment path"
+  );
+  console.log("ok: deploySafe rejects pool-managed wallets before deployment");
 }
 
 async function legacyStillResolvesFromApi() {
@@ -66,6 +97,7 @@ async function legacyStillResolvesFromApi() {
 (async () => {
   await predeployedUsesAssignedAddress();
   await predeployedSkipsSessionSigning();
+  await predeployedRejectsDeploySafe();
   await legacyStillResolvesFromApi();
   console.log("\nAll predeployment self-checks passed.");
 })().catch((e) => {

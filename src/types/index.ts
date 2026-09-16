@@ -94,10 +94,10 @@ export interface LoginResponse {
   hasActiveSessionKey?: boolean;
   smartWallet?: string | null;
   /**
-   * True when the smart wallet was provisioned by the predeployment pool
-   * (backend-owned at deploy, rotated to the user on first deposit). Such
-   * wallets are already deployed with the agent session enabled, so the client
-   * skips deploy, never signs a session key, and never derives the address.
+   * True when `smartWallet` is pool-managed (backend-assigned). The address may
+   * be counterfactual until the first funded-chain deposit; this is not an
+   * on-chain deployment assertion. The client must not locally derive the address
+   * and should skip browser deploy/session-signing for pool users.
    */
   predeployed?: boolean;
 }
@@ -142,8 +142,8 @@ export interface SmartWalletResponse {
   isDeployed: boolean;
   /**
    * True when userAddress is an OwnableValidator owner of the Safe on-chain.
-   * For predeployed (pool) wallets this becomes true only after the first
-   * deposit rotates ownership from the backend to the user. Always false when
+   * For pool-managed wallets this becomes true only after the first funded-chain
+   * deposit completes ownership handover. Always false when
    * the Safe is not deployed.
    */
   isOwner: boolean;
