@@ -43,4 +43,6 @@ website/.docusaurus/
 website/node_modules/
 .docusaurus/
 
+# Agent scratchpad — local working notes, not durable docs
+.cursor/scratchpad.md
 
