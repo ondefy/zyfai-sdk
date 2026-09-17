@@ -115,6 +115,13 @@ This method:
 > Net effect: onboarding a predeployed wallet takes a **single signature — the
 > USDC deposit** (no wallet-deploy or session-key signatures).
 >
+> **Registering the deposit (do not skip).** For pool wallets, an on-chain
+> ERC-20 transfer alone does **not** subscribe the user. The backend must also
+> receive `POST /users/log_deposit` with a **user JWT** (`Authorization: Bearer
+> …`) from SIWE — your SDK API key is not enough (that call returns **401**).
+> Without a successful `log_deposit`, ownership is not rotated, the session key
+> is not activated, and funds sit idle in the Safe.
+>
 > The pool's ERC-7579 module addresses are exported as reference constants
 > (`POOL_MODULE_ADDRESSES`, `INTENT_SMART_SESSIONS`, `PROXY_EXECUTOR`, …) for
 > parity/validation only — the SDK does not install them.
@@ -422,21 +429,37 @@ if (result.success) {
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
 - `asset` is required (`"USDC"`, `"WETH"`, or `"EURC"` — EURC on Mainnet/Base only); token address is selected from that for the chain
 - The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
-- The SDK automatically authenticates via SIWE before logging the deposit with Zyfai's API, so no extra steps are required on your end once the transfer confirms
+- Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `depositFunds()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
+- If first-deposit protocol patching fails, the transfer still runs but `log_deposit` may run **without** a JWT (401). Treat a confirmed on-chain tx as **not** subscribed until `log_deposit` succeeds.
+- **`depositFunds` can return `success: true` even when `log_deposit` failed** — failures are only `console.warn`ed. Check logs or retry `logDeposit` after `connectAccount()`.
 - **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Pass optional `strategy` (`"conservative"` default or `"aggressive"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 
 #### Log External Deposit (For Sponsored Transactions)
 
 `depositFunds()` already calls `logDeposit` after the transfer. If you **do not** use `depositFunds()` and send the ERC20 yourself (front, Privy, Biconomy, custom wallet), you **must** call `logDeposit` — otherwise the backend never sees the deposit: a reserved pool wallet stays reserved (no ownership rotation), and yield/agent tracking does not start.
 
+**Authentication (required).** `log_deposit` is a **user** endpoint. You need both:
+
+| Credential | Purpose |
+| ---------- | ------- |
+| `X-API-Key` | Identifies your SDK integration (set when constructing `ZyfaiSDK`) |
+| `Authorization: Bearer <jwt>` | Proves which user deposited (from `connectAccount()` → SIWE) |
+
+Calling `logDeposit()` **without** `connectAccount()` on the **same** SDK instance sends only the API key → **401 Unauthorized**. A common mistake is SIWE in the browser and `logDeposit()` on a **new** server-side `ZyfaiSDK` with no JWT.
+
 ```typescript
-// 1. Execute deposit with your own wallet implementation (e.g., Privy)
+const sdk = new ZyfaiSDK({ apiKey: process.env.ZYFAI_API_KEY! });
+
+// Required before logDeposit — same instance that will post log_deposit
+await sdk.connectAccount(walletProviderOrPrivateKey, chainId);
+
+// 1. Execute deposit with your own wallet implementation (e.g., Privy, Bankr)
 const txHash = await privyWallet.sendTransaction({
   to: safeAddress,
   data: transferData, // ERC20 transfer encoded data
 });
 
-// 2. Log the deposit to Zyfai backend for tracking and yield optimization
+// 2. Register the deposit (must return success — do not treat tx confirmation alone as "subscribed")
 const result = await sdk.logDeposit(
   8453,           // chainId
   txHash,         // transaction hash from your wallet
@@ -455,6 +478,10 @@ if (result.success) {
 - You have a custom wallet / frontend transfer
 - You need more control over transaction execution
 - You want to pay gas fees for your users
+
+**When to prefer `depositFunds()` instead:** one SDK instance, `connectAccount()` once, transfer + `log_deposit` in one call — fewer ways to miss the JWT.
+
+**Serverless / split frontend–backend:** if the browser calls `connectAccount()` but the server calls `logDeposit()`, the server must either (a) run `connectAccount()` itself with the user's signer, or (b) forward the JWT to the same `ZyfaiSDK` instance that posts `log_deposit`. API key alone is not sufficient.
 
 **Parameters:**
 

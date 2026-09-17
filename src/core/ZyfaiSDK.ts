@@ -1677,6 +1677,7 @@ export class ZyfaiSDK {
       const token = getDefaultTokenAddress(chainId, assetSymbol);
 
       const walletClient = this.getWalletClient();
+      await this.authenticateUser();
       const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
       // Get Safe address (predeployed wallets use the backend-assigned
@@ -1765,20 +1766,18 @@ export class ZyfaiSDK {
         hash: txHash,
       });
 
-      // Log deposit to backend
-      try {
-        await this.httpClient.post(ENDPOINTS.LOG_DEPOSIT, {
-          chainId,
-          transaction: txHash,
-          token,
-          amount,
-        });
-      } catch (logError) {
-        console.warn("Failed to log deposit:", (logError as Error).message);
-      }
-
       if (receipt.status !== "success") {
         throw new Error("Deposit transaction failed");
+      }
+
+      try {
+        await this.logDeposit(chainId, txHash, amount, token);
+      } catch (logError) {
+        throw new Error(
+          `On-chain deposit succeeded (tx=${txHash}) but backend registration failed: ` +
+            `${(logError as Error).message}. ` +
+            `Call connectAccount() then logDeposit(${chainId}, "${txHash}", "${amount}") to retry.`
+        );
       }
 
       return {
@@ -1800,6 +1799,10 @@ export class ZyfaiSDK {
    * `logDeposit` — otherwise the backend never sees the deposit: a reserved pool
    * wallet stays reserved (no ownership rotation), and yield/agent tracking does
    * not start.
+   *
+   * Requires `connectAccount()` on the same SDK instance first (SIWE user JWT).
+   * The SDK API key alone is not enough — `log_deposit` returns 401 without a
+   * Bearer token.
    *
    * Use this method when you execute the deposit transaction yourself and need to
    * register it with the Zyfai backend.
@@ -1855,6 +1858,8 @@ export class ZyfaiSDK {
       }
 
       const token = tokenAddress || getDefaultTokenAddress(chainId);
+
+      await this.authenticateUser();
 
       await this.httpClient.post(ENDPOINTS.LOG_DEPOSIT, {
         chainId,
