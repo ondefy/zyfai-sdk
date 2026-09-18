@@ -105,7 +105,11 @@ export class HttpClient {
 
           switch (status) {
             case 401:
-              throw new Error("Unauthorized: Invalid API key");
+              throw new Error(
+                this.authToken
+                  ? "Unauthorized: Invalid or expired user session. Call connectAccount() to sign in again."
+                  : "Unauthorized: Missing user session. Call connectAccount() before this endpoint — the SDK API key alone is not sufficient."
+              );
             case 403:
               throw new Error("Forbidden: Access denied");
             case 404:
@@ -232,7 +236,11 @@ export class HttpClient {
 
           switch (status) {
             case 401:
-              throw new Error("Unauthorized: Invalid API key");
+              throw new Error(
+                this.authToken
+                  ? "Unauthorized: Invalid or expired user session. Call connectAccount() to sign in again."
+                  : "Unauthorized: Missing user session. Call connectAccount() before this endpoint — the SDK API key alone is not sufficient."
+              );
             case 403:
               throw new Error("Forbidden: Access denied to data API");
             case 404:
