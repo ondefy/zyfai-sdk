@@ -57,6 +57,7 @@ deprecated for new integrations.
 | --- | --- |
 | User-facing API examples | [`README.md`](README.md) |
 | Doc index | [`docs/README.md`](docs/README.md) |
+| Release / changesets | [`docs/RELEASING.md`](docs/RELEASING.md) |
 | Bankr integration | [`docs/BANKR_INTEGRATION.md`](docs/BANKR_INTEGRATION.md) |
 | Review / public contract | [`docs/review-invariants.md`](docs/review-invariants.md) |
 | Past lessons | [`docs/engineering-history.md`](docs/engineering-history.md) |
@@ -66,5 +67,6 @@ deprecated for new integrations.
 
 1. Read README + relevant example for the method you change.
 2. Update types and tests in `src/utils/*.test.ts` when behaviour changes.
-3. Run `npm run check` before finishing.
-4. Durable lessons → `.cursor/learnings/` or `docs/engineering-history.md`.
+3. PRs with user-facing changes need a changeset (`npm run changeset`); see [`docs/RELEASING.md`](docs/RELEASING.md).
+4. Run `npm run check` before finishing.
+5. Durable lessons → `.cursor/learnings/` or `docs/engineering-history.md`.

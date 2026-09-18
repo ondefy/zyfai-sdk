@@ -25,6 +25,28 @@ yarn add @zyfai/sdk viem
 pnpm add @zyfai/sdk viem
 ```
 
+## Releasing
+
+This package uses [Changesets](https://github.com/changesets/changesets) for versioning and changelogs. Maintainer details: [`docs/RELEASING.md`](docs/RELEASING.md).
+
+### Adding a changeset
+
+When your PR includes user-facing SDK changes:
+
+```bash
+npm run changeset
+```
+
+- **patch** — bug fixes
+- **minor** — new features (non-breaking)
+- **major** — breaking changes
+
+Commit the generated file in `.changeset/` with your PR.
+
+### Publishing (maintainers)
+
+After changesets merge to `main`, a maintainer runs `npm run version-packages`, then `npm publish`. Details: [`docs/RELEASING.md`](docs/RELEASING.md).
+
 ## Prerequisites
 
 1. **API Key**: Single API key for both Execution API (Safe deployment, transactions, session keys) and Data API (earnings, opportunities, analytics)
@@ -1178,6 +1200,8 @@ Some Data API endpoints may require server-side CORS configuration. If you see C
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.
+
+PRs with user-facing SDK changes need a [changeset](docs/RELEASING.md) (`npm run changeset`).
 
 ## License
 
