@@ -29,7 +29,10 @@ jq -c --arg commit "$HEAD_SHA" --argjson min "$CONFIDENCE_MIN" '
         + "\n\n_Confidence: " + (.confidence_score | tostring) + "_"
       ),
       commit_id: $commit,
-      path: .code_location.absolute_file_path,
+      path: (
+        .code_location.absolute_file_path
+        | gsub("^/.*/work/[^/]+/[^/]+/"; "")
+      ),
       line: .code_location.line_range.end,
       side: "RIGHT",
       start_line: (
