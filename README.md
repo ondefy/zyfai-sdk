@@ -1186,6 +1186,82 @@ If `withdrawFunds` returns without a `txHash`, the withdrawal is being processed
 
 Some Data API endpoints may require server-side CORS configuration. If you see CORS errors for endpoints like `onchain-earnings`, `calculate-onchain-earnings`, or `opportunities`, contact Zyfai support to ensure your origin is whitelisted.
 
+## Integration testing
+
+Use opt-in Vitest integration tests to prove a new backend feature end-to-end through the **public SDK** against a **local** `zyfai-api` instance. This is the normal workflow when adding or changing execution API behaviour.
+
+Integration tests live in `src/integration/*.integration.test.ts`, mirror the matching script under `examples/`, and are **not** part of `npm run check` (no secrets required in CI). Unit tests in `src/utils/` stay mocked and fast.
+
+### Setup
+
+```bash
+cd zyfai-sdk
+cp .env.test.example .env.test   # once — fill ZYFAI_API_KEY and PRIVATE_KEY (gitignored)
+```
+
+Vitest loads `.env.test` automatically (`vitest.config.ts`). Start the local API from the workspace parent:
+
+```bash
+cd ..   # zyfai-workspace root
+pnpm dev
+```
+
+### Run tests
+
+```bash
+npm run test:integration                              # all integration tests
+npm run test:integration -- get-protocols             # one file by name
+npm run test:integration -- src/integration/get-protocols.integration.test.ts
+npm run test:integration -- -t "returns a protocol list"   # by test/describe name
+npx vitest get-protocols                              # watch mode while iterating
+```
+
+Tests call `describe.skipIf(!integrationEnvReady())` and skip cleanly when `.env.test` is missing or invalid.
+
+### Add a test for a new feature
+
+1. Implement the API change in `zyfai-api` and expose it via a public SDK method (if new surface).
+2. Add `examples/<feature>.ts` for manual smoke.
+3. Add `src/integration/<feature-id>.integration.test.ts`:
+
+```typescript
+import { describe, expect, it } from "vitest";
+import { LOCAL_EXECUTION_API_BASE_URL } from "../config/endpoints";
+import { integrationEnvReady } from "./utils";
+
+describe.skipIf(!integrationEnvReady())("<feature-id>", { timeout: 180_000 }, () => {
+  it("verifies the contract", async () => {
+    const { ZyfaiSDK } = await import("../core/ZyfaiSDK");
+
+    const sdk = new ZyfaiSDK({
+      apiKey: process.env.ZYFAI_API_KEY!,
+      executionApiUrl: LOCAL_EXECUTION_API_BASE_URL, // http://localhost:3000
+    });
+
+    await sdk.connectAccount(process.env.PRIVATE_KEY!, 8453);
+    // public SDK calls + expect(); poll async terminal state when needed
+  });
+});
+```
+
+Conventions:
+
+- Target local API via `LOCAL_EXECUTION_API_BASE_URL` from `src/config/endpoints.ts` — never production in integration tests.
+- Import `ZyfaiSDK` from `../core/ZyfaiSDK` (working tree), not a published npm build.
+- Use only public SDK methods; hardcode chain id and amounts per test file.
+- Set `{ timeout: 180_000 }` on `describe` for async flows (deposits, handover, polling).
+
+See `src/integration/get-protocols.integration.test.ts` for a minimal example.
+
+### Cross-repo features
+
+When a feature spans `zyfai-sdk`, `zyfai-api`, and optionally `predeployment-service`, follow the workspace skill **[functional-feature-verification](../.cursor/skills/functional-feature-verification/SKILL.md)** in the `zyfai-workspace` parent. It covers verification contracts, temporary diagnostics, local stack readiness, and the evidence report template.
+
+| Command | What it runs |
+| --- | --- |
+| `npm run check` | typecheck + unit tests + build (every PR) |
+| `npm run test:integration` | opt-in tests against local stack (feature work) |
+
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.

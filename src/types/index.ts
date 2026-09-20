@@ -20,6 +20,10 @@ export interface SDKConfig {
   apiKey: string;
   rpcUrls?: RpcUrlsConfig;
   referralSource?: string;
+  /** @internal Local integration tests only — not part of the public SDK contract. */
+  executionApiUrl?: string;
+  /** @internal Local integration tests only — not part of the public SDK contract. */
+  dataApiUrl?: string;
 }
 
 // Response Types

@@ -8,7 +8,12 @@ import {
   parseEthUsdPrice,
   type TokenPriceResponse,
 } from "../utils/eth-price";
-import { ENDPOINTS, DATA_ENDPOINTS, API_ENDPOINT, WS_ENDPOINT } from "../config/endpoints";
+import {
+  ENDPOINTS,
+  DATA_ENDPOINTS,
+  API_ENDPOINT,
+  WS_ENDPOINT,
+} from "../config/endpoints";
 import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS, VAULT_ABI, VAULT_ADDRESS } from "../config/abis";
 import {
   MIN_PORTFOLIO_BALANCE,
@@ -153,17 +158,29 @@ export class ZyfaiSDK {
     );
   }
 
+  private readonly executionApiUrl: string;
+
   constructor(config: SDKConfig | string) {
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, rpcUrls, referralSource } = sdkConfig;
+    const {
+      apiKey,
+      rpcUrls,
+      referralSource,
+      executionApiUrl,
+      dataApiUrl,
+    } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
     }
 
-    this.httpClient = new HttpClient(apiKey);
+    this.executionApiUrl = executionApiUrl ?? API_ENDPOINT;
+    this.httpClient = new HttpClient(apiKey, {
+      executionApiUrl: this.executionApiUrl,
+      dataApiUrl,
+    });
     this.rpcUrls = rpcUrls;
     this.referralSource = referralSource;
   }
@@ -210,8 +227,8 @@ export class ZyfaiSDK {
         uri = globalWindow.location.origin;
         domain = globalWindow.location.host;
       } else {
-        uri = API_ENDPOINT;
-        domain = API_ENDPOINT.split("//")[1];
+        uri = this.executionApiUrl;
+        domain = new URL(this.executionApiUrl).host;
       }
 
       const messageObj = new SiweMessage({
