@@ -14,6 +14,13 @@ import {
   DATA_API_VERSION,
 } from "../config/endpoints";
 
+export interface HttpClientConfig {
+  /** @internal */
+  executionApiUrl?: string;
+  /** @internal */
+  dataApiUrl?: string;
+}
+
 export class HttpClient {
   private client: AxiosInstance;
   private dataClient: AxiosInstance;
@@ -21,22 +28,26 @@ export class HttpClient {
   private authToken: string | null = null;
   private origin: string;
   private host: string;
+  private readonly dataApiBaseUrl: string;
 
   /**
    * Create HTTP client for both Execution API and Data API
    *
    * @param apiKey - API key for both Execution API and Data API
    */
-  constructor(apiKey: string) {
+  constructor(apiKey: string, config: HttpClientConfig = {}) {
     this.apiKey = apiKey;
 
+    const executionApiUrl = config.executionApiUrl ?? API_ENDPOINT;
+    this.dataApiBaseUrl = config.dataApiUrl ?? DATA_API_ENDPOINT;
+
     // Execution API (v1)
-    const parsedUrl = new URL(API_ENDPOINT);
+    const parsedUrl = new URL(executionApiUrl);
     this.origin = parsedUrl.origin;
     this.host = parsedUrl.host;
 
     this.client = axios.create({
-      baseURL: `${API_ENDPOINT}${API_VERSION}`,
+      baseURL: `${executionApiUrl}${API_VERSION}`,
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": this.apiKey,
@@ -46,7 +57,7 @@ export class HttpClient {
 
     // Data API (v2)
     this.dataClient = axios.create({
-      baseURL: `${DATA_API_ENDPOINT}${DATA_API_VERSION}`,
+      baseURL: `${this.dataApiBaseUrl}${DATA_API_VERSION}`,
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": this.apiKey,
@@ -91,7 +102,7 @@ export class HttpClient {
       },
       (error) => {
         return Promise.reject(error);
-      }
+      },
     );
 
     // Response interceptor
@@ -108,18 +119,22 @@ export class HttpClient {
               throw new Error(
                 this.authToken
                   ? "Unauthorized: Invalid or expired user session. Call connectAccount() to sign in again."
-                  : "Unauthorized: Missing user session. Call connectAccount() before this endpoint — the SDK API key alone is not sufficient."
+                  : "Unauthorized: Missing user session. Call connectAccount() before this endpoint — the SDK API key alone is not sufficient.",
               );
             case 403:
               throw new Error("Forbidden: Access denied");
             case 404:
               throw new Error(
-                `Not found: ${data.message || "Resource not found"}`
+                `Not found: ${data.message || "Resource not found"}`,
               );
             case 429:
               throw new Error("Rate limit exceeded. Please try again later.");
-          case 500:
-            throw new Error(data?.message || data?.error || "Internal server error. Please try again later.");
+            case 500:
+              throw new Error(
+                data?.message ||
+                  data?.error ||
+                  "Internal server error. Please try again later.",
+              );
             default:
               throw new Error(data.message || "An error occurred");
           }
@@ -128,7 +143,7 @@ export class HttpClient {
         } else {
           throw new Error(`Request error: ${error.message}`);
         }
-      }
+      },
     );
   }
 
@@ -140,7 +155,7 @@ export class HttpClient {
   async post<T>(
     url: string,
     data?: any,
-    config?: AxiosRequestConfig
+    config?: AxiosRequestConfig,
   ): Promise<T> {
     const response = await this.client.post<T>(url, data, config);
     return response.data;
@@ -149,7 +164,7 @@ export class HttpClient {
   async patch<T>(
     url: string,
     data?: any,
-    config?: AxiosRequestConfig
+    config?: AxiosRequestConfig,
   ): Promise<T> {
     const response = await this.client.patch<T>(url, data, config);
     return response.data;
@@ -169,7 +184,7 @@ export class HttpClient {
   async dataPost<T>(
     url: string,
     data?: any,
-    config?: AxiosRequestConfig
+    config?: AxiosRequestConfig,
   ): Promise<T> {
     const response = await this.dataClient.post<T>(url, data, config);
     return response.data;
@@ -186,10 +201,10 @@ export class HttpClient {
   async dataPostCustom<T>(
     path: string,
     data?: any,
-    config?: AxiosRequestConfig
+    config?: AxiosRequestConfig,
   ): Promise<T> {
     // Construct full URL using data API endpoint base URL
-    const fullUrl = `${DATA_API_ENDPOINT}${path}`;
+    const fullUrl = `${this.dataApiBaseUrl}${path}`;
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -223,7 +238,7 @@ export class HttpClient {
 
         return config;
       },
-      (error) => Promise.reject(error)
+      (error) => Promise.reject(error),
     );
 
     // Response interceptor for data API
@@ -239,7 +254,7 @@ export class HttpClient {
               throw new Error(
                 this.authToken
                   ? "Unauthorized: Invalid or expired user session. Call connectAccount() to sign in again."
-                  : "Unauthorized: Missing user session. Call connectAccount() before this endpoint — the SDK API key alone is not sufficient."
+                  : "Unauthorized: Missing user session. Call connectAccount() before this endpoint — the SDK API key alone is not sufficient.",
               );
             case 403:
               throw new Error("Forbidden: Access denied to data API");
@@ -247,17 +262,17 @@ export class HttpClient {
               throw new Error(
                 `Not found: ${
                   data.message || data.error || "Resource not found"
-                }`
+                }`,
               );
             case 429:
               throw new Error("Rate limit exceeded. Please try again later.");
             case 500:
               throw new Error(
-                data.error || "Internal server error. Please try again later."
+                data.error || "Internal server error. Please try again later.",
               );
             default:
               throw new Error(
-                data.message || data.error || "An error occurred"
+                data.message || data.error || "An error occurred",
               );
           }
         } else if (error.request) {
@@ -265,7 +280,7 @@ export class HttpClient {
         } else {
           throw new Error(`Request error: ${error.message}`);
         }
-      }
+      },
     );
   }
 }

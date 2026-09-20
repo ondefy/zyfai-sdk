@@ -5,12 +5,11 @@ config();
 
 async function main() {
   const apiKey = process.env.ZYFAI_API_KEY;
-
   const privateKey = process.env.PRIVATE_KEY;
 
   if (!apiKey || !privateKey) {
     throw new Error(
-      "Missing env vars. Please set ZYFAI_API_KEY and PRIVATE_KEY."
+      "Missing env vars. Please set ZYFAI_API_KEY and PRIVATE_KEY.",
     );
   }
 
