@@ -228,11 +228,6 @@ jobs:
       HEAD_SHA: ${{ needs.codex-review.outputs.head_sha }}
       REPOSITORY: ${{ github.repository }}
     steps:
-      - name: Download Codex output
-        uses: actions/download-artifact@v4
-        with:
-          name: codex-output
-
       - name: Checkout publish script
         uses: actions/checkout@v5
         with:
@@ -240,6 +235,11 @@ jobs:
           sparse-checkout: |
             .agents/review/publish-findings.sh
           sparse-checkout-cone-mode: false
+
+      - name: Download Codex output
+        uses: actions/download-artifact@v4
+        with:
+          name: codex-output
 
       - name: Publish inline review comments
         env:
