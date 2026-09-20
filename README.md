@@ -1199,22 +1199,26 @@ cd zyfai-sdk
 cp .env.test.example .env.test   # once — fill ZYFAI_API_KEY and PRIVATE_KEY (gitignored)
 ```
 
-Vitest loads `.env.test` automatically (`vitest.config.ts`). Start the local API from the workspace parent:
+Vitest loads `.env.test` automatically (`vitest.config.ts`). Apply API migrations, then start the local stack from the workspace parent:
 
 ```bash
+cd ../zyfai-api && pnpm migration:up   # required for deposit lifecycle (eoa_deposit.lifecycle_status, …)
 cd ..   # zyfai-workspace root
 pnpm dev
 ```
 
+If the API starts before migrations run, deposit handover crons and `log_deposit` will fail with missing-column errors.
+
 ### Run tests
 
 ```bash
-npm run test:integration                              # all integration tests
-npm run test:integration -- get-protocols             # one file by name
-npm run test:integration -- src/integration/get-protocols.integration.test.ts
-npm run test:integration -- -t "returns a protocol list"   # by test/describe name
-npx vitest get-protocols                              # watch mode while iterating
+npm run test:integration                        # all integration tests (sequential)
+npm run test:integration -- wallet-v-async-deposit   # one file: src/integration/<feature-id>.integration.test.ts
+npm run test:integration -- get-protocols
+npx vitest src/integration/get-protocols.integration.test.ts --fileParallelism=false   # watch mode
 ```
+
+`test:integration` always passes `--fileParallelism=false` so on-chain tests that fund ephemeral users from a shared `PRIVATE_KEY` wallet do not collide on nonce (`replacement transaction underpriced`). Pass a **feature id** (filename without `.integration.test.ts`) after `--` to run a single file.
 
 Tests call `describe.skipIf(!integrationEnvReady())` and skip cleanly when `.env.test` is missing or invalid.
 
@@ -1260,7 +1264,7 @@ When a feature spans `zyfai-sdk`, `zyfai-api`, and optionally `predeployment-ser
 | Command | What it runs |
 | --- | --- |
 | `npm run check` | typecheck + unit tests + build (every PR) |
-| `npm run test:integration` | opt-in tests against local stack (feature work) |
+| `npm run test:integration` | opt-in tests against local stack (`--fileParallelism=false`) |
 
 ## Contributing
 

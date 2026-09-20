@@ -139,11 +139,11 @@ export function skipIntegrationReason(): string | undefined {
   return undefined;
 }
 
-export function depositReconciliationEnvReady(): boolean {
-  return skipDepositReconciliationReason() === undefined;
+export function freshFundedUserEnvReady(): boolean {
+  return skipFreshFundedUserReason() === undefined;
 }
 
-export function skipDepositReconciliationReason(): string | undefined {
+export function skipFreshFundedUserReason(): string | undefined {
   const privateKey = process.env.PRIVATE_KEY?.trim();
   const adminApiKey = process.env.SDK_API_KEYS_ADMIN_API_KEY?.trim();
 

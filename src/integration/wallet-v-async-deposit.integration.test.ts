@@ -17,19 +17,21 @@ import {
 const CHAIN_ID = 8453;
 const DEPOSIT_AMOUNT = 100_000n;
 const FUNDING_ETH_AMOUNT = 20_000_000_000_000n;
+/** Old sync path blocked on pool handover (~8s prod); acceptance should stay well under this. */
+const ACCEPTANCE_SLO_MS = 8_000;
 
 describe.skipIf(!freshFundedUserEnvReady())(
-  "deposit-reconciliation",
+  "wallet-v-async-deposit",
   { timeout: 480_000 },
   () => {
-    it("credits an on-chain transfer when log_deposit is never called", async () => {
+    it("accepts log_deposit quickly then credits after async handover", async () => {
       const token = getDefaultTokenAddress(CHAIN_ID) as Address;
       const user = await setupFreshFundedUser({
         chain: base,
         token,
         depositAmount: DEPOSIT_AMOUNT,
         fundingEthAmount: FUNDING_ETH_AMOUNT,
-        clientName: "deposit-reconciliation-integration",
+        clientName: "wallet-v-async-deposit-integration",
       });
 
       const sdk = new ZyfaiSDK({
@@ -37,10 +39,7 @@ describe.skipIf(!freshFundedUserEnvReady())(
         executionApiUrl: LOCAL_EXECUTION_API_BASE_URL,
       });
 
-      const acceptanceStart = Date.now();
       const userAddress = await sdk.connectAccount(user.privateKey, CHAIN_ID);
-      const acceptanceMs = Date.now() - acceptanceStart;
-
       const wallet = await sdk.getSmartWalletAddress(userAddress, CHAIN_ID);
       expect(wallet.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
 
@@ -67,20 +66,46 @@ describe.skipIf(!freshFundedUserEnvReady())(
       });
       expect(receipt.status).toBe("success");
 
-      const transferMs = Date.now() - acceptanceStart;
+      const acceptanceStart = Date.now();
+      const registration = await sdk.logDeposit(
+        CHAIN_ID,
+        txHash,
+        DEPOSIT_AMOUNT.toString(),
+      );
+      const acceptanceMs = Date.now() - acceptanceStart;
 
-      // Deliberately skip sdk.logDeposit — simulates partner transfer without registration.
-      const { elapsedMs: terminalMs, value: positions } = await pollUntil(
-        async () => sdk.getPositions(userAddress, CHAIN_ID),
-        (next) => next.portfolio?.ownershipTransferred === true,
+      expect(registration.success).toBe(true);
+      expect(registration.deposit.id).toBeTruthy();
+      expect(registration.deposit.status).toBe("handover_pending");
+      expect(registration.deposit.balanceCredited).toBe(false);
+      expect(registration.deposit.statusUrl).toContain(registration.deposit.id);
+      expect(acceptanceMs).toBeLessThan(ACCEPTANCE_SLO_MS);
+
+      const { elapsedMs: terminalMs, value: credited } = await pollUntil(
+        () => sdk.getDepositStatus(registration.deposit.id),
+        (status) =>
+          status.status === "credited" && status.balanceCredited === true,
         {
-          label: "cron-reconciled deposit credited and pool handover completed",
+          label: "deposit handover credited",
           timeoutMs: 420_000,
           intervalMs: 2_000,
         },
       );
 
-      expect(positions.portfolio?.hasBalance).toBe(false);
+      expect(credited.status).toBe("credited");
+      expect(credited.balanceCredited).toBe(true);
+      expect(terminalMs).toBeGreaterThan(0);
+      expect(acceptanceMs).toBeLessThan(terminalMs);
+
+      const replay = await sdk.logDeposit(
+        CHAIN_ID,
+        txHash,
+        DEPOSIT_AMOUNT.toString(),
+      );
+      expect(replay.deposit.id).toBe(registration.deposit.id);
+
+      const positions = await sdk.getPositions(userAddress, CHAIN_ID);
+      expect(positions.portfolio?.ownershipTransferred).toBe(true);
 
       const onChainBalance = await publicClient.readContract({
         address: token,
@@ -90,24 +115,20 @@ describe.skipIf(!freshFundedUserEnvReady())(
       });
       expect(onChainBalance).toBeGreaterThanOrEqual(DEPOSIT_AMOUNT);
 
-      const positionsAfter = await sdk.getPositions(userAddress, CHAIN_ID);
-      expect(positionsAfter.portfolio?.ownershipTransferred).toBe(true);
-
       console.log(
         JSON.stringify({
-          evidence: "deposit-reconciliation",
+          evidence: "wallet-v-async-deposit",
+          depositId: registration.deposit.id,
           userAddress,
           smartWallet: wallet.address,
           chainId: CHAIN_ID,
           txHash,
           depositAmount: DEPOSIT_AMOUNT.toString(),
           acceptanceMs,
-          transferMs,
           terminalMs,
-          funding: {
-            ethAmount: FUNDING_ETH_AMOUNT.toString(),
-            usdcAmount: DEPOSIT_AMOUNT.toString(),
-            ...user.funding,
+          statusTransitions: {
+            acceptance: registration.deposit.status,
+            terminal: credited.status,
           },
         }),
       );

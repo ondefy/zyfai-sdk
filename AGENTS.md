@@ -19,14 +19,14 @@ Endpoint map: `src/config/endpoints.ts`. Strategy conversion: `src/utils/strateg
 npm install
 npm run check              # typecheck + unit tests + build — canonical validation
 npm run test:unit          # vitest on src/utils/
-npm run test:integration   # opt-in vitest on src/integration/ (needs .env.test + local api)
+npm run test:integration   # opt-in vitest on src/integration/ (--fileParallelism=false; needs .env.test + local api)
 npm run build
 npm run dev                # watch build
 npm run docs               # typedoc → docs/api/ (gitignored)
 ```
 
-Filter one integration test: `npm run test:integration -- <feature-id>` or `-t "test name"`.
-Watch mode: `npx vitest <feature-id>`.
+Filter one integration test: `npm run test:integration -- <feature-id>` (resolves to `src/integration/<feature-id>.integration.test.ts`).
+Watch mode: `npx vitest src/integration/<feature-id>.integration.test.ts --fileParallelism=false`.
 
 ## Repository map
 
