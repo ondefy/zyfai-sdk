@@ -139,8 +139,8 @@ jobs:
               ;;
             *)
               {
-                echo "model=gpt-5.1-codex-mini"
-                echo "effort=medium"
+                echo "model=gpt-5.3-codex"
+                echo "effort=low"
                 echo "instructions=.agents/review/functional.md"
               } >> "$GITHUB_OUTPUT"
               ;;
