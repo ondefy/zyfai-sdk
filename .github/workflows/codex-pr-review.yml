@@ -93,13 +93,13 @@ jobs:
 
       - name: Fetch base and head refs
         env:
-          PR_BASE_REF: ${{ steps.pr.outputs.base_ref }}
-          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git fetch --no-tags origin \
-            "$PR_BASE_REF" \
-            "+refs/pull/$PR_NUMBER/head"
+          gh auth setup-git
+          git fetch --no-tags origin "${BASE_SHA}" "${HEAD_SHA}"
 
       - name: Skip when there is nothing to review
         id: diff-gate
