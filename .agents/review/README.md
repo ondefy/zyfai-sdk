@@ -1,6 +1,6 @@
 # Automated PR review (Codex)
 
-Review behaviour for CI (`openai/codex-action`) and interactive agents. `AGENTS.md` routes here.
+CI policy for `openai/codex-action`. `AGENTS.md` routes interactive reviews separately.
 
 ## Modes
 
@@ -20,12 +20,12 @@ Review behaviour for CI (`openai/codex-action`) and interactive agents. `AGENTS.
 | [output-schema.json](output-schema.json) | Structured findings for inline PR comments |
 | [publish-findings.sh](publish-findings.sh) | Posts inline comments (CI only) |
 
+The JSON schema and no-summary output rule apply only to CI; interactive reviews use their own human-readable evidence-report format.
+
 ## Repo-local scope
 
 This repository is reviewed **standalone**. Do not clone sibling repositories or `zyfai-workspace` for additional context. Use contracts, docs, types, and tests in this repo.
 
-## CI triggers
+## CI configuration
 
-**`paths-ignore` (PR only):** `README.md`, `docs/**`, `examples/**`, extra markdown docs, lockfiles, `typedoc.json`, `.cursorrules`.
-
-**`workflow_dispatch`:** provide `pr_number` to re-run manually (bypasses `paths-ignore`).
+The workflow is the source of truth for triggers, model selection, permissions, limits, and ignored paths: [`.github/workflows/codex-pr-review.yml`](../../.github/workflows/codex-pr-review.yml). Public API and canonical contract documentation are reviewed rather than automatically ignored.

@@ -5,12 +5,7 @@ on:
     types: [opened, synchronize, ready_for_review, reopened]
     branches: [main, release]
     paths-ignore:
-      - 'README.md'
-      - 'docs/**'
       - 'examples/**'
-      - 'DOCUMENTATION.md'
-      - 'SDK_DOCUMENTATION_SUMMARY.md'
-      - 'PARTNER_PORTFOLIO_EARNINGS.md'
       - 'LICENSE'
       - 'typedoc.json'
       - '.cursorrules'
