@@ -204,7 +204,7 @@ export class HttpClient {
     config?: AxiosRequestConfig,
   ): Promise<T> {
     // Construct full URL using data API endpoint base URL
-    const fullUrl = `${DATA_API_ENDPOINT}${path}`;
+    const fullUrl = `${this.dataApiBaseUrl}${path}`;
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
