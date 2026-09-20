@@ -62,6 +62,17 @@ deprecated for new integrations.
 | Past lessons | [`docs/engineering-history.md`](docs/engineering-history.md) |
 | Runnable examples | [`examples/`](examples/) |
 
+## Code review
+
+**Only raise an issue when there is a concrete reason to believe the PR introduces incorrect behaviour or meaningful risk.** Silence is success.
+
+| PR base branch | Mode | Instructions |
+| --- | --- | --- |
+| `main` | Functional | [`.agents/review/functional.md`](.agents/review/functional.md) |
+| `release` | Release | [`.agents/review/release.md`](.agents/review/release.md) |
+
+Release reviews: start with [`docs/review-invariants.md`](docs/review-invariants.md). Repo-local only — do not clone sibling repositories.
+
 ## Task completion
 
 1. Read README + relevant example for the method you change.
