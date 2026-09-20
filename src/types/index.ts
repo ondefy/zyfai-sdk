@@ -193,6 +193,9 @@ export interface Portfolio {
   chains?: number[];
   strategy?: string;
   smartWallet?: Address;
+  hasBalance?: boolean;
+  predeployed?: boolean;
+  ownershipTransferred?: boolean;
   positions?: PositionSlot[];
   hasActiveSessionKey?: boolean;
   newSessionKeyAvailable?: boolean;
