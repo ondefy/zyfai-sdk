@@ -434,9 +434,14 @@ if (result.success) {
 - A successful registration can be `handover_pending`: the transfer is verified and recorded, but it is not yet credited or investable. Use `waitForDepositCredit(result.registration.id)` or poll `getDepositStatus` until the status is `credited`.
 - **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Pass optional `strategy` (`"conservative"` default or `"aggressive"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 
-#### Log External Deposit (For Sponsored Transactions)
+#### Deposit With an External Wallet (Sponsored Transactions)
 
-`depositFunds()` already calls `logDeposit` after the transfer. If you **do not** use `depositFunds()` and send the ERC20 yourself (front, Privy, Biconomy, custom wallet), you **must** call `logDeposit` — otherwise the backend never sees the deposit: a reserved pool wallet stays reserved (no ownership rotation), and yield/agent tracking does not start.
+`depositFunds()` already calls `logDeposit` after the transfer. For a new
+sponsored or custom-wallet deposit, use `depositWithExternalWallet()` below; it
+sends the ERC-20 request through your wallet and registers the transaction. If
+you have already sent a transfer independently, call `logDeposit` to register
+it — otherwise the backend never sees the deposit: a reserved pool wallet stays
+reserved (no ownership rotation), and yield/agent tracking does not start.
 
 **Authentication (required).** `log_deposit` is a **user** endpoint. You need both:
 
@@ -450,39 +455,39 @@ Calling `logDeposit()` **without** `connectAccount()` on the **same** SDK instan
 ```typescript
 const sdk = new ZyfaiSDK({ apiKey: process.env.ZYFAI_API_KEY! });
 
-// Required before logDeposit — same instance that will post log_deposit
+// Required before the deposit — same instance that will post log_deposit
 await sdk.connectAccount(walletProviderOrPrivateKey, chainId);
 
-// 1. Apply first-deposit configuration and build standard transfer calldata.
-await sdk.ensureFirstDepositSetup("conservative");
-const intent = await sdk.buildDepositTransfer({
+// The SDK configures a first deposit, builds the transfer, and registers it.
+const result = await sdk.depositWithExternalWallet({
   userAddress,
   chainId: 8453,
   amount: "100000000",
   asset: "USDC",
-});
+  strategy: "conservative", // Optional; used on the first deposit only
+}, (transaction) => privyWallet.sendTransaction({
+  to: transaction.to,
+  data: transaction.data,
+}));
 
-// 2. Execute deposit with your own wallet implementation (e.g., Privy, Bankr)
-const txHash = await privyWallet.sendTransaction({
-  to: intent.to,
-  data: intent.data,
-});
-
-// 3. Register then observe custody handover; a confirmed transaction alone
-// does not make the deposit active.
-const result = await sdk.logDeposit(
-  8453,           // chainId
-  txHash,         // transaction hash from your wallet
-  "100000000"     // 100 USDC (6 decimals)
-);
-
-if (result.deposit.status === "handover_pending") {
-  const credited = await sdk.waitForDepositCredit(result.deposit.id);
+if (result.registration?.status === "handover_pending") {
+  const credited = await sdk.waitForDepositCredit(result.registration.id);
   console.log("Deposit credited:", credited.id);
 }
 ```
 
 `waitForDepositCredit` polls `getDepositStatus` every **2 seconds** (default) for up to **7 minutes** (default). For one-off checks, `getDepositStatus(depositId)` is still available.
+
+`depositWithExternalWallet()` is the recommended path for a custom or sponsored
+wallet: it is the same end-to-end flow as `depositFunds()`, while your wallet
+still sends the transaction. Use the lower-level `logDeposit()` only when you
+already have an independently-created transfer to register.
+
+**Advanced composition:** `ensureFirstDepositSetup()` and
+`buildDepositTransfer()` remain available when an integration needs to split
+configuration, transaction construction, and registration into separate steps.
+Call setup before submitting a first-deposit transfer, then call `logDeposit()`
+afterward. See the API reference for their full signatures.
 
 **When to use `logDeposit`:**
 

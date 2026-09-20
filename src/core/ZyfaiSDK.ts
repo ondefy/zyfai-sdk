@@ -1814,8 +1814,66 @@ export class ZyfaiSDK {
   }
 
   /**
+   * Deposit through a wallet managed by your application.
+   *
+   * Use this for sponsored, gasless, mobile, or otherwise custom wallet flows.
+   * The SDK applies first-deposit configuration, gives your sender the standard
+   * ERC-20 transfer request, and registers the resulting transaction.
+   *
+   * `sendTransaction` is the only wallet-specific part of the flow. It must
+   * submit the supplied request and resolve with its transaction hash.
+   */
+  async depositWithExternalWallet(
+    params: {
+      userAddress: string;
+      chainId: SupportedChainId;
+      amount: string;
+      asset: SupportedAsset;
+      strategy?: Strategy;
+    },
+    sendTransaction: (intent: {
+      safeAddress: Address;
+      tokenAddress: Address;
+      to: Address;
+      data: Hex;
+      value: "0";
+    }) => Promise<string>
+  ): Promise<DepositResponse> {
+    const { userAddress, chainId, amount, asset, strategy } = params;
+
+    await this.ensureFirstDepositSetup(strategy);
+    const intent = await this.buildDepositTransfer({
+      userAddress,
+      chainId,
+      amount,
+      asset,
+    });
+    const txHash = await sendTransaction(intent);
+
+    if (!txHash || !txHash.startsWith("0x")) {
+      throw new Error("Transaction sender must return a transaction hash");
+    }
+
+    const registration = await this.logDeposit(
+      chainId,
+      txHash,
+      amount,
+      intent.tokenAddress
+    );
+
+    return {
+      success: true,
+      txHash,
+      smartWallet: intent.safeAddress,
+      amount,
+      registration: registration.deposit,
+    };
+  }
+
+  /**
    * Prepare ERC-20 transfer calldata for builders using a custom signer,
-   * sponsored transaction provider, or mobile wallet.
+   * sponsored transaction provider, or mobile wallet. Most custom-wallet
+   * integrations should use `depositWithExternalWallet()` instead.
    */
   async buildDepositTransfer(params: {
     userAddress: string;
@@ -1859,7 +1917,8 @@ export class ZyfaiSDK {
 
   /**
    * Idempotently apply the first-deposit profile configuration for builders
-   * that submit their own transfer rather than calling depositFunds().
+   * composing an advanced custom transfer flow. Most custom-wallet
+   * integrations should use `depositWithExternalWallet()` instead.
    */
   async ensureFirstDepositSetup(strategy?: Strategy): Promise<{ applied: boolean }> {
     await this.authenticateUser();
