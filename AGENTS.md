@@ -69,6 +69,17 @@ deprecated for new integrations.
 | Integration testing | [`README.md` § Integration testing](README.md#integration-testing) |
 | Cross-repo feature verification | [`../.cursor/skills/functional-feature-verification/SKILL.md`](../.cursor/skills/functional-feature-verification/SKILL.md) |
 
+## Code review
+
+**Only raise an issue when there is a concrete reason to believe the PR introduces incorrect behaviour or meaningful risk.** Silence is success.
+
+| Automated PR base branch | Mode | CI policy |
+| --- | --- | --- |
+| `main` | Functional | [`.agents/review/functional.md`](.agents/review/functional.md) |
+| `release` | Release | [`.agents/review/release.md`](.agents/review/release.md) |
+
+These `.agents/review/` policies are for automated CI and its JSON result only. For interactive reviews, follow the parent workspace's `review-change` → `functional-reviewer` route and retain its human-readable evidence report. Release reviews start with [`docs/review-invariants.md`](docs/review-invariants.md) and stay repo-local; do not clone sibling repositories.
+
 ## Task completion
 
 1. Read README + relevant example for the method you change.
