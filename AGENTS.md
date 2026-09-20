@@ -17,12 +17,16 @@ Endpoint map: `src/config/endpoints.ts`. Strategy conversion: `src/utils/strateg
 
 ```bash
 npm install
-npm run check        # typecheck + unit tests + build — canonical validation
-npm run test:unit    # tsx --test on src/utils/*.test.ts
+npm run check              # typecheck + unit tests + build — canonical validation
+npm run test:unit          # vitest on src/utils/
+npm run test:integration   # opt-in vitest on src/integration/ (needs .env.test + local api)
 npm run build
-npm run dev          # watch build
-npm run docs         # typedoc → docs/api/ (gitignored)
+npm run dev                # watch build
+npm run docs               # typedoc → docs/api/ (gitignored)
 ```
+
+Filter one integration test: `npm run test:integration -- <feature-id>` or `-t "test name"`.
+Watch mode: `npx vitest <feature-id>`.
 
 ## Repository map
 
@@ -31,6 +35,7 @@ npm run docs         # typedoc → docs/api/ (gitignored)
 | `src/core/ZyfaiSDK.ts` | Main SDK class |
 | `src/config/` | Chains, endpoints, constants, ABIs |
 | `src/utils/` | HTTP client, fees, safe account helpers, strategy |
+| `src/integration/` | Opt-in Vitest tests against local `zyfai-api` (see README) |
 | `examples/` | Runnable integration examples |
 
 ## Onboarding flow (current product)
@@ -61,10 +66,16 @@ deprecated for new integrations.
 | Review / public contract | [`docs/review-invariants.md`](docs/review-invariants.md) |
 | Past lessons | [`docs/engineering-history.md`](docs/engineering-history.md) |
 | Runnable examples | [`examples/`](examples/) |
+| Integration testing | [`README.md` § Integration testing](README.md#integration-testing) |
+| Cross-repo feature verification | [`../.cursor/skills/functional-feature-verification/SKILL.md`](../.cursor/skills/functional-feature-verification/SKILL.md) |
 
 ## Task completion
 
 1. Read README + relevant example for the method you change.
-2. Update types and tests in `src/utils/*.test.ts` when behaviour changes.
-3. Run `npm run check` before finishing.
-4. Durable lessons → `.cursor/learnings/` or `docs/engineering-history.md`.
+2. Update types and unit tests in `src/utils/*.test.ts` when behaviour changes.
+3. For new execution API behaviour: add `src/integration/<feature-id>.integration.test.ts`
+   (mirror `examples/`); run `npm run test:integration` against local `zyfai-api`.
+   Cross-repo flows: follow
+   [`functional-feature-verification`](../.cursor/skills/functional-feature-verification/SKILL.md).
+4. Run `npm run check` before finishing.
+5. Durable lessons → `.cursor/learnings/` or `docs/engineering-history.md`.
