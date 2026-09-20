@@ -590,11 +590,25 @@ export interface DepositResponse {
   txHash: string;
   smartWallet: string;
   amount: string;
+  registration?: DepositLifecycleResponse;
+}
+
+export type DepositLifecycleStatus =
+  | "handover_pending"
+  | "credited"
+  | "recovered_to_eoa";
+
+export interface DepositLifecycleResponse {
+  id: string;
+  status: DepositLifecycleStatus;
+  balanceCredited: boolean;
+  statusUrl: string;
 }
 
 export interface LogDepositResponse {
   success: boolean;
   message: string;
+  deposit: DepositLifecycleResponse;
 }
 
 export interface WithdrawResponse {

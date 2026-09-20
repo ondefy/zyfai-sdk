@@ -46,6 +46,8 @@ export type {
   PortfolioResponse,
   DepositResponse,
   LogDepositResponse,
+  DepositLifecycleResponse,
+  DepositLifecycleStatus,
   WithdrawResponse,
   AddWalletToSdkResponse,
   UpdateUserProfileRequest,

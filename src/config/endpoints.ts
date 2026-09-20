@@ -28,6 +28,7 @@ export const ENDPOINTS = {
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
   LOG_DEPOSIT: "/users/log_deposit",
+  DEPOSIT_STATUS: (depositId: string) => `/users/deposits/${depositId}`,
 
   // Safe Deployment (single endpoint)
   SAFE_DEPLOY: "/users/safe-deploy",

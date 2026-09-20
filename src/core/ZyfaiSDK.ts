@@ -26,6 +26,7 @@ import type {
   SessionKeyResponse,
   DepositResponse,
   LogDepositResponse,
+  DepositLifecycleResponse,
   WithdrawResponse,
   ProtocolsResponse,
   PortfolioResponse,
@@ -1770,8 +1771,9 @@ export class ZyfaiSDK {
         throw new Error("Deposit transaction failed");
       }
 
+      let registration: LogDepositResponse;
       try {
-        await this.logDeposit(chainId, txHash, amount, token);
+        registration = await this.logDeposit(chainId, txHash, amount, token);
       } catch (logError) {
         throw new Error(
           `On-chain deposit succeeded (tx=${txHash}) but backend registration failed: ` +
@@ -1785,10 +1787,69 @@ export class ZyfaiSDK {
         txHash,
         smartWallet: safeAddress,
         amount: amountBigInt.toString(),
+        registration: registration.deposit,
       };
     } catch (error) {
       throw new Error(`Deposit failed: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Prepare ERC-20 transfer calldata for builders using a custom signer,
+   * sponsored transaction provider, or mobile wallet.
+   */
+  async buildDepositTransfer(params: {
+    userAddress: string;
+    chainId: SupportedChainId;
+    amount: string;
+    asset: SupportedAsset;
+  }): Promise<{
+    safeAddress: Address;
+    tokenAddress: Address;
+    to: Address;
+    data: Hex;
+    value: "0";
+  }> {
+    const { userAddress, chainId, amount, asset } = params;
+    if (!userAddress || !amount || BigInt(amount) <= 0n) {
+      throw new Error("A user address and positive amount are required");
+    }
+    if (!isSupportedChain(chainId)) {
+      throw new Error(`Unsupported chain ID: ${chainId}`);
+    }
+    if (!ASSET_CONFIGS[asset]) {
+      throw new Error(`Unsupported asset: ${asset}`);
+    }
+    const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
+    if (!safeAddress) {
+      throw new Error("Smart wallet address is not available");
+    }
+    const tokenAddress = getDefaultTokenAddress(chainId, asset) as Address;
+    return {
+      safeAddress,
+      tokenAddress,
+      to: tokenAddress,
+      data: encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [safeAddress, BigInt(amount)],
+      }),
+      value: "0",
+    };
+  }
+
+  /**
+   * Idempotently apply the first-deposit profile configuration for builders
+   * that submit their own transfer rather than calling depositFunds().
+   */
+  async ensureFirstDepositSetup(strategy?: Strategy): Promise<{ applied: boolean }> {
+    await this.authenticateUser();
+    const usdcDetails = await this.getUserDetails("USDC");
+    if ((usdcDetails.chains?.length ?? 0) > 0) {
+      return { applied: false };
+    }
+    await this.updateUserProtocols(strategy);
+    return { applied: true };
   }
 
   /**
@@ -1861,7 +1922,7 @@ export class ZyfaiSDK {
 
       await this.authenticateUser();
 
-      await this.httpClient.post(ENDPOINTS.LOG_DEPOSIT, {
+      const deposit = await this.httpClient.post<DepositLifecycleResponse>(ENDPOINTS.LOG_DEPOSIT, {
         chainId,
         transaction: txHash,
         token,
@@ -1870,11 +1931,29 @@ export class ZyfaiSDK {
 
       return {
         success: true,
-        message: "Deposit logged successfully",
+        message:
+          deposit.status === "credited"
+            ? "Deposit credited successfully"
+            : "Deposit accepted; custody handover is pending",
+        deposit,
       };
     } catch (error) {
       throw new Error(`Log deposit failed: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Fetch the custody handover and balance-credit lifecycle for a registered
+   * deposit. A status of `credited` is required before funds are investable.
+   */
+  async getDepositStatus(depositId: string): Promise<DepositLifecycleResponse> {
+    if (!depositId) {
+      throw new Error("Deposit ID is required");
+    }
+    await this.authenticateUser();
+    return this.httpClient.get<DepositLifecycleResponse>(
+      ENDPOINTS.DEPOSIT_STATUS(depositId)
+    );
   }
 
   /**

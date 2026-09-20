@@ -430,8 +430,8 @@ if (result.success) {
 - `asset` is required (`"USDC"`, `"WETH"`, or `"EURC"` — EURC on Mainnet/Base only); token address is selected from that for the chain
 - The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
 - Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `depositFunds()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
-- If first-deposit protocol patching fails, the transfer still runs but `log_deposit` may run **without** a JWT (401). Treat a confirmed on-chain tx as **not** subscribed until `log_deposit` succeeds.
-- **`depositFunds` can return `success: true` even when `log_deposit` failed** — failures are only `console.warn`ed. Check logs or retry `logDeposit` after `connectAccount()`.
+- If first-deposit protocol patching fails, the transfer still runs. `depositFunds()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
+- A successful registration can be `handover_pending`: the transfer is verified and recorded, but it is not yet credited or investable. Poll `getDepositStatus(result.registration.id)` until the status is `credited`.
 - **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Pass optional `strategy` (`"conservative"` default or `"aggressive"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 
 #### Log External Deposit (For Sponsored Transactions)
@@ -453,13 +453,23 @@ const sdk = new ZyfaiSDK({ apiKey: process.env.ZYFAI_API_KEY! });
 // Required before logDeposit — same instance that will post log_deposit
 await sdk.connectAccount(walletProviderOrPrivateKey, chainId);
 
-// 1. Execute deposit with your own wallet implementation (e.g., Privy, Bankr)
-const txHash = await privyWallet.sendTransaction({
-  to: safeAddress,
-  data: transferData, // ERC20 transfer encoded data
+// 1. Apply first-deposit configuration and build standard transfer calldata.
+await sdk.ensureFirstDepositSetup("conservative");
+const intent = await sdk.buildDepositTransfer({
+  userAddress,
+  chainId: 8453,
+  amount: "100000000",
+  asset: "USDC",
 });
 
-// 2. Register the deposit (must return success — do not treat tx confirmation alone as "subscribed")
+// 2. Execute deposit with your own wallet implementation (e.g., Privy, Bankr)
+const txHash = await privyWallet.sendTransaction({
+  to: intent.to,
+  data: intent.data,
+});
+
+// 3. Register then observe custody handover; a confirmed transaction alone
+// does not make the deposit active.
 const result = await sdk.logDeposit(
   8453,           // chainId
   txHash,         // transaction hash from your wallet
@@ -467,7 +477,8 @@ const result = await sdk.logDeposit(
 );
 
 if (result.success) {
-  console.log("Deposit logged successfully");
+  const status = await sdk.getDepositStatus(result.deposit.id);
+  console.log("Deposit status:", status.status);
 }
 ```
 
