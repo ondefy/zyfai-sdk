@@ -54,7 +54,7 @@ deprecated for new integrations.
 - All imports at file top — no dynamic `import()`.
 - Amounts for deposits: least units (USDC 6 decimals). Earnings: decimal strings.
 - No emojis in code, logs, or errors.
-- After public API surface changes: update `README.md` and `ondefy/sdk-api-docs` (not a submodule here).
+- After public API surface changes: update `README.md` and `../sdk-api-docs/`.
 
 ## Context routing
 

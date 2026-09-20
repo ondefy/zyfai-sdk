@@ -618,6 +618,19 @@ export interface LogDepositResponse {
   deposit: DepositLifecycleResponse;
 }
 
+export interface WatchDepositStatusHandlers {
+  onUpdate?: (status: DepositLifecycleResponse) => void;
+  onCredited?: (status: DepositLifecycleResponse) => void;
+  onRecovered?: (status: DepositLifecycleResponse) => void;
+  onError?: (error: Error) => void;
+  onTimeout?: () => void;
+}
+
+export interface WatchDepositStatusOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+}
+
 export interface WithdrawResponse {
   success: boolean;
   message: string;

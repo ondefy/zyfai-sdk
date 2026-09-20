@@ -431,7 +431,7 @@ if (result.success) {
 - The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
 - Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `depositFunds()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
 - If first-deposit protocol patching fails, the transfer still runs. `depositFunds()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
-- A successful registration can be `handover_pending`: the transfer is verified and recorded, but it is not yet credited or investable. Poll `getDepositStatus(result.registration.id)` until the status is `credited`.
+- A successful registration can be `handover_pending`: the transfer is verified and recorded, but it is not yet credited or investable. Use `watchDepositStatus(result.registration.id, …)` or poll `getDepositStatus` until the status is `credited`.
 - **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Pass optional `strategy` (`"conservative"` default or `"aggressive"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 
 #### Log External Deposit (For Sponsored Transactions)
@@ -476,11 +476,22 @@ const result = await sdk.logDeposit(
   "100000000"     // 100 USDC (6 decimals)
 );
 
-if (result.success) {
-  const status = await sdk.getDepositStatus(result.deposit.id);
-  console.log("Deposit status:", status.status);
-}
+const stop = sdk.watchDepositStatus(result.deposit.id, {
+  onUpdate: (status) => console.log("Deposit status:", status.status),
+  onCredited: (status) => {
+    stop();
+    console.log("Deposit credited:", status.id);
+  },
+  onRecovered: (status) => {
+    stop();
+    console.error("Pool recovered wallet; deposit not credited:", status.id);
+  },
+  onTimeout: () => stop(),
+  onError: () => stop(),
+});
 ```
+
+`watchDepositStatus` polls `getDepositStatus` every **2 seconds** (default) for up to **7 minutes** (default). Call the returned `stop()` when you are done — including from inside handlers. If you only need the final credited state, `await sdk.waitForDepositCredit(result.deposit.id)` is simpler. For one-off checks, `getDepositStatus(depositId)` is still available.
 
 **When to use `logDeposit`:**
 

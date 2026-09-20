@@ -67,6 +67,8 @@ export type {
   LogDepositResponse,
   DepositLifecycleResponse,
   DepositLifecycleStatus,
+  WatchDepositStatusHandlers,
+  WatchDepositStatusOptions,
   WithdrawResponse,
   AddWalletToSdkResponse,
   UpdateUserProfileRequest,

@@ -7,11 +7,7 @@ import { ERC20_ABI } from "../config/abis";
 import { getDefaultTokenAddress } from "../config/chains";
 import { LOCAL_EXECUTION_API_BASE_URL } from "../config/endpoints";
 import { ZyfaiSDK } from "../core/ZyfaiSDK";
-import {
-  freshFundedUserEnvReady,
-  pollUntil,
-  setupFreshFundedUser,
-} from "./utils";
+import { freshFundedUserEnvReady, setupFreshFundedUser } from "./utils";
 
 /** Base USDC — above reconciliation floor (0.1 USDC) but below rebalance minimum (1.5 USDC). */
 const CHAIN_ID = 8453;
@@ -81,16 +77,12 @@ describe.skipIf(!freshFundedUserEnvReady())(
       expect(registration.deposit.statusUrl).toContain(registration.deposit.id);
       expect(acceptanceMs).toBeLessThan(ACCEPTANCE_SLO_MS);
 
-      const { elapsedMs: terminalMs, value: credited } = await pollUntil(
-        () => sdk.getDepositStatus(registration.deposit.id),
-        (status) =>
-          status.status === "credited" && status.balanceCredited === true,
-        {
-          label: "deposit handover credited",
-          timeoutMs: 420_000,
-          intervalMs: 2_000,
-        },
-      );
+      const watchStart = Date.now();
+      const credited = await sdk.waitForDepositCredit(registration.deposit.id, {
+        intervalMs: 2_000,
+        timeoutMs: 420_000,
+      });
+      const terminalMs = Date.now() - watchStart;
 
       expect(credited.status).toBe("credited");
       expect(credited.balanceCredited).toBe(true);
