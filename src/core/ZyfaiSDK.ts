@@ -33,8 +33,7 @@ import type {
   DepositResponse,
   LogDepositResponse,
   DepositLifecycleResponse,
-  WatchDepositStatusHandlers,
-  WatchDepositStatusOptions,
+  WaitForDepositCreditOptions,
   WithdrawResponse,
   ProtocolsResponse,
   PortfolioResponse,
@@ -1977,133 +1976,48 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Poll deposit lifecycle until a terminal state is reached.
+   * Await deposit credit after `logDeposit` returns `handover_pending`.
    *
-   * Calls `onUpdate` after every poll (including the first). Stops after
-   * `onCredited` (`status === "credited"` and `balanceCredited === true`),
-   * `onRecovered` (`status === "recovered_to_eoa"`), `onError`, or `onTimeout`.
+   * Polls `getDepositStatus` until `status === "credited"` and
+   * `balanceCredited === true`. Rejects on recovery, timeout, or poll errors.
    *
    * Requires `connectAccount()` on the same SDK instance first.
-   *
-   * @returns Cleanup function — call it to stop polling (idempotent)
-   *
-   * @example
-   * ```typescript
-   * const stop = sdk.watchDepositStatus(result.deposit.id, {
-   *   onUpdate: (status) => console.log("status:", status.status),
-   *   onCredited: (status) => {
-   *     stop();
-   *     console.log("deposit credited:", status.id);
-   *   },
-   *   onRecovered: () => stop(),
-   *   onTimeout: () => stop(),
-   *   onError: () => stop(),
-   * });
-   * ```
    */
-  watchDepositStatus(
+  async waitForDepositCredit(
     depositId: string,
-    handlers: WatchDepositStatusHandlers,
-    options?: WatchDepositStatusOptions,
-  ): () => void {
+    options?: WaitForDepositCreditOptions,
+  ): Promise<DepositLifecycleResponse> {
     if (!depositId) {
       throw new Error("Deposit ID is required");
     }
 
     const intervalMs = options?.intervalMs ?? 2_000;
     const timeoutMs = options?.timeoutMs ?? 420_000;
-    let stopped = false;
+    const started = Date.now();
 
-    const stop = () => {
-      stopped = true;
-    };
+    while (Date.now() - started < timeoutMs) {
+      const status = await this.getDepositStatus(depositId);
 
-    const run = async () => {
-      const started = Date.now();
-
-      while (!stopped && Date.now() - started < timeoutMs) {
-        try {
-          const status = await this.getDepositStatus(depositId);
-          if (stopped) return;
-
-          handlers.onUpdate?.(status);
-
-          if (status.status === "credited" && status.balanceCredited) {
-            handlers.onCredited?.(status);
-            return;
-          }
-
-          if (status.status === "recovered_to_eoa") {
-            handlers.onRecovered?.(status);
-            return;
-          }
-        } catch (error) {
-          if (!stopped) {
-            handlers.onError?.(error as Error);
-          }
-          return;
-        }
-
-        if (stopped || Date.now() - started >= timeoutMs) {
-          break;
-        }
-
-        await sleep(intervalMs);
-        if (stopped) return;
+      if (status.status === "credited" && status.balanceCredited) {
+        return status;
       }
 
-      if (!stopped) {
-        handlers.onTimeout?.();
+      if (status.status === "recovered_to_eoa") {
+        throw new Error(
+          `Deposit ${depositId} recovered to EOA (status=${status.status}); balance was not credited`,
+        );
       }
-    };
 
-    void run();
+      if (Date.now() - started >= timeoutMs) {
+        break;
+      }
 
-    return stop;
-  }
+      await sleep(intervalMs);
+    }
 
-  /**
-   * Await deposit credit after `logDeposit` returns `handover_pending`.
-   *
-   * Promise wrapper around {@link watchDepositStatus} for callers that do not
-   * need per-poll UI updates. Rejects on recovery, timeout, or poll errors.
-   */
-  waitForDepositCredit(
-    depositId: string,
-    options?: WatchDepositStatusOptions,
-  ): Promise<DepositLifecycleResponse> {
-    return new Promise((resolve, reject) => {
-      const stop = this.watchDepositStatus(
-        depositId,
-        {
-          onCredited: (status) => {
-            stop();
-            resolve(status);
-          },
-          onRecovered: (status) => {
-            stop();
-            reject(
-              new Error(
-                `Deposit ${depositId} recovered to EOA (status=${status.status}); balance was not credited`,
-              ),
-            );
-          },
-          onTimeout: () => {
-            stop();
-            reject(
-              new Error(
-                `Timed out waiting for deposit ${depositId} to be credited`,
-              ),
-            );
-          },
-          onError: (error) => {
-            stop();
-            reject(error);
-          },
-        },
-        options,
-      );
-    });
+    throw new Error(
+      `Timed out waiting for deposit ${depositId} to be credited`,
+    );
   }
 
   /**
