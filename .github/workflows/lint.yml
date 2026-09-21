@@ -16,4 +16,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npx changeset status --since=origin/main
+      - run: bash .github/scripts/require-changeset.sh
