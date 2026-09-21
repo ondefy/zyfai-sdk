@@ -1887,10 +1887,12 @@ export class ZyfaiSDK {
    *
    * Use this for sponsored, gasless, mobile, or otherwise custom wallet flows.
    * The SDK applies first-deposit configuration, gives your sender the standard
-   * ERC-20 transfer request, and registers the resulting transaction.
+   * ERC-20 transfer request, waits for on-chain confirmation, and registers the
+   * resulting transaction.
    *
    * `sendTransaction` is the only wallet-specific part of the flow. It must
-   * submit the supplied request and resolve with its transaction hash.
+   * submit the supplied request and resolve with its transaction hash once
+   * broadcast (confirmation is handled here, matching `depositFunds`).
    */
   async depositWithExternalWallet(
     params: {
@@ -1923,12 +1925,30 @@ export class ZyfaiSDK {
       throw new Error("Transaction sender must return a transaction hash");
     }
 
-    const registration = await this.logDeposit(
-      chainId,
-      txHash,
-      amount,
-      intent.tokenAddress,
-    );
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+    const receipt = await chainConfig.publicClient.waitForTransactionReceipt({
+      hash: txHash as Hex,
+    });
+
+    if (receipt.status !== "success") {
+      throw new Error("Deposit transaction failed");
+    }
+
+    let registration: LogDepositResponse;
+    try {
+      registration = await this.logDeposit(
+        chainId,
+        txHash,
+        amount,
+        intent.tokenAddress,
+      );
+    } catch (logError) {
+      throw new Error(
+        `On-chain deposit succeeded (tx=${txHash}) but backend registration failed: ` +
+          `${(logError as Error).message}. ` +
+          `Call connectAccount() then logDeposit(${chainId}, "${txHash}", "${amount}") to retry.`,
+      );
+    }
 
     return {
       success: true,
