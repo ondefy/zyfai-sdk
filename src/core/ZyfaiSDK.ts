@@ -4,10 +4,10 @@
 
 import { HttpClient } from "../utils/http-client";
 import {
-  minWethWeiForUsd,
-  parseEthUsdPrice,
+  parseTokenUsdPrice,
+  usdToTokenUnits,
   type TokenPriceResponse,
-} from "../utils/eth-price";
+} from "../utils/token-price";
 import {
   ENDPOINTS,
   DATA_ENDPOINTS,
@@ -17,7 +17,7 @@ import {
 import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS, VAULT_ABI, VAULT_ADDRESS } from "../config/abis";
 import {
   MIN_PORTFOLIO_BALANCE,
-  MIN_WETH_USD,
+  MIN_PORTFOLIO_USD,
   formatMinPortfolioLabel,
   type DailyApyHistoryPeriod,
 } from "../config/constants";
@@ -98,6 +98,8 @@ import {
   getChainConfig,
   isSupportedChain,
   getDefaultTokenAddress,
+  getAssetChainIds,
+  resolveAssetSymbol,
   ASSET_CONFIGS,
   type SupportedChainId,
 } from "../config/chains";
@@ -125,6 +127,7 @@ import {
   getMatchingProtocolIds,
   hasMatchingPool,
 } from "../utils/protocol-selection";
+import { findBlockingAsyncRedemption } from "../utils/async-withdrawals";
 import {
   enrichApyPosition,
   enrichDailyEarningWithoutFee,
@@ -133,6 +136,13 @@ import {
   enrichRebalanceLog,
 } from "../utils/zyfi-fees";
 import { SiweMessage } from "siwe";
+
+/**
+ * Assets the agent manages on a user's behalf. Pausing, resuming and the
+ * post-deploy protocol assignment all walk this list, so an asset added here
+ * is picked up by every one of them.
+ */
+const MANAGED_ASSETS: SupportedAsset[] = ["USDC", "WETH", "EURC", "NVDAc"];
 
 export class ZyfaiSDK {
   private httpClient: HttpClient;
@@ -384,23 +394,16 @@ export class ZyfaiSDK {
    */
   async pauseAgent(): Promise<UpdateUserProfileResponse> {
     try {
-      // Pause all assets by clearing protocols for each
-      await this.updateUserProfile({
-        asset: "USDC",
-        protocols: [],
-      });
+      let latest: UpdateUserProfileResponse | undefined;
 
-      await this.updateUserProfile({
-        asset: "WETH",
-        protocols: [],
-      });
+      for (const asset of MANAGED_ASSETS) {
+        latest = await this.updateUserProfile({ asset, protocols: [] });
+      }
 
-      const response = await this.updateUserProfile({
-        asset: "EURC",
-        protocols: [],
-      });
-
-      return response;
+      if (!latest) {
+        throw new Error("No supported assets to pause");
+      }
+      return latest;
     } catch (error) {
       throw new Error(`Failed to pause agent: ${(error as Error).message}`);
     }
@@ -426,90 +429,29 @@ export class ZyfaiSDK {
    */
   async resumeAgent(): Promise<UpdateUserProfileResponse> {
     try {
-      const userDetailsUSDC = await this.getUserDetails("USDC");
-      const userDetailsETH = await this.getUserDetails("WETH");
-      const userDetailsEURC = await this.getUserDetails("EURC");
-
-      // If user has no chains configured, use all supported chains
-      const chains: number[] =
-        userDetailsUSDC.chains && userDetailsUSDC.chains.length > 0
-          ? userDetailsUSDC.chains
-          : [8453, 42161];
-      // EURC is Mainnet/Base only
-      const eurcChains: number[] =
-        userDetailsEURC.chains && userDetailsEURC.chains.length > 0
-          ? userDetailsEURC.chains.filter((c) => c === 1 || c === 8453)
-          : [1, 8453];
-
-      // Fetch all protocols (API returns array directly, not { protocols: [...] })
-      const allProtocols = await this.httpClient.get<Protocol[]>(
+      // Fetched once and shared: the per-asset helper would otherwise refetch
+      // the full protocol list on every iteration.
+      const allProtocols = await this.httpClient.get<any[]>(
         ENDPOINTS.PROTOCOLS()
       );
 
-      // `getUserDetails` reports the public name; the filter below matches on
-      // the backend one.
-      const internalStrategyOf = (strategy?: string): InternalStrategy =>
-        isValidPublicStrategy(strategy ?? "")
-          ? toInternalStrategy(strategy as Strategy)
-          : "safe_strategy";
+      let latest: UpdateUserProfileResponse | undefined;
 
-      const usdcStrategy = internalStrategyOf(userDetailsUSDC.strategy);
-      const ethStrategy = internalStrategyOf(userDetailsETH.strategy);
-      const eurcStrategy = internalStrategyOf(userDetailsEURC.strategy);
+      for (const asset of MANAGED_ASSETS) {
+        // No strategy argument: each asset keeps the one already stored on its
+        // profile, which is the whole point of resuming.
+        latest = await this.updateUserProtocolsForAsset(
+          asset,
+          getAssetChainIds(asset),
+          undefined,
+          allProtocols
+        );
+      }
 
-      // Helper function to filter protocols by strategy (+ optional chain list)
-      const filterProtocolsByStrategy = (
-        strategy: string,
-        selectedChains: number[]
-      ): string[] => {
-        return allProtocols
-          .filter((protocol: Protocol) => {
-            const hasMatchingChain = protocol.chains.some((chain: number) =>
-              selectedChains.includes(chain)
-            );
-            if (!hasMatchingChain) {
-              return false;
-            }
-            // Async users get every protocol; degen users get safe + degen;
-            // safe users only get safe_strategy protocols.
-            if (strategy === "async_strategy") {
-              return (
-                protocol.strategies?.includes("safe_strategy") ||
-                protocol.strategies?.includes("degen_strategy") ||
-                protocol.strategies?.includes("async_strategy")
-              );
-            }
-            if (strategy === "degen_strategy") {
-              return (
-                protocol.strategies?.includes("safe_strategy") ||
-                protocol.strategies?.includes("degen_strategy")
-              );
-            }
-            return protocol.strategies?.includes("safe_strategy");
-          })
-          .map((protocol: Protocol) => protocol.id);
-      };
-
-      // Get filtered protocols for each asset based on their strategy
-      const usdcProtocols = filterProtocolsByStrategy(usdcStrategy, chains);
-      const ethProtocols = filterProtocolsByStrategy(ethStrategy, chains);
-      const eurcProtocols = filterProtocolsByStrategy(eurcStrategy, eurcChains);
-
-      // Update each asset with its respective protocols
-      await this.updateUserProfile({
-        asset: "USDC",
-        protocols: usdcProtocols,
-      });
-
-      await this.updateUserProfile({
-        asset: "WETH",
-        protocols: ethProtocols,
-      });
-
-      return await this.updateUserProfile({
-        asset: "EURC",
-        protocols: eurcProtocols,
-      });
+      if (!latest) {
+        throw new Error("No supported assets to resume");
+      }
+      return latest;
     } catch (error) {
       throw new Error(`Failed to resume agent: ${(error as Error).message}`);
     }
@@ -1441,16 +1383,14 @@ export class ZyfaiSDK {
         ENDPOINTS.PROTOCOLS()
       );
 
-      const allChains: SupportedChainId[] = [1, 8453, 42161];
-      const assets: SupportedAsset[] = ["USDC", "WETH", "EURC"];
 
-      for (const asset of assets) {
+      for (const asset of MANAGED_ASSETS) {
         try {
-          const chainsForAsset: SupportedChainId[] =
-            asset === "EURC" ? [1, 8453] : allChains;
+          // Each asset is only patched on the chains it actually exists on
+          // (EURC skips Arbitrum, NVDAc is Base-only).
           await this.updateUserProtocolsForAsset(
             asset,
-            chainsForAsset,
+            getAssetChainIds(asset),
             strategy,
             allProtocols
           );
@@ -1476,7 +1416,7 @@ export class ZyfaiSDK {
     chains: SupportedChainId[],
     strategy: Strategy | undefined,
     allProtocols: any[]
-  ): Promise<void> {
+  ): Promise<UpdateUserProfileResponse> {
     const userDetails = await this.getUserDetails(asset);
 
     // Merge existing chains with the target chains — never overwrite.
@@ -1511,12 +1451,89 @@ export class ZyfaiSDK {
     // Persist the strategy alongside the protocols it produced. Without it the
     // backend keeps its default `safe_strategy` and rebalances a whitelist that
     // was selected for a wider tier.
-    await this.updateUserProfile({
+    return await this.updateUserProfile({
       asset,
       protocols: withPools,
       chains: effectiveChains,
       ...(strategy !== undefined && { strategy }),
     });
+  }
+
+  /**
+   * Switch one asset to a strategy and select the protocols that go with it.
+   *
+   * `updateUserProfile` stores a strategy but does not compute a protocol
+   * list, so on its own it leaves the asset with nothing to deploy into. This
+   * method does both in one call: it resolves the protocols that support the
+   * asset on the requested chains under the requested strategy, drops those
+   * with no pool available, and persists strategy, chains and protocols
+   * together.
+   *
+   * Mostly needed for assets that are not set up by the account's first
+   * deposit, or to change an existing account's strategy — `depositFunds`
+   * ignores its `strategy` argument after the first deposit.
+   *
+   * @param params.asset - Asset to configure
+   * @param params.strategy - Strategy to apply; defaults to the one already
+   *   stored for this asset (`"conservative"` on a fresh account), which lets
+   *   you recompute a protocol list without changing the strategy
+   * @param params.chains - Chains to enable. Defaults to every chain the asset
+   *   exists on. **Additive**: chains already enabled are kept, so this cannot
+   *   be used to disable one.
+   * @returns The updated profile for that asset
+   *
+   * @example
+   * ```typescript
+   * // NVDAc only lives in async protocols, so it needs "yieldmaxxing".
+   * // Chains default to Base, the only chain it exists on.
+   * const profile = await sdk.setAssetStrategy({
+   *   asset: "NVDAc",
+   *   strategy: "yieldmaxxing",
+   * });
+   * console.log(profile.protocols); // Ipor + Superform
+   * ```
+   */
+  async setAssetStrategy(params: {
+    asset: SupportedAsset;
+    strategy?: Strategy;
+    chains?: SupportedChainId[];
+  }): Promise<UpdateUserProfileResponse> {
+    const { asset, strategy, chains } = params;
+    try {
+      if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
+        throw new Error(
+          `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
+        );
+      }
+
+      const supported = getAssetChainIds(asset);
+      if (supported.length === 0) {
+        throw new Error(`Unsupported asset: ${asset}.`);
+      }
+
+      const targetChains = chains ?? supported;
+      const unsupported = targetChains.filter((c) => !supported.includes(c));
+      if (unsupported.length > 0) {
+        throw new Error(
+          `${asset} is not available on chain ${unsupported.join(", ")}. Supported chains: ${supported.join(", ")}.`
+        );
+      }
+
+      const allProtocols = await this.httpClient.get<any[]>(
+        ENDPOINTS.PROTOCOLS()
+      );
+
+      return await this.updateUserProtocolsForAsset(
+        asset,
+        targetChains,
+        strategy,
+        allProtocols
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to set ${asset} strategy: ${(error as Error).message}`
+      );
+    }
   }
 
   /**
@@ -1700,22 +1717,26 @@ export class ZyfaiSDK {
         );
       }
 
-      const assetSymbol = asset.toUpperCase();
+      const assetSymbol = resolveAssetSymbol(asset);
       const assetConfig = ASSET_CONFIGS[assetSymbol];
-      if (!assetConfig) {
+
+      const assetChains = getAssetChainIds(assetSymbol);
+      if (!assetChains.includes(chainId)) {
         throw new Error(
-          `Unsupported asset: ${assetSymbol}. Supported: USDC, WETH, EURC.`
+          `${assetSymbol} is not available on chain ${chainId}. Supported chains: ${assetChains.join(", ")}.`
         );
       }
 
       let minRequired = MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
-      if (assetSymbol === "WETH") {
+      const minUsd = MIN_PORTFOLIO_USD[chainId]?.[assetSymbol];
+      if (minUsd !== undefined) {
         const priceResponse = await this.httpClient.dataGet<TokenPriceResponse>(
-          DATA_ENDPOINTS.TOKEN_PRICE("eth")
+          DATA_ENDPOINTS.TOKEN_PRICE(assetConfig.priceTokenSymbol)
         );
-        minRequired = minWethWeiForUsd(
-          parseEthUsdPrice(priceResponse),
-          MIN_WETH_USD[chainId]
+        minRequired = usdToTokenUnits(
+          minUsd,
+          parseTokenUsdPrice(priceResponse),
+          assetConfig.decimals
         );
       }
 
@@ -1941,6 +1962,13 @@ export class ZyfaiSDK {
    * When every source is an async pool nothing settles on-chain at that point,
    * so `txHash` is `undefined` on a successful call.
    *
+   * **One redemption per pool at a time.** While an entry for a pool is
+   * `REQUESTED` or `CLAIMABLE`, the backend drops a further withdrawal aimed at
+   * that same pool — the protocols behind it (ERC-7540) hold a single request
+   * slot per user. This method throws rather than reporting that no-op as a
+   * success. It only throws when nothing the call could reach is withdrawable:
+   * another pool, another asset or an idle Safe balance still goes through.
+   *
    * Once requested, that amount can no longer be withdrawn: it is gone from
    * both the position snapshot and the Safe balance, so a second call silently
    * returns only what is left. Validate user-entered amounts against
@@ -2005,6 +2033,12 @@ export class ZyfaiSDK {
       // Ensure SIWE auth token is present
       await this.authenticateUser();
 
+      await this.assertAsyncRedemptionSlotFree(
+        userAddress,
+        chainId,
+        tokenSymbol
+      );
+
       type WithdrawApiResponse = {
         success?: boolean;
         message?: string;
@@ -2043,6 +2077,43 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(`Withdrawal failed: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Turn a withdrawal the backend would silently drop — one aimed only at
+   * async pools that already hold an in-flight redemption — into an error, so
+   * the caller gets an answer rather than a `success: true` no-op.
+   *
+   * @internal
+   */
+  private async assertAsyncRedemptionSlotFree(
+    userAddress: string,
+    chainId: SupportedChainId,
+    tokenSymbol?: string
+  ): Promise<void> {
+    let portfolio: PortfolioDetailed;
+    try {
+      ({ portfolio } = await this.getPortfolio(userAddress));
+    } catch {
+      // Best-effort check: never fail a withdrawal over the pre-flight read.
+      return;
+    }
+
+    const blocking = findBlockingAsyncRedemption(
+      portfolio,
+      chainId,
+      tokenSymbol
+    );
+    if (!blocking) return;
+
+    const eta = blocking.estimatedClaimAt
+      ? ` Estimated settlement: ${blocking.estimatedClaimAt}.`
+      : "";
+    throw new Error(
+      `A redemption is already in flight for ${blocking.token?.symbol ?? "this asset"} ` +
+        `on ${blocking.pool ?? "the pool"} (status ${blocking.status}), and async pools ` +
+        `allow only one at a time. Wait for it to reach CLAIMED before withdrawing the rest.${eta}`
+    );
   }
 
   /**

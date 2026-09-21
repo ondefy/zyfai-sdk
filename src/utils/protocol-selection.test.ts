@@ -49,3 +49,41 @@ describe("getMatchingProtocolIds", () => {
     ).toEqual([]);
   });
 });
+
+describe("getMatchingProtocolIds — NVDAc", () => {
+  const protocols = [
+    {
+      id: "superform",
+      chains: [1, 8453],
+      strategies: ["async_strategy"],
+      assets: [{ chainId: 8453, symbol: "NVDAc" }],
+    },
+    {
+      id: "morpho",
+      chains: [8453],
+      strategies: ["safe_strategy"],
+      assets: [{ chainId: 8453, symbol: "USDC" }],
+    },
+  ];
+
+  it("selects the async protocol for a yieldmaxxing user", () => {
+    expect(
+      getMatchingProtocolIds(protocols, "async_strategy", [8453], "NVDAc")
+    ).toEqual(["superform"]);
+  });
+
+  it("selects nothing for conservative or aggressive users", () => {
+    expect(
+      getMatchingProtocolIds(protocols, "safe_strategy", [8453], "NVDAc")
+    ).toEqual([]);
+    expect(
+      getMatchingProtocolIds(protocols, "degen_strategy", [8453], "NVDAc")
+    ).toEqual([]);
+  });
+
+  it("selects nothing on a chain where NVDAc does not exist", () => {
+    expect(
+      getMatchingProtocolIds(protocols, "async_strategy", [1], "NVDAc")
+    ).toEqual([]);
+  });
+});

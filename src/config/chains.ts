@@ -50,6 +50,8 @@ export const ASSET_CONFIGS: Readonly<Record<string, any>> = {
     displayName: 'WETH',
     icon: '/ai-dashboard/eth-token.png',
     decimals: 18,
+    // Data API `/price?token=` identifier, used for USD-denominated minimums.
+    priceTokenSymbol: 'eth',
     tokenSymbols: ['WETH', 'ETH'],
     tokenSymbolsByChainId: {
       1: 'WETH',
@@ -84,7 +86,50 @@ export const ASSET_CONFIGS: Readonly<Record<string, any>> = {
     },
     enabled: true,
   },
+  // Coinbase B20 tokenized NVIDIA equity. Base only, and only reachable through
+  // protocols with delayed withdrawals — see the `yieldmaxxing` strategy.
+  NVDAc: {
+    symbol: 'NVDAc',
+    assetType: 'nvdac',
+    displayName: 'NVIDIA',
+    icon: 'https://metadata.coinbase.com/equity_icons/1fee9b7a44e800d438dd9d96c3283e05784c925c2c871a48ff735950740b551a.png',
+    decimals: 8,
+    priceTokenSymbol: 'nvdac',
+    tokenSymbols: ['NVDAc'],
+    tokenSymbolsByChainId: {
+      8453: 'NVDAc',
+    },
+    addresses: {
+      8453: '0xb20000000000000000000078ee7ce2fE4908108C', // Base
+    },
+    enabled: true,
+  },
 };
+
+/**
+ * Resolve a caller-supplied asset name to its canonical `ASSET_CONFIGS` key.
+ *
+ * Matching is case-insensitive because the keys are not all upper-case —
+ * tokenized equities keep the issuer's casing (`NVDAc`), so the old
+ * `toUpperCase()` would have missed them.
+ */
+export const resolveAssetSymbol = (asset: string): string => {
+  const match = Object.keys(ASSET_CONFIGS).find(
+    (key) => key.toLowerCase() === asset.toLowerCase()
+  );
+  if (!match) {
+    throw new Error(
+      `Unsupported asset: ${asset}. Supported: ${Object.keys(ASSET_CONFIGS).join(", ")}.`
+    );
+  }
+  return match;
+};
+
+/** Chains on which an asset can be deposited, derived from its addresses. */
+export const getAssetChainIds = (asset: string): SupportedChainId[] =>
+  Object.keys(ASSET_CONFIGS[asset]?.addresses ?? {})
+    .map(Number)
+    .filter((chainId): chainId is SupportedChainId => chainId in CHAINS);
 
 export const getDefaultTokenAddress = (chainId: SupportedChainId, asset?: string): string => {
   const address = ASSET_CONFIGS[asset || "USDC"]?.addresses[chainId];

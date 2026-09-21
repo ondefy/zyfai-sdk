@@ -9,7 +9,7 @@
 import { ASSET_CONFIGS } from "../config/chains";
 import type { InternalStrategy } from "./strategy";
 
-type AssetSymbol = "USDC" | "WETH" | "EURC";
+type AssetSymbol = "USDC" | "WETH" | "EURC" | "NVDAc";
 
 interface ProtocolAssetEntry {
   chainId: number;

@@ -421,12 +421,16 @@ Transfer tokens to your Safe smart wallet. Token address is automatically select
 
 - **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC (default) or WETH
 - **Ethereum Mainnet (1), Base (8453)**: EURC (6 decimals; not available on Arbitrum)
+- **Base (8453) only**: NVDAc (8 decimals) — tokenized NVIDIA equity, see [Tokenized equities](#tokenized-equities-nvdac)
 
 **Minimum portfolio balance (enforced on Safe balance + deposit amount):**
 
 - Ethereum Mainnet (1) / USDC or EURC: 10,000 units
 - Base (8453) and Arbitrum (42161) / USDC or EURC: 100 units
-- WETH: about **$10,000** of ETH on Ethereum Mainnet, **$100** on Base and Arbitrum, using the live USD price from Data API `GET /api/v2/price?token=eth` (same API key as the SDK)
+- WETH: about **$10,000** of ETH on Ethereum Mainnet, **$100** on Base and Arbitrum
+- NVDAc: about **$100** on Base
+
+Minimums for WETH and NVDAc are quoted in dollars and converted at deposit time from the live USD price (Data API `GET /api/v2/price?token=eth` and `?token=nvdac`, same API key as the SDK), so the on-chain threshold moves with the market.
 
 Top-ups smaller than the minimum are allowed if the Safe already holds enough of the asset to meet it after the deposit.
 
@@ -451,12 +455,12 @@ if (result.success) {
 **Note:**
 
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
-- `asset` is required (`"USDC"`, `"WETH"`, or `"EURC"` — EURC on Mainnet/Base only); token address is selected from that for the chain
+- `asset` is required (`"USDC"`, `"WETH"`, `"EURC"`, or `"NVDAc"` — EURC on Mainnet/Base only, NVDAc on Base only); token address is selected from that for the chain. Depositing an asset on a chain where it does not exist throws before any transfer.
 - The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
 - Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `depositFunds()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
 - If first-deposit protocol patching fails, the transfer still runs but `log_deposit` may run **without** a JWT (401). Treat a confirmed on-chain tx as **not** subscribed until `log_deposit` succeeds.
 - **`depositFunds` can return `success: true` even when `log_deposit` failed** — failures are only `console.warn`ed. Check logs or retry `logDeposit` after `connectAccount()`.
-- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
+- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 - **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"yieldmaxxing"` to an account that has already deposited leaves it on its current strategy. To change an existing account, call `updateUserProfile({ asset, strategy })` for each asset concerned:
 
   ```typescript
@@ -583,6 +587,32 @@ the position snapshot and the Safe balance, so a second `withdrawFunds` call
 silently returns only what is left. It is also missing from
 `portfolioByAssetType` while in flight, so validate user-entered amounts
 against that field rather than the total — see [Total balance](#total-balance).
+
+**Only one redemption per pool can be in flight.** While an entry for a pool is
+`REQUESTED` or `CLAIMABLE`, the backend drops a further withdrawal aimed at that
+same pool, because the protocols behind it (ERC-7540) hold a single request slot
+per user — and it still answers `success: true`. `withdrawFunds` therefore
+throws rather than returning that no-op:
+
+```
+Withdrawal failed: A redemption is already in flight for NVDAc on NVDAC
+(status REQUESTED), and async pools allow only one at a time. Wait for it to
+reach CLAIMED before withdrawing the rest. Estimated settlement: 2026-09-24T13:59:05.543Z.
+```
+
+It only throws when nothing the call could reach is withdrawable. Another pool,
+another asset or an idle Safe balance still goes through, partially. To grey out
+the action before the user tries, read `pendingAsyncWithdrawals`:
+
+```typescript
+const { portfolio } = await sdk.getPortfolio(userAddress);
+
+const redeeming = (portfolio.pendingAsyncWithdrawals ?? []).some(
+  (w) =>
+    w.token?.symbol === "NVDAc" &&
+    (w.status === "REQUESTED" || w.status === "CLAIMABLE")
+);
+```
 
 ### 6. Get Available Protocols
 
@@ -788,7 +818,7 @@ console.log("Active protocols:", userDetails.user.protocols.length); // Should b
 
 **Note**:
 - User must be authenticated (automatically done via `connectAccount()`)
-- Clears protocols for USDC, WETH, and EURC
+- Clears protocols for USDC, WETH, EURC, and NVDAc
 - To resume operations, call `resumeAgent()` or `updateUserProfile()` with the desired protocols
 
 #### Splitting Management
@@ -1038,6 +1068,65 @@ redemption has to be requested, then claimed once the protocol releases the
 funds — roughly a day on Ipor, three on Superform. The agent handles both steps,
 but the funds are in flight in between. See
 [Withdraw Funds](#5-withdraw-funds) and [Total balance](#total-balance).
+
+#### Set an asset's strategy
+
+`updateUserProfile({ asset, strategy })` stores a strategy but does **not**
+compute the protocol list that goes with it, so on its own it leaves the asset
+with nothing to deploy into. `setAssetStrategy` does both in one call:
+
+```typescript
+const profile = await sdk.setAssetStrategy({
+  asset: "NVDAc",
+  strategy: "yieldmaxxing",
+});
+console.log(profile.protocols); // Ipor + Superform
+```
+
+| Parameter | Default | Notes |
+| --- | --- | --- |
+| `asset` | — | Required |
+| `strategy` | the asset's current one | Omit it to recompute the protocol list without changing strategy |
+| `chains` | every chain the asset exists on | **Additive** — chains already enabled are kept, so this cannot disable one |
+
+This is the method to reach for when changing an existing account's strategy,
+since `depositFunds` ignores its `strategy` argument after the first deposit.
+`resumeAgent` does the same thing for all four assets at once and is meant for
+resuming after `pauseAgent`.
+
+#### Tokenized equities (NVDAc)
+
+`NVDAc` is Coinbase's tokenized NVIDIA share (`0xb20000000000000000000078ee7ce2fE4908108C`),
+**8 decimals, Base only**. It behaves like any other asset — same `depositFunds`,
+`withdrawFunds` and `getPortfolio` — with three differences worth planning for.
+
+**It only exists under `yieldmaxxing`.** The two protocols that hold it, Ipor
+and Superform, are both async-only, so a `conservative` or `aggressive` profile
+resolves to zero protocols for NVDAc and the agent has nothing to deploy into.
+Every NVDAc withdrawal is therefore a delayed one — read
+[Total balance](#total-balance) before showing a balance.
+
+**The minimum deposit is $100 of NVDAc, not 100 NVDAc.** It is converted from
+the live price at deposit time, so the threshold in token units moves daily
+(around `0.44` NVDAc at $225/share).
+
+**Deposits pause when the market is closed**, typically over the weekend. Funds
+stay idle in the Safe and are deployed at the next open; other assets are
+unaffected. `getPortfolio` returns ready-to-display copy in
+`pauseMessageByToken["NVDAc"]` when that happens.
+
+```typescript
+// Existing account: one call sets the strategy and selects the protocols.
+// Chains default to Base, the only one NVDAc exists on.
+await sdk.setAssetStrategy({ asset: "NVDAc", strategy: "yieldmaxxing" });
+
+// 1 NVDAc = 100000000 (8 decimals). Must leave at least ~$100 in the Safe.
+await sdk.depositFunds(userAddress, 8453, "100000000", "NVDAc");
+```
+
+Use `setAssetStrategy` rather than `updateUserProfile` here: the latter stores
+a strategy but does not compute a protocol list, which would leave NVDAc with
+nothing to deploy into. See [Set an asset's strategy](#set-an-assets-strategy).
 
 ### 11. APY Per Strategy
 

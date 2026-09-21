@@ -15,7 +15,7 @@ async function main() {
 
   const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
   // EURC is supported on Ethereum Mainnet (1) and Base (8453) only.
-  const asset = "USDC"; // Can be "USDC", "WETH", or "EURC"
+  const asset = "NVDAc"; // Can be "USDC", "WETH", or "EURC"
   const withdrawAmount = "2000000"; // 2 USDC or EURC (6 decimals)
 
   const sdk = new ZyfaiSDK({
@@ -48,7 +48,7 @@ async function main() {
   const response = await sdk.withdrawFunds(
     connected,
     chainId,
-    withdrawAmount || undefined,
+    undefined,
     asset
   );
 

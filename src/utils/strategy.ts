@@ -8,6 +8,9 @@ export type InternalStrategy =
 
 const PUBLIC_STRATEGIES = `"conservative", "aggressive" or "yieldmaxxing"`;
 
+/** Shared in error messages so the supported list is stated in one place. */
+export const SUPPORTED_ASSETS = `"USDC", "WETH", "EURC" or "NVDAc"`;
+
 export function toInternalStrategy(
   publicStrategy: PublicStrategy
 ): InternalStrategy {
@@ -120,7 +123,7 @@ export function removeUnusedFields(obj: any): any {
 
 export function convertAssetInternally(
   asset: SupportedAsset
-): "usdc" | "eth" | "eurc" {
+): "usdc" | "eth" | "eurc" | "nvdac" {
   if (asset === "USDC") {
     return "usdc";
   }
@@ -130,8 +133,11 @@ export function convertAssetInternally(
   if (asset === "EURC") {
     return "eurc";
   }
+  if (asset === "NVDAc") {
+    return "nvdac";
+  }
   throw new Error(
-    `Invalid asset: ${asset}. Must be "USDC", "WETH", or "EURC".`
+    `Invalid asset: ${asset}. Must be ${SUPPORTED_ASSETS}.`
   );
 }
 
