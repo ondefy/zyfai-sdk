@@ -434,7 +434,12 @@ if (result.success) {
 - Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `depositFunds()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
 - If first-deposit protocol patching fails, the transfer still runs but `log_deposit` may run **without** a JWT (401). Treat a confirmed on-chain tx as **not** subscribed until `log_deposit` succeeds.
 - **`depositFunds` can return `success: true` even when `log_deposit` failed** — failures are only `console.warn`ed. Check logs or retry `logDeposit` after `connectAccount()`.
-- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Pass optional `strategy` (`"conservative"` default or `"aggressive"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
+- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
+- **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"yieldmaxxing"` to an account that has already deposited leaves it on its current strategy. To change an existing account, call `updateUserProfile({ asset, strategy })` for each asset concerned:
+
+  ```typescript
+  await sdk.updateUserProfile({ asset: "USDC", strategy: "yieldmaxxing" });
+  ```
 
 #### Log External Deposit (For Sponsored Transactions)
 

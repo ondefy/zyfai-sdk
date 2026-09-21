@@ -62,8 +62,8 @@ async function main() {
   console.log("-".repeat(50));
 
   const response = await sdk.updateUserProfile({
-    strategy: "aggressive",
-    asset: "WETH",
+    strategy: "yieldmaxxing",
+    asset: "USDC",
   });
 
   console.log("response:", response);

@@ -1604,7 +1604,11 @@ export class ZyfaiSDK {
    * protocol selection for USDC, WETH, and EURC across all supported chains
    * (EURC on Mainnet/Base only) before the transfer and log_deposit.
    * Pass `strategy` to select protocols for that first-deposit setup
-   * (same role as the former `deploySafe` strategy argument).
+   * (same role as the former `deploySafe` strategy argument). On every later
+   * deposit the argument is ignored without error, since re-running the patch
+   * would overwrite a protocol selection the user may have customised. To
+   * change the strategy of an existing account, call
+   * `updateUserProfile({ asset, strategy })`.
    *
    * Minimum portfolio balance enforced (Safe balance + deposit amount):
    * - Stablecoins: `MIN_PORTFOLIO_BALANCE` (Mainnet 10,000 USDC/EURC; Base/Arbitrum 100)
@@ -1616,7 +1620,8 @@ export class ZyfaiSDK {
    * @param asset - Asset symbol: "USDC", "WETH", or "EURC".
    *   EURC is supported on Ethereum Mainnet and Base only.
    * @param strategy - Optional strategy for first-deposit protocol patching:
-   *   "conservative" (default), "aggressive" or "yieldmaxxing"
+   *   "conservative" (default), "aggressive" or "yieldmaxxing". Ignored on
+   *   later deposits — use `updateUserProfile` to change an existing account.
    * @returns Deposit response with transaction hash
    *
    * @example
@@ -1631,6 +1636,9 @@ export class ZyfaiSDK {
    *
    * // First deposit with aggressive strategy
    * await sdk.depositFunds(userAddress, 8453, "10000000000", "USDC", "aggressive");
+   *
+   * // Changing the strategy of an account that has already deposited
+   * await sdk.updateUserProfile({ asset: "USDC", strategy: "yieldmaxxing" });
    * ```
    */
   /**
