@@ -127,6 +127,7 @@ import {
   getMatchingProtocolIds,
   hasMatchingPool,
 } from "../utils/protocol-selection";
+import { findBlockingAsyncRedemption } from "../utils/async-withdrawals";
 import {
   enrichApyPosition,
   enrichDailyEarningWithoutFee,
@@ -135,6 +136,13 @@ import {
   enrichRebalanceLog,
 } from "../utils/zyfi-fees";
 import { SiweMessage } from "siwe";
+
+/**
+ * Assets the agent manages on a user's behalf. Pausing, resuming and the
+ * post-deploy protocol assignment all walk this list, so an asset added here
+ * is picked up by every one of them.
+ */
+const MANAGED_ASSETS: SupportedAsset[] = ["USDC", "WETH", "EURC", "NVDAc"];
 
 export class ZyfaiSDK {
   private httpClient: HttpClient;
@@ -386,23 +394,16 @@ export class ZyfaiSDK {
    */
   async pauseAgent(): Promise<UpdateUserProfileResponse> {
     try {
-      // Pause all assets by clearing protocols for each
-      await this.updateUserProfile({
-        asset: "USDC",
-        protocols: [],
-      });
+      let latest: UpdateUserProfileResponse | undefined;
 
-      await this.updateUserProfile({
-        asset: "WETH",
-        protocols: [],
-      });
+      for (const asset of MANAGED_ASSETS) {
+        latest = await this.updateUserProfile({ asset, protocols: [] });
+      }
 
-      const response = await this.updateUserProfile({
-        asset: "EURC",
-        protocols: [],
-      });
-
-      return response;
+      if (!latest) {
+        throw new Error("No supported assets to pause");
+      }
+      return latest;
     } catch (error) {
       throw new Error(`Failed to pause agent: ${(error as Error).message}`);
     }
@@ -434,10 +435,9 @@ export class ZyfaiSDK {
         ENDPOINTS.PROTOCOLS()
       );
 
-      const assets: SupportedAsset[] = ["USDC", "WETH", "EURC", "NVDAc"];
       let latest: UpdateUserProfileResponse | undefined;
 
-      for (const asset of assets) {
+      for (const asset of MANAGED_ASSETS) {
         // No strategy argument: each asset keeps the one already stored on its
         // profile, which is the whole point of resuming.
         latest = await this.updateUserProtocolsForAsset(
@@ -1383,9 +1383,8 @@ export class ZyfaiSDK {
         ENDPOINTS.PROTOCOLS()
       );
 
-      const assets: SupportedAsset[] = ["USDC", "WETH", "EURC", "NVDAc"];
 
-      for (const asset of assets) {
+      for (const asset of MANAGED_ASSETS) {
         try {
           // Each asset is only patched on the chains it actually exists on
           // (EURC skips Arbitrum, NVDAc is Base-only).
@@ -1964,11 +1963,11 @@ export class ZyfaiSDK {
    * so `txHash` is `undefined` on a successful call.
    *
    * **One redemption per pool at a time.** While an entry for a pool is
-   * `REQUESTED` or `CLAIMABLE`, a further withdrawal touching that same pool is
-   * skipped — the protocols behind it (ERC-7540) hold a single request slot per
-   * user. The call still returns `success: true`, so check
-   * `pendingAsyncWithdrawals` for the pool before offering a withdrawal, and
-   * wait for the entry to reach `CLAIMED` before requesting the remainder.
+   * `REQUESTED` or `CLAIMABLE`, the backend drops a further withdrawal aimed at
+   * that same pool — the protocols behind it (ERC-7540) hold a single request
+   * slot per user. This method throws rather than reporting that no-op as a
+   * success. It only throws when nothing the call could reach is withdrawable:
+   * another pool, another asset or an idle Safe balance still goes through.
    *
    * Once requested, that amount can no longer be withdrawn: it is gone from
    * both the position snapshot and the Safe balance, so a second call silently
@@ -2034,6 +2033,12 @@ export class ZyfaiSDK {
       // Ensure SIWE auth token is present
       await this.authenticateUser();
 
+      await this.assertAsyncRedemptionSlotFree(
+        userAddress,
+        chainId,
+        tokenSymbol
+      );
+
       type WithdrawApiResponse = {
         success?: boolean;
         message?: string;
@@ -2072,6 +2077,43 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(`Withdrawal failed: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Turn a withdrawal the backend would silently drop — one aimed only at
+   * async pools that already hold an in-flight redemption — into an error, so
+   * the caller gets an answer rather than a `success: true` no-op.
+   *
+   * @internal
+   */
+  private async assertAsyncRedemptionSlotFree(
+    userAddress: string,
+    chainId: SupportedChainId,
+    tokenSymbol?: string
+  ): Promise<void> {
+    let portfolio: PortfolioDetailed;
+    try {
+      ({ portfolio } = await this.getPortfolio(userAddress));
+    } catch {
+      // Best-effort check: never fail a withdrawal over the pre-flight read.
+      return;
+    }
+
+    const blocking = findBlockingAsyncRedemption(
+      portfolio,
+      chainId,
+      tokenSymbol
+    );
+    if (!blocking) return;
+
+    const eta = blocking.estimatedClaimAt
+      ? ` Estimated settlement: ${blocking.estimatedClaimAt}.`
+      : "";
+    throw new Error(
+      `A redemption is already in flight for ${blocking.token?.symbol ?? "this asset"} ` +
+        `on ${blocking.pool ?? "the pool"} (status ${blocking.status}), and async pools ` +
+        `allow only one at a time. Wait for it to reach CLAIMED before withdrawing the rest.${eta}`
+    );
   }
 
   /**

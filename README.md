@@ -567,17 +567,28 @@ silently returns only what is left. It is also missing from
 against that field rather than the total — see [Total balance](#total-balance).
 
 **Only one redemption per pool can be in flight.** While an entry for a pool is
-`REQUESTED` or `CLAIMABLE`, a further withdrawal touching that same pool is
-skipped, because the protocols behind it (ERC-7540) hold a single request slot
-per user. The call still returns `success: true`, so nothing signals it. Check
-`pendingAsyncWithdrawals` for the pool before offering a withdrawal, and wait
-for `CLAIMED` before requesting the rest:
+`REQUESTED` or `CLAIMABLE`, the backend drops a further withdrawal aimed at that
+same pool, because the protocols behind it (ERC-7540) hold a single request slot
+per user — and it still answers `success: true`. `withdrawFunds` therefore
+throws rather than returning that no-op:
+
+```
+Withdrawal failed: A redemption is already in flight for NVDAc on NVDAC
+(status REQUESTED), and async pools allow only one at a time. Wait for it to
+reach CLAIMED before withdrawing the rest. Estimated settlement: 2026-09-24T13:59:05.543Z.
+```
+
+It only throws when nothing the call could reach is withdrawable. Another pool,
+another asset or an idle Safe balance still goes through, partially. To grey out
+the action before the user tries, read `pendingAsyncWithdrawals`:
 
 ```typescript
 const { portfolio } = await sdk.getPortfolio(userAddress);
 
-const blocked = (portfolio.pendingAsyncWithdrawals ?? []).some(
-  (w) => w.pool === "NVDAC" && (w.status === "REQUESTED" || w.status === "CLAIMABLE")
+const redeeming = (portfolio.pendingAsyncWithdrawals ?? []).some(
+  (w) =>
+    w.token?.symbol === "NVDAc" &&
+    (w.status === "REQUESTED" || w.status === "CLAIMABLE")
 );
 ```
 
