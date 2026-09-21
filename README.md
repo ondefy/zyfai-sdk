@@ -566,6 +566,21 @@ silently returns only what is left. It is also missing from
 `portfolioByAssetType` while in flight, so validate user-entered amounts
 against that field rather than the total — see [Total balance](#total-balance).
 
+**Only one redemption per pool can be in flight.** While an entry for a pool is
+`REQUESTED` or `CLAIMABLE`, a further withdrawal touching that same pool is
+skipped, because the protocols behind it (ERC-7540) hold a single request slot
+per user. The call still returns `success: true`, so nothing signals it. Check
+`pendingAsyncWithdrawals` for the pool before offering a withdrawal, and wait
+for `CLAIMED` before requesting the rest:
+
+```typescript
+const { portfolio } = await sdk.getPortfolio(userAddress);
+
+const blocked = (portfolio.pendingAsyncWithdrawals ?? []).some(
+  (w) => w.pool === "NVDAC" && (w.status === "REQUESTED" || w.status === "CLAIMABLE")
+);
+```
+
 ### 6. Get Available Protocols
 
 Retrieve all available DeFi protocols and pools for a specific chain:

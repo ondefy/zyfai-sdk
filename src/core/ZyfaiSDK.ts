@@ -1963,6 +1963,13 @@ export class ZyfaiSDK {
    * When every source is an async pool nothing settles on-chain at that point,
    * so `txHash` is `undefined` on a successful call.
    *
+   * **One redemption per pool at a time.** While an entry for a pool is
+   * `REQUESTED` or `CLAIMABLE`, a further withdrawal touching that same pool is
+   * skipped — the protocols behind it (ERC-7540) hold a single request slot per
+   * user. The call still returns `success: true`, so check
+   * `pendingAsyncWithdrawals` for the pool before offering a withdrawal, and
+   * wait for the entry to reach `CLAIMED` before requesting the remainder.
+   *
    * Once requested, that amount can no longer be withdrawn: it is gone from
    * both the position snapshot and the Safe balance, so a second call silently
    * returns only what is left. Validate user-entered amounts against
