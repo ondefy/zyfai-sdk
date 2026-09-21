@@ -177,11 +177,28 @@ jq -r --arg marker "$DIGEST_MARKER" --argjson min "$CONFIDENCE_MIN" --argjson pm
   )
 ' "$REVIEW_JSON" > "$digest_file"
 
-log "Publishing digest comment on PR #${PR_NUMBER}"
-gh pr comment "$PR_NUMBER" \
-  --repo "$REPOSITORY" \
-  --body-file "$digest_file" \
-  --edit-last \
-  --create-if-none
+DIGEST_BOT_LOGIN="${DIGEST_BOT_LOGIN:-github-actions[bot]}"
+comment_payload="$(jq -n --rawfile body "$digest_file" '{body: $body}')"
+existing_comment_id="$(
+  gh api "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+    | jq --arg marker "$DIGEST_MARKER" --arg bot "$DIGEST_BOT_LOGIN" '
+      [.[] | select(.body | contains($marker)) | select(.user.login == $bot)]
+      | last
+      | .id // empty
+    '
+)"
+
+if [ -n "$existing_comment_id" ]; then
+  log "Updating digest comment ${existing_comment_id}"
+  gh api \
+    --method PATCH \
+    "repos/${REPOSITORY}/issues/comments/${existing_comment_id}" \
+    --input - <<<"$comment_payload" >/dev/null
+else
+  log "Creating digest comment on PR #${PR_NUMBER}"
+  gh pr comment "$PR_NUMBER" \
+    --repo "$REPOSITORY" \
+    --body-file "$digest_file"
+fi
 
 log "Done."
