@@ -33,6 +33,7 @@ import type { SupportedChainId } from "../config/chains";
 import { ENDPOINTS } from "../config/endpoints";
 import { OWNABLE_VALIDATOR_ABI } from "../config/abis";
 import { OWNABLE_VALIDATOR } from "../config/modules";
+import type { InternalStrategy } from "./strategy";
 
 export interface SafeAccountReadConfig {
   safeOwnerAddress: Address;
@@ -240,7 +241,7 @@ export const getAccountType = async (
 export interface DeploySafeAccountConfig extends SafeAccountWriteConfig {
   httpClient: any; // HttpClient instance from SDK
   chainId: SupportedChainId;
-  strategy?: "safe_strategy" | "degen_strategy";
+  strategy?: InternalStrategy;
 }
 
 export const deploySafeAccount = async (
