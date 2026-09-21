@@ -42,7 +42,7 @@ export const MIN_PORTFOLIO_BALANCE: Partial<
     EURC: 10000n * 10n ** 6n, // 10,000 EURC (6 decimals)
   },
   8453: {
-    USDC: 5n * 10n ** 6n, // 100 USDC (6 decimals)
+    USDC: 100n * 10n ** 6n, // 100 USDC (6 decimals)
     EURC: 100n * 10n ** 6n, // 100 EURC (6 decimals)
   },
   42161: {
