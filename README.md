@@ -459,7 +459,7 @@ if (result.success) {
 - The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
 - Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `depositFunds()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
 - If first-deposit protocol patching fails, the transfer still runs. `depositFunds()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
-- A successful registration can be `handover_pending`: the transfer is verified and recorded, but it is not yet credited or investable. Use `waitForDepositCredit(result.registration.id)` or poll `getDepositStatus` until the status is `credited`.
+- `depositFunds()` waits through the normal completion window, then returns either an investable `credited` registration or `handover_pending`. Use `waitForDepositCredit()` with an explicit longer timeout or `getDepositStatus()` to continue tracking a pending deposit.
 - **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 - **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"yieldmaxxing"` to an account that has already deposited leaves it on its current strategy. To change an existing account, call `updateUserProfile({ asset, strategy })` for each asset concerned:
 
@@ -503,18 +503,17 @@ const result = await sdk.depositWithExternalWallet({
   data: transaction.data,
 }));
 
-if (result.registration?.status === "handover_pending") {
-  const credited = await sdk.waitForDepositCredit(result.registration.id);
-  console.log("Deposit credited:", credited.id);
-}
+console.log("Deposit credited:", result.registration?.id);
 ```
 
-`waitForDepositCredit` polls `getDepositStatus` every **2 seconds** (default) for up to **7 minutes** (default). For one-off checks, `getDepositStatus(depositId)` is still available.
+Both high-level deposit methods wait through the normal credit window: **20 seconds** on Base and Arbitrum, and **1 minute** on Mainnet. If handover is still pending, they return `registration.status: "handover_pending"` rather than incorrectly reporting a completed transfer as failed. Use `waitForDepositCredit(id, chainId, { timeoutMs })` only when a caller explicitly wants to wait longer; `getDepositStatus(depositId)` is available for one-off checks.
 
 `depositWithExternalWallet()` is the recommended path for a custom or sponsored
-wallet: it is the same end-to-end flow as `depositFunds()`, while your wallet
-still sends the transaction. Use the lower-level `logDeposit()` only when you
-already have an independently-created transfer to register.
+wallet. It shares the same setup, validation, confirmation, registration, and
+credit-waiting flow as `depositFunds()`; the only difference is that your
+`sendTransaction` callback submits the ERC-20 transfer. Use the lower-level
+`logDeposit()` only when you already have an independently-created transfer to
+register.
 
 **Advanced composition:** `ensureFirstDepositSetup()` and
 `buildDepositTransfer()` remain available when an integration needs to split

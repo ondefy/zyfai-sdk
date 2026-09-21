@@ -686,7 +686,8 @@ export interface DepositResponse {
   txHash: string;
   smartWallet: string;
   amount: string;
-  registration?: DepositLifecycleResponse;
+  /** Current lifecycle state; high-level methods return pending after their normal completion window. */
+  registration: DepositLifecycleResponse;
 }
 
 export type DepositLifecycleStatus =

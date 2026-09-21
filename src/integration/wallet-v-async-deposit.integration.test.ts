@@ -78,10 +78,10 @@ describe.skipIf(!freshFundedUserEnvReady())(
       expect(acceptanceMs).toBeLessThan(ACCEPTANCE_SLO_MS);
 
       const watchStart = Date.now();
-      const credited = await sdk.waitForDepositCredit(registration.deposit.id, {
-        intervalMs: 2_000,
-        timeoutMs: 420_000,
-      });
+      const credited = await sdk.waitForDepositCredit(
+        registration.deposit.id,
+        CHAIN_ID,
+      );
       const terminalMs = Date.now() - watchStart;
 
       expect(credited.status).toBe("credited");

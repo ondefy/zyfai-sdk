@@ -26,8 +26,11 @@ import {
   MIN_PORTFOLIO_BALANCE,
   MIN_PORTFOLIO_USD,
   formatMinPortfolioLabel,
+  getDepositCreditIntervalMs,
+  getDepositCreditTimeoutMs,
   type DailyApyHistoryPeriod,
 } from "../config/constants";
+
 import type {
   SDKConfig,
   DeploySafeResponse,
@@ -145,6 +148,13 @@ import {
   enrichRebalanceLog,
 } from "../utils/zyfi-fees";
 import { SiweMessage } from "siwe";
+
+class DepositCreditTimeoutError extends Error {
+  constructor(depositId: string) {
+    super(`Timed out waiting for deposit ${depositId} to be credited`);
+    this.name = "DepositCreditTimeoutError";
+  }
+}
 
 /**
  * Assets the agent manages on a user's behalf. Pausing, resuming and the
@@ -1399,7 +1409,6 @@ export class ZyfaiSDK {
         ENDPOINTS.PROTOCOLS(),
       );
 
-
       for (const asset of MANAGED_ASSETS) {
         try {
           // Each asset is only patched on the chains it actually exists on
@@ -1412,7 +1421,9 @@ export class ZyfaiSDK {
           );
         } catch (assetError) {
           console.warn(
-            `Failed to update ${asset} protocols: ${(assetError as Error).message}`,
+            `Failed to update ${asset} protocols: ${
+              (assetError as Error).message
+            }`,
           );
         }
       }
@@ -1518,7 +1529,7 @@ export class ZyfaiSDK {
     try {
       if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
         throw new Error(
-          `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
+          `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
         );
       }
 
@@ -1531,23 +1542,25 @@ export class ZyfaiSDK {
       const unsupported = targetChains.filter((c) => !supported.includes(c));
       if (unsupported.length > 0) {
         throw new Error(
-          `${asset} is not available on chain ${unsupported.join(", ")}. Supported chains: ${supported.join(", ")}.`
+          `${asset} is not available on chain ${unsupported.join(
+            ", ",
+          )}. Supported chains: ${supported.join(", ")}.`,
         );
       }
 
       const allProtocols = await this.httpClient.get<any[]>(
-        ENDPOINTS.PROTOCOLS()
+        ENDPOINTS.PROTOCOLS(),
       );
 
       return await this.updateUserProtocolsForAsset(
         asset,
         targetChains,
         strategy,
-        allProtocols
+        allProtocols,
       );
     } catch (error) {
       throw new Error(
-        `Failed to set ${asset} strategy: ${(error as Error).message}`
+        `Failed to set ${asset} strategy: ${(error as Error).message}`,
       );
     }
   }
@@ -1626,8 +1639,9 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Deposit funds from EOA to Safe smart wallet
-   * Transfers tokens from the connected wallet to the user's Safe and logs the deposit
+   * Deposit funds from EOA to Safe smart wallet.
+   * Transfers tokens, registers the deposit, and waits through the normal
+   * credit-completion window. Returns a pending lifecycle if handover continues.
    *
    * Token address is selected from `asset` for the given chain:
    * - Ethereum Mainnet (1), Base (8453), Arbitrum (42161): USDC or WETH
@@ -1655,7 +1669,7 @@ export class ZyfaiSDK {
    * @param strategy - Optional strategy for first-deposit protocol patching:
    *   "conservative" (default), "aggressive" or "yieldmaxxing". Ignored on
    *   later deposits — use `updateUserProfile` to change an existing account.
-   * @returns Deposit response with transaction hash
+   * @returns Deposit response with the current credited or pending lifecycle registration
    *
    * @example
    * ```typescript
@@ -1690,9 +1704,7 @@ export class ZyfaiSDK {
    *
    * @param chainIds - Chain IDs to deploy the wallet on (e.g. [1, 42161])
    */
-  async deployOnChains(
-    chainIds: SupportedChainId[],
-  ): Promise<{
+  async deployOnChains(chainIds: SupportedChainId[]): Promise<{
     success: boolean;
     safeAddress: string;
     chains: number[];
@@ -1744,7 +1756,9 @@ export class ZyfaiSDK {
       const assetChains = getAssetChainIds(assetSymbol);
       if (!assetChains.includes(chainId)) {
         throw new Error(
-          `${assetSymbol} is not available on chain ${chainId}. Supported chains: ${assetChains.join(", ")}.`,
+          `${assetSymbol} is not available on chain ${chainId}. Supported chains: ${assetChains.join(
+            ", ",
+          )}.`,
         );
       }
 
@@ -1794,20 +1808,7 @@ export class ZyfaiSDK {
         }
       }
 
-      // First deposit on the account: patch protocols/chains for all assets.
-      // Gate on empty USDC chains so pauseAgent (clears protocols, keeps chains)
-      // does not re-run this on later deposits.
-      try {
-        const usdcDetails = await this.getUserDetails("USDC");
-        if ((usdcDetails.chains?.length ?? 0) === 0) {
-          await this.updateUserProtocols(strategy);
-        }
-      } catch (protocolError) {
-        console.warn(
-          "Failed to update user protocols before deposit:",
-          (protocolError as Error).message,
-        );
-      }
+      await this.prepareFirstDeposit(strategy);
 
       const amountBigInt = BigInt(amount);
 
@@ -1859,23 +1860,19 @@ export class ZyfaiSDK {
         throw new Error("Deposit transaction failed");
       }
 
-      let registration: LogDepositResponse;
-      try {
-        registration = await this.logDeposit(chainId, txHash, amount, token);
-      } catch (logError) {
-        throw new Error(
-          `On-chain deposit succeeded (tx=${txHash}) but backend registration failed: ` +
-            `${(logError as Error).message}. ` +
-            `Call connectAccount() then logDeposit(${chainId}, "${txHash}", "${amount}") to retry.`,
-        );
-      }
+      const credited = await this.registerAndWaitForDepositCredit(
+        chainId,
+        txHash,
+        amount,
+        token,
+      );
 
       return {
         success: true,
         txHash,
         smartWallet: safeAddress,
         amount: amountBigInt.toString(),
-        registration: registration.deposit,
+        registration: credited,
       };
     } catch (error) {
       throw new Error(`Deposit failed: ${(error as Error).message}`);
@@ -1887,8 +1884,9 @@ export class ZyfaiSDK {
    *
    * Use this for sponsored, gasless, mobile, or otherwise custom wallet flows.
    * The SDK applies first-deposit configuration, gives your sender the standard
-   * ERC-20 transfer request, waits for on-chain confirmation, and registers the
-   * resulting transaction.
+   * ERC-20 transfer request, waits for on-chain confirmation, registers the
+   * resulting transaction, and waits through the normal credit-completion
+   * window. Returns a pending lifecycle if handover continues.
    *
    * `sendTransaction` is the only wallet-specific part of the flow. It must
    * submit the supplied request and resolve with its transaction hash once
@@ -1912,13 +1910,27 @@ export class ZyfaiSDK {
   ): Promise<DepositResponse> {
     const { userAddress, chainId, amount, asset, strategy } = params;
 
-    await this.ensureFirstDepositSetup(strategy);
+    if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
+      throw new Error(
+        `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+      );
+    }
+
+    await this.authenticateUser();
+    await this.prepareFirstDeposit(strategy);
+
     const intent = await this.buildDepositTransfer({
       userAddress,
       chainId,
       amount,
       asset,
     });
+    await this.enforceMinimumPortfolioBalance(
+      chainId,
+      asset,
+      BigInt(amount),
+      intent.safeAddress,
+    );
     const txHash = await sendTransaction(intent);
 
     if (!txHash || !txHash.startsWith("0x")) {
@@ -1934,28 +1946,19 @@ export class ZyfaiSDK {
       throw new Error("Deposit transaction failed");
     }
 
-    let registration: LogDepositResponse;
-    try {
-      registration = await this.logDeposit(
-        chainId,
-        txHash,
-        amount,
-        intent.tokenAddress,
-      );
-    } catch (logError) {
-      throw new Error(
-        `On-chain deposit succeeded (tx=${txHash}) but backend registration failed: ` +
-          `${(logError as Error).message}. ` +
-          `Call connectAccount() then logDeposit(${chainId}, "${txHash}", "${amount}") to retry.`,
-      );
-    }
+    const credited = await this.registerAndWaitForDepositCredit(
+      chainId,
+      txHash,
+      amount,
+      intent.tokenAddress,
+    );
 
     return {
       success: true,
       txHash,
       smartWallet: intent.safeAddress,
       amount,
-      registration: registration.deposit,
+      registration: credited,
     };
   }
 
@@ -1983,14 +1986,37 @@ export class ZyfaiSDK {
     if (!isSupportedChain(chainId)) {
       throw new Error(`Unsupported chain ID: ${chainId}`);
     }
-    if (!ASSET_CONFIGS[asset]) {
-      throw new Error(`Unsupported asset: ${asset}`);
+    const assetSymbol = resolveAssetSymbol(asset);
+    const assetChains = getAssetChainIds(assetSymbol);
+    if (!assetChains.includes(chainId)) {
+      throw new Error(
+        `${assetSymbol} is not available on chain ${chainId}. Supported chains: ${assetChains.join(
+          ", ",
+        )}.`,
+      );
     }
     const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
     if (!safeAddress) {
       throw new Error("Smart wallet address is not available");
     }
-    const tokenAddress = getDefaultTokenAddress(chainId, asset) as Address;
+
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+    const isDeployed = await isSafeDeployed(
+      safeAddress,
+      chainConfig.publicClient,
+    );
+    if (
+      !(isDeployed || (this.isPredeployed && this.isConnectedUser(userAddress)))
+    ) {
+      throw new Error(
+        `Safe not available for ${userAddress} on chain ${chainId}.`,
+      );
+    }
+
+    const tokenAddress = getDefaultTokenAddress(
+      chainId,
+      assetSymbol,
+    ) as Address;
     return {
       safeAddress,
       tokenAddress,
@@ -2004,6 +2030,58 @@ export class ZyfaiSDK {
     };
   }
 
+  /** Apply the same per-asset minimum portfolio rule as depositFunds. */
+  private async enforceMinimumPortfolioBalance(
+    chainId: SupportedChainId,
+    asset: SupportedAsset,
+    amount: bigint,
+    safeAddress: Address,
+  ): Promise<void> {
+    const assetSymbol = resolveAssetSymbol(asset);
+    const assetConfig = ASSET_CONFIGS[assetSymbol];
+    let minRequired = MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
+    const minUsd = MIN_PORTFOLIO_USD[chainId]?.[assetSymbol];
+
+    if (minUsd !== undefined) {
+      const priceResponse = await this.httpClient.dataGet<TokenPriceResponse>(
+        DATA_ENDPOINTS.TOKEN_PRICE(assetConfig.priceTokenSymbol),
+      );
+      minRequired = usdToTokenUnits(
+        minUsd,
+        parseTokenUsdPrice(priceResponse),
+        assetConfig.decimals,
+      );
+    }
+
+    if (minRequired === undefined) return;
+
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+    const token = getDefaultTokenAddress(chainId, assetSymbol) as Address;
+    const currentSafeBalance = (await chainConfig.publicClient.readContract({
+      address: token,
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [safeAddress],
+    })) as bigint;
+    const totalAfterDeposit = currentSafeBalance + amount;
+
+    if (totalAfterDeposit < minRequired) {
+      const minLabel = formatMinPortfolioLabel(
+        minRequired,
+        assetConfig.decimals,
+        assetSymbol,
+      );
+      throw new Error(
+        `Minimum portfolio balance not met on chain ${chainId}. ` +
+          `Total portfolio must be at least ${minLabel}. ` +
+          `Current Safe balance: ${currentSafeBalance.toString()}, ` +
+          `deposit amount: ${amount.toString()}, ` +
+          `total after deposit: ${totalAfterDeposit.toString()} ` +
+          `(raw units, ${assetConfig.decimals} decimals).`,
+      );
+    }
+  }
+
   /**
    * Idempotently apply the first-deposit profile configuration for builders
    * composing an advanced custom transfer flow. Most custom-wallet
@@ -2012,6 +2090,12 @@ export class ZyfaiSDK {
   async ensureFirstDepositSetup(
     strategy?: Strategy,
   ): Promise<{ applied: boolean }> {
+    if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
+      throw new Error(
+        `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+      );
+    }
+
     await this.authenticateUser();
     const usdcDetails = await this.getUserDetails("USDC");
     if ((usdcDetails.chains?.length ?? 0) > 0) {
@@ -2019,6 +2103,59 @@ export class ZyfaiSDK {
     }
     await this.updateUserProtocols(strategy);
     return { applied: true };
+  }
+
+  /** Best-effort first-deposit setup shared by both high-level deposit flows. */
+  private async prepareFirstDeposit(strategy?: Strategy): Promise<void> {
+    try {
+      await this.ensureFirstDepositSetup(strategy);
+    } catch (protocolError) {
+      console.warn(
+        "Failed to update user protocols before deposit:",
+        (protocolError as Error).message,
+      );
+    }
+  }
+
+  /** Shared post-transfer path for every high-level deposit flow. */
+  private async registerAndWaitForDepositCredit(
+    chainId: SupportedChainId,
+    txHash: string,
+    amount: string,
+    tokenAddress: string,
+  ): Promise<DepositLifecycleResponse> {
+    let registration: LogDepositResponse;
+    try {
+      registration = await this.logDeposit(
+        chainId,
+        txHash,
+        amount,
+        tokenAddress,
+      );
+    } catch (logError) {
+      throw new Error(
+        `On-chain deposit succeeded (tx=${txHash}) but backend registration failed: ` +
+          `${(logError as Error).message}. ` +
+          `Call connectAccount() then logDeposit(${chainId}, "${txHash}", "${amount}") to retry.`,
+      );
+    }
+
+    try {
+      return await this.waitForDepositCredit(registration.deposit.id, chainId);
+    } catch (error) {
+      if (!(error instanceof DepositCreditTimeoutError)) throw error;
+
+      // A timeout only means the normal UX window elapsed. The transfer and
+      // registration succeeded, so return its current lifecycle rather than
+      // mislabeling an in-flight deposit as failed.
+      const status = await this.getDepositStatus(registration.deposit.id);
+      if (status.status === "recovered_to_eoa") {
+        throw new Error(
+          `Deposit ${status.id} recovered to EOA (status=${status.status}); balance was not credited`,
+        );
+      }
+      return status;
+    }
   }
 
   /**
@@ -2134,18 +2271,29 @@ export class ZyfaiSDK {
    * Polls `getDepositStatus` until `status === "credited"` and
    * `balanceCredited === true`. Rejects on recovery, timeout, or poll errors.
    *
+   * Poll interval and timeout are chain-specific. Mainnet defaults to a 2s
+   * interval and 1 minute ceiling; Base/Arbitrum use tighter polling (~500ms /
+   * ~250ms) with a ~20 second completion window. Override `timeoutMs` when a
+   * caller intentionally wants to wait longer than the normal UX window.
+   *
    * Requires `connectAccount()` on the same SDK instance first.
    */
   async waitForDepositCredit(
     depositId: string,
+    chainId: SupportedChainId,
     options?: WaitForDepositCreditOptions,
   ): Promise<DepositLifecycleResponse> {
     if (!depositId) {
       throw new Error("Deposit ID is required");
     }
 
-    const intervalMs = options?.intervalMs ?? 1_000;
-    const timeoutMs = options?.timeoutMs ?? 420_000;
+    if (!isSupportedChain(chainId)) {
+      throw new Error(`Unsupported chain ID: ${chainId}`);
+    }
+
+    const intervalMs =
+      options?.intervalMs ?? getDepositCreditIntervalMs(chainId);
+    const timeoutMs = options?.timeoutMs ?? getDepositCreditTimeoutMs(chainId);
     const started = Date.now();
 
     while (Date.now() - started < timeoutMs) {
@@ -2168,9 +2316,7 @@ export class ZyfaiSDK {
       await sleep(intervalMs);
     }
 
-    throw new Error(
-      `Timed out waiting for deposit ${depositId} to be credited`,
-    );
+    throw new DepositCreditTimeoutError(depositId);
   }
 
   /**
@@ -2266,7 +2412,7 @@ export class ZyfaiSDK {
       await this.assertAsyncRedemptionSlotFree(
         userAddress,
         chainId,
-        tokenSymbol
+        tokenSymbol,
       );
 
       type WithdrawApiResponse = {
@@ -2319,7 +2465,7 @@ export class ZyfaiSDK {
   private async assertAsyncRedemptionSlotFree(
     userAddress: string,
     chainId: SupportedChainId,
-    tokenSymbol?: string
+    tokenSymbol?: string,
   ): Promise<void> {
     let portfolio: PortfolioDetailed;
     try {
@@ -2332,7 +2478,7 @@ export class ZyfaiSDK {
     const blocking = findBlockingAsyncRedemption(
       portfolio,
       chainId,
-      tokenSymbol
+      tokenSymbol,
     );
     if (!blocking) return;
 
@@ -2340,9 +2486,13 @@ export class ZyfaiSDK {
       ? ` Estimated settlement: ${blocking.estimatedClaimAt}.`
       : "";
     throw new Error(
-      `A redemption is already in flight for ${blocking.token?.symbol ?? "this asset"} ` +
-        `on ${blocking.pool ?? "the pool"} (status ${blocking.status}), and async pools ` +
-        `allow only one at a time. Wait for it to reach CLAIMED before withdrawing the rest.${eta}`
+      `A redemption is already in flight for ${
+        blocking.token?.symbol ?? "this asset"
+      } ` +
+        `on ${blocking.pool ?? "the pool"} (status ${
+          blocking.status
+        }), and async pools ` +
+        `allow only one at a time. Wait for it to reach CLAIMED before withdrawing the rest.${eta}`,
     );
   }
 
@@ -3239,11 +3389,11 @@ export class ZyfaiSDK {
   async getAsyncOpportunities(
     chainId?: number,
     asset?: string,
-    status?: "live" | "not_live"
+    status?: "live" | "not_live",
   ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_ASYNC(chainId, asset, status)
+        DATA_ENDPOINTS.OPPORTUNITIES_ASYNC(chainId, asset, status),
       );
 
       const data = response.data || response || [];
@@ -3270,7 +3420,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get yieldmaxxing opportunities: ${(error as Error).message}`
+        `Failed to get yieldmaxxing opportunities: ${(error as Error).message}`,
       );
     }
   }
@@ -3315,8 +3465,8 @@ export class ZyfaiSDK {
                   liquidity > 10_000_000
                     ? "deep"
                     : liquidity > 1_000_000
-                      ? "moderate"
-                      : "shallow",
+                    ? "moderate"
+                    : "shallow",
                 utilizationRate: Math.round(utilizationRate * 10000) / 100,
                 tvlStability: o.isTvlStable ?? null,
                 apyStability: o.isApyStable30Days ?? null,
@@ -3332,7 +3482,9 @@ export class ZyfaiSDK {
       return active;
     } catch (error) {
       throw new Error(
-        `Failed to get active conservative opportunities risk: ${(error as Error).message}`,
+        `Failed to get active conservative opportunities risk: ${
+          (error as Error).message
+        }`,
       );
     }
   }
@@ -3377,8 +3529,8 @@ export class ZyfaiSDK {
                   liquidity > 10_000_000
                     ? "deep"
                     : liquidity > 1_000_000
-                      ? "moderate"
-                      : "shallow",
+                    ? "moderate"
+                    : "shallow",
                 utilizationRate: Math.round(utilizationRate * 10000) / 100,
                 tvlStability: o.isTvlStable ?? null,
                 apyStability: o.isApyStable30Days ?? null,
@@ -3394,7 +3546,9 @@ export class ZyfaiSDK {
       return active;
     } catch (error) {
       throw new Error(
-        `Failed to get active aggressive opportunities risk: ${(error as Error).message}`,
+        `Failed to get active aggressive opportunities risk: ${
+          (error as Error).message
+        }`,
       );
     }
   }
@@ -3452,8 +3606,8 @@ export class ZyfaiSDK {
       p.liquidityDepth === "deep"
         ? 1
         : p.liquidityDepth === "moderate"
-          ? 0.5
-          : 0;
+        ? 0.5
+        : 0;
     const healthTotal = stabilityScore + liquidityBonus;
 
     const healthScore =
@@ -3986,7 +4140,9 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to register agent on Identity Registry: ${(error as Error).message}`,
+        `Failed to register agent on Identity Registry: ${
+          (error as Error).message
+        }`,
       );
     }
   }
