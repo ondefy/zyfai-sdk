@@ -55,6 +55,20 @@ describe("findBlockingAsyncRedemption", () => {
     ).toBeUndefined();
   });
 
+  it("still blocks when the only free position is on another chain", () => {
+    const portfolio: PortfolioDetailed = {
+      ...nvdacInFlight,
+      positions: [
+        ...(nvdacInFlight.positions ?? []),
+        { chain: "Arbitrum", token_symbol: "NVDAc", pool: "IPOR NVDAc" },
+      ],
+    };
+
+    expect(
+      findBlockingAsyncRedemption(portfolio, 8453, "NVDAc")
+    ).toBeDefined();
+  });
+
   it("allows a position held in a pool that is not redeeming", () => {
     const portfolio: PortfolioDetailed = {
       ...nvdacInFlight,

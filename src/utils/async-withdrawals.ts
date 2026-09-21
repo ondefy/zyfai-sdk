@@ -1,4 +1,5 @@
 import type { AsyncWithdrawal, PortfolioDetailed } from "../types";
+import { chainNameToId } from "./zyfi-fees";
 
 /**
  * Async pools (ERC-7540) expose a single redemption slot per user, so the
@@ -34,6 +35,7 @@ export const findBlockingAsyncRedemption = (
   const hasFreePosition = (portfolio.positions ?? []).some(
     (p) =>
       matchesToken(p.token_symbol) &&
+      Number(chainNameToId(p.chain ?? "")) === chainId &&
       !blockedPools.has(p.pool?.toLowerCase() ?? "")
   );
   const hasIdleBalance = (portfolio.staleBalances ?? []).some(
