@@ -5,10 +5,15 @@
 export type Address = `0x${string}`;
 export type Hex = `0x${string}`;
 
-export type Strategy = "conservative" | "aggressive";
+/**
+ * Public strategy names.
+ * `yieldmaxxing` unlocks protocols with asynchronous (delayed) withdrawals —
+ * see `PortfolioDetailed.pendingAsyncWithdrawals`.
+ */
+export type Strategy = "conservative" | "aggressive" | "yieldmaxxing";
 
 /** Public asset symbols supported by the SDK */
-export type SupportedAsset = "USDC" | "WETH" | "EURC";
+export type SupportedAsset = "USDC" | "WETH" | "EURC" | "NVDAc";
 
 export interface RpcUrlsConfig {
   1?: string;
@@ -185,6 +190,7 @@ export interface staleBalances {
   tokenSymbol: string;
   balance: string;
   isPending: boolean;
+  updatedAt?: string;
 }
 
 export interface Portfolio {
@@ -219,11 +225,94 @@ export interface PortfolioAssetBalance {
 export type PortfolioByAssetType = Record<string, PortfolioAssetBalance>;
 
 export type PortfolioByChain = Record<string, PortfolioByAssetType>;
+
+/**
+ * Lifecycle of an asynchronous (delayed) withdrawal.
+ * - `REQUESTED`: redemption asked, protocol has not released the funds yet
+ * - `CLAIMABLE`: protocol released the funds, claim transaction is queued
+ * - `CLAIMED`: funds are back in the Safe (or forwarded to the EOA)
+ * - `FAILED`: not claimable past `estimatedClaimAt`; the position is restored
+ *   and the request is retried on the next cycle
+ */
+export type AsyncWithdrawalStatus =
+  | "REQUESTED"
+  | "CLAIMABLE"
+  | "CLAIMED"
+  | "FAILED";
+
+/**
+ * A redemption in flight on a protocol with a delayed withdrawal
+ * (Ipor, Superform). Funds are neither in `positions` nor in the Safe
+ * balance while the request is `REQUESTED` or `CLAIMABLE`.
+ */
+export interface AsyncWithdrawal {
+  id: string;
+  status: AsyncWithdrawalStatus;
+  chainId: number;
+  /** Pool / vault identifier, e.g. "NVDAC". */
+  pool: string;
+  /**
+   * Redeemed amount in the token's least units, hex-encoded like every other
+   * balance in the payload (e.g. `"0x98967f"`). Read it with `BigInt`, then
+   * apply `token.decimals`.
+   */
+  amount: string;
+  token?: {
+    id?: string;
+    name?: string;
+    symbol?: string;
+    decimals?: number;
+    address?: string;
+    chainId?: number;
+    icon?: string;
+  };
+  protocol?: {
+    id?: string;
+    name?: string;
+    imageUrl?: string;
+    icon?: string;
+    metadata?: {
+      /** Nominal redemption delay advertised by the protocol, in days. */
+      asyncWithdrawalDays?: number;
+    };
+  };
+  /**
+   * `"user_eoa"` when the user initiated the withdrawal (claimed funds go to
+   * the EOA); absent when the rebalancer did (funds get redeployed).
+   */
+  withdrawalTarget?: string | null;
+  /** ISO timestamp when the protocol is expected to allow claiming. */
+  estimatedClaimAt?: string | null;
+  /** ISO timestamp of the successful claim (`CLAIMED` only). */
+  claimedAt?: string | null;
+  requestTxHash?: string | null;
+  claimTxHash?: string | null;
+  /** Failed claim attempts so far — the cron retries until `estimatedClaimAt`. */
+  retryCount?: number;
+  /** User-facing copy when the protocol temporarily refuses claims. */
+  statusMessage?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface PortfolioDetailed {
   hasBalance?: boolean;
-  staleBalances?: string[];
+  /** Idle Safe balances above the rebalance threshold, across all chains. */
+  staleBalances?: staleBalances[];
   hasActiveSessionKey?: boolean;
   positions?: PositionSlot[];
+  /**
+   * Redemptions in flight: `REQUESTED` and `CLAIMABLE`, plus `CLAIMED` from
+   * the last 24 hours. Only the first two hold funds that are missing from
+   * `portfolioByAssetType` — see the total-balance note on `getPortfolio`.
+   */
+  pendingAsyncWithdrawals?: AsyncWithdrawal[];
+  /**
+   * Per-token copy explaining a temporary protocol pause (e.g. tokenized
+   * stocks over the weekend), keyed by token symbol.
+   */
+  pauseMessageByToken?: Record<string, string>;
+  /** Positions + idle Safe balances, summed per asset type. */
   portfolioByAssetType?: PortfolioByAssetType;
   portfolioByChain?: PortfolioByChain;
 }
@@ -525,14 +614,14 @@ export interface Opportunity {
   tvl?: number;
   asset?: string;
   risk?: string;
-  strategyType: "conservative" | "aggressive";
+  strategyType: Strategy;
   status?: string;
 }
 
 export interface OpportunitiesResponse {
   success: boolean;
   chainId?: number;
-  strategyType: "conservative" | "aggressive";
+  strategyType: Strategy;
   data: Opportunity[];
 }
 
@@ -677,7 +766,7 @@ export interface SimulateBestPositionsParams {
   amount: number;
   token: string;
   networks: number | number[];
-  strategy: "conservative" | "aggressive";
+  strategy: Strategy;
   minSplit?: number;
   protocols?: string[];
   pools?: string[];

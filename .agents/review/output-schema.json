@@ -22,7 +22,7 @@
           "priority": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 2
+            "maximum": 3
           },
           "code_location": {
             "type": "object",
@@ -60,8 +60,13 @@
         ],
         "additionalProperties": false
       }
+    },
+    "review_log": {
+      "type": "string",
+      "minLength": 40,
+      "description": "Diagnostic summary: behavioural surface reviewed, concerns considered, and why any credible issues were omitted."
     }
   },
-  "required": ["findings"],
+  "required": ["findings", "review_log"],
   "additionalProperties": false
 }

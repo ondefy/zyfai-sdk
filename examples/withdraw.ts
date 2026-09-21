@@ -15,7 +15,7 @@ async function main() {
 
   const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
   // EURC is supported on Ethereum Mainnet (1) and Base (8453) only.
-  const asset = "USDC"; // Can be "USDC", "WETH", or "EURC"
+  const asset = "NVDAc"; // Can be "USDC", "WETH", or "EURC"
   const withdrawAmount = "2000000"; // 2 USDC or EURC (6 decimals)
 
   const sdk = new ZyfaiSDK({
@@ -43,14 +43,22 @@ async function main() {
     console.log(`Requesting full withdrawal on chain ${chainId}…`);
   }
 
-  // Funds are always withdrawn to the Safe owner's address (connected)
-  const response = await sdk.withdrawFunds(connected, chainId, undefined, asset);
+  // Funds are always withdrawn to the Safe owner's address (connected).
+  // Omitting the amount withdraws everything.
+  const response = await sdk.withdrawFunds(
+    connected,
+    chainId,
+    undefined,
+    asset
+  );
 
   console.log("Withdraw submitted:");
   console.log(`  Success: ${response.success}`);
   console.log(`  Type: ${response.type}`);
   console.log(`  Amount: ${response.amount}`);
-  console.log(`  Tx Hash: ${response.txHash}`);
+  // No txHash when every source is an async pool: nothing settles on-chain now,
+  // the redemption is tracked in getPortfolio().portfolio.pendingAsyncWithdrawals.
+  console.log(`  Tx Hash: ${response.txHash ?? "none (async redemption only)"}`);
   console.log(`  Message: ${response.message}`);
 }
 

@@ -212,6 +212,15 @@ export const DATA_ENDPOINTS = {
       ? `/opportunities/degen-strategies?${params.join("&")}`
       : "/opportunities/degen-strategies";
   },
+  OPPORTUNITIES_ASYNC: (chainId?: number, asset?: string, status?: string) => {
+    const params: string[] = [];
+    if (chainId !== undefined) params.push(`chainId=${chainId}`);
+    if (asset) params.push(`asset=${asset}`);
+    if (status) params.push(`status=${status}`);
+    return params.length > 0
+      ? `/opportunities/async?${params.join("&")}`
+      : "/opportunities/async";
+  },
 
   // APY History
   DAILY_APY_HISTORY_WEIGHTED: (walletAddress: string, days?: string) =>

@@ -25,6 +25,28 @@ yarn add @zyfai/sdk viem
 pnpm add @zyfai/sdk viem
 ```
 
+## Releasing
+
+This package uses [Changesets](https://github.com/changesets/changesets) for versioning and changelogs. Maintainer details: [`docs/RELEASING.md`](docs/RELEASING.md).
+
+### Adding a changeset
+
+When your PR includes user-facing SDK changes:
+
+```bash
+npm run changeset
+```
+
+- **patch** — bug fixes
+- **minor** — new features (non-breaking)
+- **major** — breaking changes
+
+Commit the generated file in `.changeset/` with your PR.
+
+### Publishing (maintainers)
+
+After changesets merge to `main`, a maintainer runs `npm run version-packages`, then `npm publish`. Details: [`docs/RELEASING.md`](docs/RELEASING.md).
+
 ## Prerequisites
 
 1. **API Key**: Single API key for both Execution API (Safe deployment, transactions, session keys) and Data API (earnings, opportunities, analytics)
@@ -157,6 +179,7 @@ if (result.success) {
 
 - `"conservative"` (default): Low-risk, stable yield strategy
 - `"aggressive"`: High-risk, high-reward strategy
+- `"yieldmaxxing"`: Aggressive plus protocols with delayed withdrawals — see [Strategies](#strategies)
 
 ### 2. Multi-Chain Support
 
@@ -313,6 +336,7 @@ Deploy a Safe smart wallet for a user. **Deployment is handled by the backend AP
 - `strategy`: Optional strategy selection (default: `"conservative"`)
   - `"conservative"`: Low-risk, stable yield strategy (default)
   - `"aggressive"`: High-risk, high-reward strategy
+  - `"yieldmaxxing"`: Aggressive plus protocols with delayed withdrawals — see [Strategies](#strategies)
 
 **Returns:**
 
@@ -397,12 +421,16 @@ Transfer tokens to your Safe smart wallet. Token address is automatically select
 
 - **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC (default) or WETH
 - **Ethereum Mainnet (1), Base (8453)**: EURC (6 decimals; not available on Arbitrum)
+- **Base (8453) only**: NVDAc (8 decimals) — tokenized NVIDIA equity, see [Tokenized equities](#tokenized-equities-nvdac)
 
 **Minimum portfolio balance (enforced on Safe balance + deposit amount):**
 
 - Ethereum Mainnet (1) / USDC or EURC: 10,000 units
 - Base (8453) and Arbitrum (42161) / USDC or EURC: 100 units
-- WETH: about **$10,000** of ETH on Ethereum Mainnet, **$100** on Base and Arbitrum, using the live USD price from Data API `GET /api/v2/price?token=eth` (same API key as the SDK)
+- WETH: about **$10,000** of ETH on Ethereum Mainnet, **$100** on Base and Arbitrum
+- NVDAc: about **$100** on Base
+
+Minimums for WETH and NVDAc are quoted in dollars and converted at deposit time from the live USD price (Data API `GET /api/v2/price?token=eth` and `?token=nvdac`, same API key as the SDK), so the on-chain threshold moves with the market.
 
 Top-ups smaller than the minimum are allowed if the Safe already holds enough of the asset to meet it after the deposit.
 
@@ -427,12 +455,17 @@ if (result.success) {
 **Note:**
 
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
-- `asset` is required (`"USDC"`, `"WETH"`, or `"EURC"` — EURC on Mainnet/Base only); token address is selected from that for the chain
+- `asset` is required (`"USDC"`, `"WETH"`, `"EURC"`, or `"NVDAc"` — EURC on Mainnet/Base only, NVDAc on Base only); token address is selected from that for the chain. Depositing an asset on a chain where it does not exist throws before any transfer.
 - The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
 - Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `depositFunds()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
 - If first-deposit protocol patching fails, the transfer still runs. `depositFunds()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
 - A successful registration can be `handover_pending`: the transfer is verified and recorded, but it is not yet credited or investable. Use `waitForDepositCredit(result.registration.id)` or poll `getDepositStatus` until the status is `credited`.
-- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Pass optional `strategy` (`"conservative"` default or `"aggressive"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
+- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
+- **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"yieldmaxxing"` to an account that has already deposited leaves it on its current strategy. To change an existing account, call `updateUserProfile({ asset, strategy })` for each asset concerned:
+
+  ```typescript
+  await sdk.updateUserProfile({ asset: "USDC", strategy: "yieldmaxxing" });
+  ```
 
 #### Deposit With an External Wallet (Sponsored Transactions)
 
@@ -543,6 +576,62 @@ if (result.success) {
 - Check the `message` field for the withdrawal status
 - Use `getHistory()` to track the withdrawal transaction once it's processed
 
+**Delayed withdrawals (`yieldmaxxing` strategy)**
+
+Positions held in protocols with asynchronous withdrawals (Ipor, Superform)
+cannot be exited on demand. For those the backend sends the immediately
+available portion straight away, then queues a redemption for the rest and
+forwards the funds to the EOA once the protocol releases them — roughly a day
+on Ipor, three on Superform.
+
+The user has nothing else to call, but `withdrawFunds` returns as soon as the
+immediate portion is sent, so its `txHash` does not cover the whole amount.
+Track the remainder through `getPortfolio`:
+
+```typescript
+await sdk.withdrawFunds(userAddress, 8453);
+
+const { portfolio } = await sdk.getPortfolio(userAddress);
+portfolio.pendingAsyncWithdrawals
+  ?.filter((w) => w.status === "REQUESTED" || w.status === "CLAIMABLE")
+  .forEach((w) => {
+    console.log(`${w.amount} ${w.token?.symbol} from ${w.protocol?.name}`);
+    console.log(`Expected to be claimable around ${w.estimatedClaimAt}`);
+  });
+```
+
+Once requested, that amount can no longer be withdrawn: it is gone from both
+the position snapshot and the Safe balance, so a second `withdrawFunds` call
+silently returns only what is left. It is also missing from
+`portfolioByAssetType` while in flight, so validate user-entered amounts
+against that field rather than the total — see [Total balance](#total-balance).
+
+**Only one redemption per pool can be in flight.** While an entry for a pool is
+`REQUESTED` or `CLAIMABLE`, the backend drops a further withdrawal aimed at that
+same pool, because the protocols behind it (ERC-7540) hold a single request slot
+per user — and it still answers `success: true`. `withdrawFunds` therefore
+throws rather than returning that no-op:
+
+```
+Withdrawal failed: A redemption is already in flight for NVDAc on NVDAC
+(status REQUESTED), and async pools allow only one at a time. Wait for it to
+reach CLAIMED before withdrawing the rest. Estimated settlement: 2026-09-24T13:59:05.543Z.
+```
+
+It only throws when nothing the call could reach is withdrawable. Another pool,
+another asset or an idle Safe balance still goes through, partially. To grey out
+the action before the user tries, read `pendingAsyncWithdrawals`:
+
+```typescript
+const { portfolio } = await sdk.getPortfolio(userAddress);
+
+const redeeming = (portfolio.pendingAsyncWithdrawals ?? []).some(
+  (w) =>
+    w.token?.symbol === "NVDAc" &&
+    (w.status === "REQUESTED" || w.status === "CLAIMABLE")
+);
+```
+
 ### 6. Get Available Protocols
 
 Retrieve all available DeFi protocols and pools for a specific chain:
@@ -607,6 +696,86 @@ portfolio.positions?.forEach((slot) => {
 **Note**: Portfolio balances are live; earnings used for the fee may come from a
 snapshot, so net values can differ slightly from a fully live calculation.
 
+#### Total balance
+
+`portfolioByAssetType` is **not** the user's total balance. The backend builds
+it from exactly two sources: the underlying amount of every deployed position,
+and the idle balances sitting in the Safe. Anything that is in neither place is
+missing from it.
+
+That gap is real under the `yieldmaxxing` strategy. When the agent requests a
+redemption from a delayed-withdrawal protocol, the position leaves the snapshot
+immediately while the funds stay in the vault for a day or three. During that
+window they are in no balance field — only in `pendingAsyncWithdrawals`.
+
+So you need **two different numbers**, and showing one where the other belongs
+is the most common mistake:
+
+| Number | Formula | Use it for |
+| --- | --- | --- |
+| **Total balance** | `portfolioByAssetType` + in-flight | "You have X" — the user still owns the in-flight funds |
+| **Requestable** | `portfolioByAssetType` only | Any withdraw form, max button, or amount validation |
+
+An in-flight amount is **no longer withdrawable**. A `withdrawFunds` call only
+reaches positions in the current snapshot and idle Safe balances, and the
+in-flight amount is in neither — calling it again will not pull those funds out
+any faster, nor will it fail with an error. They land on the user's EOA on
+their own once the protocol releases them, so the right UI is to show them as
+pending with their `estimatedClaimAt`, never to offer them for withdrawal.
+
+Note the `?? "0x0"` below: when every position of an asset is in flight, the
+backend drops the asset key from `portfolioByAssetType` altogether rather than
+reporting a zero balance, and `portfolioByAssetType` itself can be `{}`.
+`amount` is hex-encoded least units like every other balance, so read it with
+`BigInt`, never `parseInt`.
+
+```typescript
+const { portfolio } = await sdk.getPortfolio(userAddress);
+
+const IN_FLIGHT = ["REQUESTED", "CLAIMABLE"];
+
+const balancesFor = (assetType: string, tokenSymbol: string) => {
+  // Everything a withdrawal can still act on.
+  const requestable = BigInt(
+    portfolio.portfolioByAssetType?.[assetType]?.balance ?? "0x0"
+  );
+
+  // Owned, but locked in a redemption until the protocol releases it.
+  const inFlight = (portfolio.pendingAsyncWithdrawals ?? [])
+    .filter((w) => IN_FLIGHT.includes(w.status) && w.token?.symbol === tokenSymbol)
+    .reduce((sum, w) => sum + BigInt(w.amount), 0n);
+
+  return { requestable, inFlight, total: requestable + inFlight };
+};
+```
+
+`requestable` is what a withdrawal can still be asked on, **not** what arrives
+immediately: it also covers async positions the user currently holds, and
+withdrawing those turns them into a new in-flight redemption. Cap the amount a
+user can enter at `requestable`, never at `total` — asking for more does not
+fail loudly, the backend transfers what it can right away and queues a
+redemption for the shortfall.
+
+Two ways to get this wrong:
+
+- **Do not add `staleBalances`.** They are the same idle Safe balances that
+  `portfolioByAssetType` already counts, exposed as a per-chain view for
+  surfacing funds waiting to be deployed. Adding them double-counts.
+- **Do not add every `pendingAsyncWithdrawals` entry.** The array also keeps
+  `CLAIMED` requests for 24 hours so you can show a recent history. Those funds
+  are already back in the Safe and therefore already counted. Filter on
+  `REQUESTED` and `CLAIMABLE`.
+
+Each in-flight entry carries the information needed to show progress:
+`status`, `amount` (in the token's least units — apply `token.decimals`),
+`protocol.name`, `pool`, `estimatedClaimAt`, and `statusMessage` when the
+protocol is temporarily refusing claims. A `FAILED` status is not a loss: the
+position is restored and the request is retried on the next cycle.
+
+`pauseMessageByToken` is a companion field holding user-facing copy when
+deposits are paused for a token (tokenized stocks over the weekend, for
+example), keyed by token symbol.
+
 ### 8. Analytics & Data Endpoints
 
 The SDK provides access to various analytics and data endpoints:
@@ -621,7 +790,7 @@ const user = await sdk.getUserDetails();
 console.log("Smart Wallet:", user.user.smartWallet);
 console.log("Active Chains:", user.user.chains);
 console.log("Active Protocols:", user.user.protocols);
-console.log("Strategy:", user.user.strategy); // "conservative" | "aggressive"
+console.log("Strategy:", user.user.strategy); // "conservative" | "aggressive" | "yieldmaxxing"
 console.log("Has Active Session:", user.user.hasActiveSessionKey);
 
 // Feature flags
@@ -642,7 +811,7 @@ console.log("Wallet Type:", user.user.walletType);
 
 **Available Fields:**
 - **Core Info**: `id`, `address`, `smartWallet`, `chains`, `protocols`
-- **Strategy**: `strategy` (conservative or aggressive)
+- **Strategy**: `strategy` (conservative, aggressive or yieldmaxxing)
 - **Session**: `hasActiveSessionKey` (boolean)
 - **Features**: `autocompounding`, `autoSelectProtocols`, `omniAccount`, `crosschainStrategy`, `executorProxy`, `splitting`, `minSplits`
 - **Optional**: `email`, `telegramId`, `agentName`, `walletType`, `customization`, `registered`
@@ -667,7 +836,7 @@ console.log("Active protocols:", userDetails.user.protocols.length); // Should b
 
 **Note**:
 - User must be authenticated (automatically done via `connectAccount()`)
-- Clears protocols for USDC, WETH, and EURC
+- Clears protocols for USDC, WETH, EURC, and NVDAc
 - To resume operations, call `resumeAgent()` or `updateUserProfile()` with the desired protocols
 
 #### Splitting Management
@@ -889,6 +1058,93 @@ aggressiveOpps.data.forEach((o) => {
   console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
 });
 ```
+
+#### Get Yieldmaxxing Opportunities (Delayed Withdrawals)
+
+```typescript
+const asyncOpps = await sdk.getAsyncOpportunities(8453);
+asyncOpps.data.forEach((o) => {
+  console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
+});
+```
+
+#### Strategies
+
+Every method that takes a `strategy` accepts one of three values. Each tier is a
+superset of the previous one: an aggressive user also gets conservative pools,
+and a yieldmaxxing user gets everything.
+
+| Strategy | Backend value | Pools unlocked |
+| --- | --- | --- |
+| `conservative` (default) | `safe_strategy` | Low-risk pools only |
+| `aggressive` | `degen_strategy` | Conservative + higher-risk pools |
+| `yieldmaxxing` | `async_strategy` | Aggressive + pools with **delayed withdrawals** |
+
+`yieldmaxxing` is the only strategy that changes how withdrawals behave. It
+unlocks protocols (Ipor, Superform) that cannot be exited on demand: a
+redemption has to be requested, then claimed once the protocol releases the
+funds — roughly a day on Ipor, three on Superform. The agent handles both steps,
+but the funds are in flight in between. See
+[Withdraw Funds](#5-withdraw-funds) and [Total balance](#total-balance).
+
+#### Set an asset's strategy
+
+`updateUserProfile({ asset, strategy })` stores a strategy but does **not**
+compute the protocol list that goes with it, so on its own it leaves the asset
+with nothing to deploy into. `setAssetStrategy` does both in one call:
+
+```typescript
+const profile = await sdk.setAssetStrategy({
+  asset: "NVDAc",
+  strategy: "yieldmaxxing",
+});
+console.log(profile.protocols); // Ipor + Superform
+```
+
+| Parameter | Default | Notes |
+| --- | --- | --- |
+| `asset` | — | Required |
+| `strategy` | the asset's current one | Omit it to recompute the protocol list without changing strategy |
+| `chains` | every chain the asset exists on | **Additive** — chains already enabled are kept, so this cannot disable one |
+
+This is the method to reach for when changing an existing account's strategy,
+since `depositFunds` ignores its `strategy` argument after the first deposit.
+`resumeAgent` does the same thing for all four assets at once and is meant for
+resuming after `pauseAgent`.
+
+#### Tokenized equities (NVDAc)
+
+`NVDAc` is Coinbase's tokenized NVIDIA share (`0xb20000000000000000000078ee7ce2fE4908108C`),
+**8 decimals, Base only**. It behaves like any other asset — same `depositFunds`,
+`withdrawFunds` and `getPortfolio` — with three differences worth planning for.
+
+**It only exists under `yieldmaxxing`.** The two protocols that hold it, Ipor
+and Superform, are both async-only, so a `conservative` or `aggressive` profile
+resolves to zero protocols for NVDAc and the agent has nothing to deploy into.
+Every NVDAc withdrawal is therefore a delayed one — read
+[Total balance](#total-balance) before showing a balance.
+
+**The minimum deposit is $100 of NVDAc, not 100 NVDAc.** It is converted from
+the live price at deposit time, so the threshold in token units moves daily
+(around `0.44` NVDAc at $225/share).
+
+**Deposits pause when the market is closed**, typically over the weekend. Funds
+stay idle in the Safe and are deployed at the next open; other assets are
+unaffected. `getPortfolio` returns ready-to-display copy in
+`pauseMessageByToken["NVDAc"]` when that happens.
+
+```typescript
+// Existing account: one call sets the strategy and selects the protocols.
+// Chains default to Base, the only one NVDAc exists on.
+await sdk.setAssetStrategy({ asset: "NVDAc", strategy: "yieldmaxxing" });
+
+// 1 NVDAc = 100000000 (8 decimals). Must leave at least ~$100 in the Safe.
+await sdk.depositFunds(userAddress, 8453, "100000000", "NVDAc");
+```
+
+Use `setAssetStrategy` rather than `updateUserProfile` here: the latter stores
+a strategy but does not compute a protocol list, which would leave NVDAc with
+nothing to deploy into. See [Set an asset's strategy](#set-an-assets-strategy).
 
 ### 11. APY Per Strategy
 
@@ -1276,6 +1532,8 @@ When a feature spans `zyfai-sdk`, `zyfai-api`, and optionally `predeployment-ser
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.
+
+PRs with user-facing SDK changes need a [changeset](docs/RELEASING.md) (`npm run changeset`).
 
 ## License
 

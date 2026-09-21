@@ -58,15 +58,15 @@ async function main() {
   // ===========================================================================
   // Example 2: Update ETH Strategy
   // ===========================================================================
-  console.log("Step 2: Update ETH Strategy");
-  console.log("-".repeat(50));
+  // console.log("Step 2: Update ETH Strategy");
+  // console.log("-".repeat(50));
 
-  const response = await sdk.updateUserProfile({
-    strategy: "aggressive",
-    asset: "WETH",
-  });
+  // const response = await sdk.updateUserProfile({
+  //   strategy: "yieldmaxxing",
+  //   asset: "USDC",
+  // });
 
-  console.log("response:", response);
+  // console.log("response:", response);
 
   // // Get asset-specific user details
   // const userDetailsETH = await sdk.getUserDetails("WETH");
@@ -97,21 +97,21 @@ async function main() {
   // console.log("Step 4: Configure Specific Protocols for USDC");
   // console.log("-".repeat(50));
 
-  // // Select specific protocols (e.g., Aave, Compound, Moonwell)
-  // const targetProtocols = ["Aave V3", "Compound V3", "Morpho"];
-  // const selectedProtocols = protocolsResponse.protocols
-  //   .filter((p) => targetProtocols.includes(p.name))
-  //   .map((p) => p.id);
+  // Select specific protocols (e.g., Aave, Compound, Moonwell)
+  const targetProtocols = ["Superform"];
+  const selectedProtocols = (await sdk.getAvailableProtocols(chainId)).protocols
+    .filter((p: any) => targetProtocols.includes(p.name))
+    .map((p: any) => p.id);
 
-  // console.log(`Selected protocols: ${targetProtocols.join(", ")}`);
-  // console.log(`Protocol IDs: ${selectedProtocols.join(", ")}\n`);
+  console.log(`Selected protocols: ${targetProtocols.join(", ")}`);
+  console.log(`Protocol IDs: ${selectedProtocols.join(", ")}\n`);
 
-  // await sdk.updateUserProfile({
-  //   asset: "USDC",
-  //   protocols: selectedProtocols,
-  //   autoSelectProtocols: false, // Use only selected protocols
-  // });
-  // console.log("USDC protocols configured\n");
+  await sdk.updateUserProfile({
+    asset: "USDC",
+    protocols: selectedProtocols,
+    autoSelectProtocols: false, // Use only selected protocols
+  });
+  console.log("USDC protocols configured\n");
 
   // // ===========================================================================
   // // Example 5: Enable Cross-Chain Features

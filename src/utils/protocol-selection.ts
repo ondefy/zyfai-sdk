@@ -9,7 +9,7 @@
 import { ASSET_CONFIGS } from "../config/chains";
 import type { InternalStrategy } from "./strategy";
 
-type AssetSymbol = "USDC" | "WETH" | "EURC";
+type AssetSymbol = "USDC" | "WETH" | "EURC" | "NVDAc";
 
 interface ProtocolAssetEntry {
   chainId: number;
@@ -49,9 +49,20 @@ const hasAssetOnSelectedChains = (
 };
 
 /**
+ * Strategies a protocol may declare to be eligible for a given user strategy.
+ * Each tier is a superset of the previous one, mirroring the front-end.
+ */
+const ELIGIBLE_PROTOCOL_STRATEGIES: Record<InternalStrategy, string[]> = {
+  safe_strategy: ["safe_strategy"],
+  degen_strategy: ["safe_strategy", "degen_strategy"],
+  async_strategy: ["safe_strategy", "degen_strategy", "async_strategy"],
+};
+
+/**
  * Filter protocols by chain + asset support + strategy.
  * - conservative (safe_strategy): keeps protocols that support safe_strategy
  * - aggressive (degen_strategy): keeps protocols that support degen OR safe
+ * - yieldmaxxing (async_strategy): also keeps protocols with async withdrawals
  */
 export const getMatchingProtocolIds = (
   protocols: ProtocolLike[],
@@ -61,19 +72,17 @@ export const getMatchingProtocolIds = (
 ): string[] => {
   if (chains.length === 0) return [];
 
+  const eligible =
+    ELIGIBLE_PROTOCOL_STRATEGIES[internalStrategy] ??
+    ELIGIBLE_PROTOCOL_STRATEGIES.safe_strategy;
+
   return protocols
     .filter((protocol) => {
       if (!protocol || !protocol.strategies) return false;
       if (!protocol.chains?.some((c) => chains.includes(c))) return false;
       if (!hasAssetOnSelectedChains(protocol, chains, asset)) return false;
 
-      if (internalStrategy === "degen_strategy") {
-        return (
-          protocol.strategies.includes("degen_strategy") ||
-          protocol.strategies.includes("safe_strategy")
-        );
-      }
-      return protocol.strategies.includes("safe_strategy");
+      return protocol.strategies.some((s) => eligible.includes(s));
     })
     .map((protocol) => protocol.id);
 };

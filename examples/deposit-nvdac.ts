@@ -13,31 +13,32 @@ async function main() {
     );
   }
 
-  const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
-  
-  // Examples of amounts in correct decimal units:
-  // USDC / EURC (6 decimals): "1000000" = 1, "100000000" = 100
-  // WETH (18 decimals): "1000000000000000000" = 1 WETH, "100000000000000000" = 0.1 WETH
-  // EURC is supported on Ethereum Mainnet (1) and Base (8453) only.
+  // NVDAc is Base-only.
+  const chainId = 8453 as SupportedChainId;
+  const asset = "NVDAc";
+  const amount = "4000000"; // 0.04 NVDAc (8 decimals)
 
-  const asset = "USDC"; // Can be "USDC", "WETH", or "EURC"
-  const amount = "10000000"; // 2 USDC or EURC (6 decimals)
-
-  const sdk = new ZyfaiSDK({
-    apiKey,
-  });
+  const sdk = new ZyfaiSDK({ apiKey });
 
   console.log("SDK initialized. Connecting account…");
   const connected = await sdk.connectAccount(privateKey, chainId);
   console.log(`Connected EOA: ${connected}`);
 
-  // Ensure Safe exists
   const wallet = await sdk.getSmartWalletAddress(connected, chainId);
   console.log(`Safe address: ${wallet.address}`);
 
+  // NVDAc only lives in async protocols, so it needs "yieldmaxxing".
+  // Chains default to Base, the only one it exists on.
+  const profile = await sdk.setAssetStrategy({
+    asset,
+    strategy: "yieldmaxxing",
+  });
+  console.log(
+    `NVDAc profile: strategy=${profile.strategy} protocols=${profile.protocols?.length}`
+  );
+
   console.log("Depositing funds...", amount, asset, chainId);
-  // Deposit with specified asset (USDC by default, or WETH / EURC)
-  const response = await sdk.depositFunds(connected, chainId, amount, asset, "yieldmaxxing");
+  const response = await sdk.depositFunds(connected, chainId, amount, asset);
 
   console.log("Deposit submitted:");
   console.log(`  Transaction: ${response.txHash}`);
