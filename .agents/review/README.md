@@ -1,15 +1,15 @@
 # Automated PR review (Codex)
 
-CI policy for `openai/codex-action`. `AGENTS.md` routes interactive reviews separately.
+CI policy for `openai/codex-action`. `AGENTS.md` routes interactive reviews to the separate Cursor review workflow.
 
 ## Modes
 
-| PR base branch | Mode | Instructions |
-| --- | --- | --- |
-| `main` | Functional | [functional.md](functional.md) |
-| `release` | Release | [release.md](release.md) |
+| PR base branch | Mode | Instructions | Codex effort |
+| --- | --- | --- | --- |
+| `main` | Functional | [functional.md](functional.md) | `medium` |
+| `release` | Release | [release.md](release.md) | `high` |
 
-**Only raise an issue when there is a concrete reason to believe the PR introduces incorrect behaviour or meaningful risk.** A clean review with no comments is a successful outcome.
+Raise findings when there is credible evidence of incorrect behaviour or meaningful risk. A clean `findings` list is fine, but `review_log` must explain what was checked.
 
 ## Files
 
@@ -17,15 +17,27 @@ CI policy for `openai/codex-action`. `AGENTS.md` routes interactive reviews sepa
 | --- | --- |
 | [functional.md](functional.md) | Fast, repo-local functional review |
 | [release.md](release.md) | Release-readiness review |
-| [output-schema.json](output-schema.json) | Structured findings for inline PR comments |
-| [publish-findings.sh](publish-findings.sh) | Posts inline comments (CI only) |
+| [output-schema.json](output-schema.json) | Structured findings + required `review_log` |
+| [publish-findings.sh](publish-findings.sh) | Posts inline comments + PR digest (CI only) |
 
-The JSON schema and no-summary output rule apply only to CI; interactive reviews use their own human-readable evidence-report format.
+The JSON schema applies only to CI. Interactive reviews use the human-readable evidence-report format defined by the workspace reviewer.
 
-## Repo-local scope
+## Publish gate (tunable)
 
-This repository is reviewed **standalone**. Do not clone sibling repositories or `zyfai-workspace` for additional context. Use contracts, docs, types, and tests in this repo.
+| Env var | Default | Effect |
+| --- | --- | --- |
+| `CONFIDENCE_MIN` | `0.65` | Inline comments only for findings at/above this score |
+| `PRIORITY_MAX` | `3` | Inline comments for P0–P3 (`priority` ≤ 3) |
+| `POST_DIGEST` | `true` | Post/update a PR comment with full output, filtered items, and `review_log` |
 
-## CI configuration
+CI logs print every finding with **publish** vs **filtered** disposition. Filtered findings still appear in the digest comment.
 
-The workflow is the source of truth for triggers, model selection, permissions, limits, and ignored paths: [`.github/workflows/codex-pr-review.yml`](../../.github/workflows/codex-pr-review.yml). Public API and canonical contract documentation are reviewed rather than automatically ignored.
+Severity in output: `priority` 0–3 → P0–P3 (see mode instructions for thresholds).
+
+## GitHub setup (manual)
+
+| Secret | Purpose |
+| --- | --- |
+| `OPENAI_API_KEY` | Codex Responses API |
+
+Workflow: [`.github/workflows/codex-pr-review.yml`](../../.github/workflows/codex-pr-review.yml).
