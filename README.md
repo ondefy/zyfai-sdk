@@ -1021,6 +1021,31 @@ funds — roughly a day on Ipor, three on Superform. The agent handles both step
 but the funds are in flight in between. See
 [Withdraw Funds](#5-withdraw-funds) and [Total balance](#total-balance).
 
+#### Set an asset's strategy
+
+`updateUserProfile({ asset, strategy })` stores a strategy but does **not**
+compute the protocol list that goes with it, so on its own it leaves the asset
+with nothing to deploy into. `setAssetStrategy` does both in one call:
+
+```typescript
+const profile = await sdk.setAssetStrategy({
+  asset: "NVDAc",
+  strategy: "yieldmaxxing",
+});
+console.log(profile.protocols); // Ipor + Superform
+```
+
+| Parameter | Default | Notes |
+| --- | --- | --- |
+| `asset` | — | Required |
+| `strategy` | the asset's current one | Omit it to recompute the protocol list without changing strategy |
+| `chains` | every chain the asset exists on | **Additive** — chains already enabled are kept, so this cannot disable one |
+
+This is the method to reach for when changing an existing account's strategy,
+since `depositFunds` ignores its `strategy` argument after the first deposit.
+`resumeAgent` does the same thing for all four assets at once and is meant for
+resuming after `pauseAgent`.
+
 #### Tokenized equities (NVDAc)
 
 `NVDAc` is Coinbase's tokenized NVIDIA share (`0xb20000000000000000000078ee7ce2fE4908108C`),
@@ -1043,21 +1068,17 @@ unaffected. `getPortfolio` returns ready-to-display copy in
 `pauseMessageByToken["NVDAc"]` when that happens.
 
 ```typescript
-// Existing account: set the strategy, then let the agent pick the protocols.
-await sdk.updateUserProfile({
-  asset: "NVDAc",
-  strategy: "yieldmaxxing",
-  chains: [8453],
-});
-await sdk.resumeAgent();
+// Existing account: one call sets the strategy and selects the protocols.
+// Chains default to Base, the only one NVDAc exists on.
+await sdk.setAssetStrategy({ asset: "NVDAc", strategy: "yieldmaxxing" });
 
 // 1 NVDAc = 100000000 (8 decimals). Must leave at least ~$100 in the Safe.
 await sdk.depositFunds(userAddress, 8453, "100000000", "NVDAc");
 ```
 
-`updateUserProfile` stores the strategy but does not compute a protocol list;
-`resumeAgent` is what recomputes it from the stored strategy for every asset.
-Skipping it leaves NVDAc with an empty protocol list and nothing gets deployed.
+Use `setAssetStrategy` rather than `updateUserProfile` here: the latter stores
+a strategy but does not compute a protocol list, which would leave NVDAc with
+nothing to deploy into. See [Set an asset's strategy](#set-an-assets-strategy).
 
 ### 11. APY Per Strategy
 

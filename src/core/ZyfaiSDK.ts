@@ -428,91 +428,30 @@ export class ZyfaiSDK {
    */
   async resumeAgent(): Promise<UpdateUserProfileResponse> {
     try {
-      const userDetailsUSDC = await this.getUserDetails("USDC");
-      const userDetailsETH = await this.getUserDetails("WETH");
-      const userDetailsEURC = await this.getUserDetails("EURC");
-      const userDetailsNVDAc = await this.getUserDetails("NVDAc");
-
-      // If user has no chains configured, use all supported chains
-      const chains: number[] =
-        userDetailsUSDC.chains && userDetailsUSDC.chains.length > 0
-          ? userDetailsUSDC.chains
-          : [8453, 42161];
-      // Assets that do not exist everywhere are clamped to their own chains.
-      const chainsFor = (asset: SupportedAsset, stored?: number[]): number[] => {
-        const supported = getAssetChainIds(asset) as number[];
-        return stored && stored.length > 0
-          ? stored.filter((c) => supported.includes(c))
-          : supported;
-      };
-      const eurcChains = chainsFor("EURC", userDetailsEURC.chains);
-      const nvdacChains = chainsFor("NVDAc", userDetailsNVDAc.chains);
-
-      // Fetch all protocols (API returns array directly, not { protocols: [...] })
-      const allProtocols = await this.httpClient.get<Protocol[]>(
+      // Fetched once and shared: the per-asset helper would otherwise refetch
+      // the full protocol list on every iteration.
+      const allProtocols = await this.httpClient.get<any[]>(
         ENDPOINTS.PROTOCOLS()
       );
 
-      // `getUserDetails` reports the public name; the filter below matches on
-      // the backend one.
-      const internalStrategyOf = (strategy?: string): InternalStrategy =>
-        isValidPublicStrategy(strategy ?? "")
-          ? toInternalStrategy(strategy as Strategy)
-          : "safe_strategy";
+      const assets: SupportedAsset[] = ["USDC", "WETH", "EURC", "NVDAc"];
+      let latest: UpdateUserProfileResponse | undefined;
 
-      const usdcStrategy = internalStrategyOf(userDetailsUSDC.strategy);
-      const ethStrategy = internalStrategyOf(userDetailsETH.strategy);
-      const eurcStrategy = internalStrategyOf(userDetailsEURC.strategy);
-      const nvdacStrategy = internalStrategyOf(userDetailsNVDAc.strategy);
+      for (const asset of assets) {
+        // No strategy argument: each asset keeps the one already stored on its
+        // profile, which is the whole point of resuming.
+        latest = await this.updateUserProtocolsForAsset(
+          asset,
+          getAssetChainIds(asset),
+          undefined,
+          allProtocols
+        );
+      }
 
-      // Same selection as the first-deposit path: chain + asset support +
-      // strategy. Filtering on the asset matters — only Superform lists NVDAc,
-      // so a strategy-only filter would whitelist protocols that cannot hold it.
-      const usdcProtocols = getMatchingProtocolIds(
-        allProtocols,
-        usdcStrategy,
-        chains,
-        "USDC"
-      );
-      const ethProtocols = getMatchingProtocolIds(
-        allProtocols,
-        ethStrategy,
-        chains,
-        "WETH"
-      );
-      const eurcProtocols = getMatchingProtocolIds(
-        allProtocols,
-        eurcStrategy,
-        eurcChains,
-        "EURC"
-      );
-      const nvdacProtocols = getMatchingProtocolIds(
-        allProtocols,
-        nvdacStrategy,
-        nvdacChains,
-        "NVDAc"
-      );
-
-      // Update each asset with its respective protocols
-      await this.updateUserProfile({
-        asset: "USDC",
-        protocols: usdcProtocols,
-      });
-
-      await this.updateUserProfile({
-        asset: "WETH",
-        protocols: ethProtocols,
-      });
-
-      await this.updateUserProfile({
-        asset: "EURC",
-        protocols: eurcProtocols,
-      });
-
-      return await this.updateUserProfile({
-        asset: "NVDAc",
-        protocols: nvdacProtocols,
-      });
+      if (!latest) {
+        throw new Error("No supported assets to resume");
+      }
+      return latest;
     } catch (error) {
       throw new Error(`Failed to resume agent: ${(error as Error).message}`);
     }
@@ -1478,7 +1417,7 @@ export class ZyfaiSDK {
     chains: SupportedChainId[],
     strategy: Strategy | undefined,
     allProtocols: any[]
-  ): Promise<void> {
+  ): Promise<UpdateUserProfileResponse> {
     const userDetails = await this.getUserDetails(asset);
 
     // Merge existing chains with the target chains — never overwrite.
@@ -1513,12 +1452,89 @@ export class ZyfaiSDK {
     // Persist the strategy alongside the protocols it produced. Without it the
     // backend keeps its default `safe_strategy` and rebalances a whitelist that
     // was selected for a wider tier.
-    await this.updateUserProfile({
+    return await this.updateUserProfile({
       asset,
       protocols: withPools,
       chains: effectiveChains,
       ...(strategy !== undefined && { strategy }),
     });
+  }
+
+  /**
+   * Switch one asset to a strategy and select the protocols that go with it.
+   *
+   * `updateUserProfile` stores a strategy but does not compute a protocol
+   * list, so on its own it leaves the asset with nothing to deploy into. This
+   * method does both in one call: it resolves the protocols that support the
+   * asset on the requested chains under the requested strategy, drops those
+   * with no pool available, and persists strategy, chains and protocols
+   * together.
+   *
+   * Mostly needed for assets that are not set up by the account's first
+   * deposit, or to change an existing account's strategy — `depositFunds`
+   * ignores its `strategy` argument after the first deposit.
+   *
+   * @param params.asset - Asset to configure
+   * @param params.strategy - Strategy to apply; defaults to the one already
+   *   stored for this asset (`"conservative"` on a fresh account), which lets
+   *   you recompute a protocol list without changing the strategy
+   * @param params.chains - Chains to enable. Defaults to every chain the asset
+   *   exists on. **Additive**: chains already enabled are kept, so this cannot
+   *   be used to disable one.
+   * @returns The updated profile for that asset
+   *
+   * @example
+   * ```typescript
+   * // NVDAc only lives in async protocols, so it needs "yieldmaxxing".
+   * // Chains default to Base, the only chain it exists on.
+   * const profile = await sdk.setAssetStrategy({
+   *   asset: "NVDAc",
+   *   strategy: "yieldmaxxing",
+   * });
+   * console.log(profile.protocols); // Ipor + Superform
+   * ```
+   */
+  async setAssetStrategy(params: {
+    asset: SupportedAsset;
+    strategy?: Strategy;
+    chains?: SupportedChainId[];
+  }): Promise<UpdateUserProfileResponse> {
+    const { asset, strategy, chains } = params;
+    try {
+      if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
+        throw new Error(
+          `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
+        );
+      }
+
+      const supported = getAssetChainIds(asset);
+      if (supported.length === 0) {
+        throw new Error(`Unsupported asset: ${asset}.`);
+      }
+
+      const targetChains = chains ?? supported;
+      const unsupported = targetChains.filter((c) => !supported.includes(c));
+      if (unsupported.length > 0) {
+        throw new Error(
+          `${asset} is not available on chain ${unsupported.join(", ")}. Supported chains: ${supported.join(", ")}.`
+        );
+      }
+
+      const allProtocols = await this.httpClient.get<any[]>(
+        ENDPOINTS.PROTOCOLS()
+      );
+
+      return await this.updateUserProtocolsForAsset(
+        asset,
+        targetChains,
+        strategy,
+        allProtocols
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to set ${asset} strategy: ${(error as Error).message}`
+      );
+    }
   }
 
   /**
