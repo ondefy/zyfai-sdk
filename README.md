@@ -653,6 +653,12 @@ any faster, nor will it fail with an error. They land on the user's EOA on
 their own once the protocol releases them, so the right UI is to show them as
 pending with their `estimatedClaimAt`, never to offer them for withdrawal.
 
+Note the `?? "0x0"` below: when every position of an asset is in flight, the
+backend drops the asset key from `portfolioByAssetType` altogether rather than
+reporting a zero balance, and `portfolioByAssetType` itself can be `{}`.
+`amount` is hex-encoded least units like every other balance, so read it with
+`BigInt`, never `parseInt`.
+
 ```typescript
 const { portfolio } = await sdk.getPortfolio(userAddress);
 

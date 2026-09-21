@@ -251,10 +251,15 @@ export interface AsyncWithdrawal {
   chainId: number;
   /** Pool / vault identifier, e.g. "NVDAC". */
   pool: string;
-  /** Redeemed amount in the token's least units — apply `token.decimals`. */
+  /**
+   * Redeemed amount in the token's least units, hex-encoded like every other
+   * balance in the payload (e.g. `"0x98967f"`). Read it with `BigInt`, then
+   * apply `token.decimals`.
+   */
   amount: string;
   token?: {
     id?: string;
+    name?: string;
     symbol?: string;
     decimals?: number;
     address?: string;
@@ -265,6 +270,11 @@ export interface AsyncWithdrawal {
     id?: string;
     name?: string;
     imageUrl?: string;
+    icon?: string;
+    metadata?: {
+      /** Nominal redemption delay advertised by the protocol, in days. */
+      asyncWithdrawalDays?: number;
+    };
   };
   /**
    * `"user_eoa"` when the user initiated the withdrawal (claimed funds go to

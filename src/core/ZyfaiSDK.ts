@@ -1938,6 +1938,9 @@ export class ZyfaiSDK {
    * `getPortfolio().portfolio.pendingAsyncWithdrawals`, whose entries carry a
    * `status` and an `estimatedClaimAt`.
    *
+   * When every source is an async pool nothing settles on-chain at that point,
+   * so `txHash` is `undefined` on a successful call.
+   *
    * Once requested, that amount can no longer be withdrawn: it is gone from
    * both the position snapshot and the Safe balance, so a second call silently
    * returns only what is left. Validate user-entered amounts against
