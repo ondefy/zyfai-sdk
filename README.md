@@ -399,12 +399,16 @@ Transfer tokens to your Safe smart wallet. Token address is automatically select
 
 - **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC (default) or WETH
 - **Ethereum Mainnet (1), Base (8453)**: EURC (6 decimals; not available on Arbitrum)
+- **Base (8453) only**: NVDAc (8 decimals) — tokenized NVIDIA equity, see [Tokenized equities](#tokenized-equities-nvdac)
 
 **Minimum portfolio balance (enforced on Safe balance + deposit amount):**
 
 - Ethereum Mainnet (1) / USDC or EURC: 10,000 units
 - Base (8453) and Arbitrum (42161) / USDC or EURC: 100 units
-- WETH: about **$10,000** of ETH on Ethereum Mainnet, **$100** on Base and Arbitrum, using the live USD price from Data API `GET /api/v2/price?token=eth` (same API key as the SDK)
+- WETH: about **$10,000** of ETH on Ethereum Mainnet, **$100** on Base and Arbitrum
+- NVDAc: about **$100** on Base
+
+Minimums for WETH and NVDAc are quoted in dollars and converted at deposit time from the live USD price (Data API `GET /api/v2/price?token=eth` and `?token=nvdac`, same API key as the SDK), so the on-chain threshold moves with the market.
 
 Top-ups smaller than the minimum are allowed if the Safe already holds enough of the asset to meet it after the deposit.
 
@@ -429,12 +433,12 @@ if (result.success) {
 **Note:**
 
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
-- `asset` is required (`"USDC"`, `"WETH"`, or `"EURC"` — EURC on Mainnet/Base only); token address is selected from that for the chain
+- `asset` is required (`"USDC"`, `"WETH"`, `"EURC"`, or `"NVDAc"` — EURC on Mainnet/Base only, NVDAc on Base only); token address is selected from that for the chain. Depositing an asset on a chain where it does not exist throws before any transfer.
 - The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
 - Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `depositFunds()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
 - If first-deposit protocol patching fails, the transfer still runs but `log_deposit` may run **without** a JWT (401). Treat a confirmed on-chain tx as **not** subscribed until `log_deposit` succeeds.
 - **`depositFunds` can return `success: true` even when `log_deposit` failed** — failures are only `console.warn`ed. Check logs or retry `logDeposit` after `connectAccount()`.
-- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, and EURC** across all supported chains (EURC on Mainnet/Base only → `assetTypeSettings.[usdc|eth|eurc]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
+- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 - **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"yieldmaxxing"` to an account that has already deposited leaves it on its current strategy. To change an existing account, call `updateUserProfile({ asset, strategy })` for each asset concerned:
 
   ```typescript
@@ -766,7 +770,7 @@ console.log("Active protocols:", userDetails.user.protocols.length); // Should b
 
 **Note**:
 - User must be authenticated (automatically done via `connectAccount()`)
-- Clears protocols for USDC, WETH, and EURC
+- Clears protocols for USDC, WETH, EURC, and NVDAc
 - To resume operations, call `resumeAgent()` or `updateUserProfile()` with the desired protocols
 
 #### Splitting Management
@@ -1016,6 +1020,44 @@ redemption has to be requested, then claimed once the protocol releases the
 funds — roughly a day on Ipor, three on Superform. The agent handles both steps,
 but the funds are in flight in between. See
 [Withdraw Funds](#5-withdraw-funds) and [Total balance](#total-balance).
+
+#### Tokenized equities (NVDAc)
+
+`NVDAc` is Coinbase's tokenized NVIDIA share (`0xb20000000000000000000078ee7ce2fE4908108C`),
+**8 decimals, Base only**. It behaves like any other asset — same `depositFunds`,
+`withdrawFunds` and `getPortfolio` — with three differences worth planning for.
+
+**It only exists under `yieldmaxxing`.** The two protocols that hold it, Ipor
+and Superform, are both async-only, so a `conservative` or `aggressive` profile
+resolves to zero protocols for NVDAc and the agent has nothing to deploy into.
+Every NVDAc withdrawal is therefore a delayed one — read
+[Total balance](#total-balance) before showing a balance.
+
+**The minimum deposit is $100 of NVDAc, not 100 NVDAc.** It is converted from
+the live price at deposit time, so the threshold in token units moves daily
+(around `0.44` NVDAc at $225/share).
+
+**Deposits pause when the market is closed**, typically over the weekend. Funds
+stay idle in the Safe and are deployed at the next open; other assets are
+unaffected. `getPortfolio` returns ready-to-display copy in
+`pauseMessageByToken["NVDAc"]` when that happens.
+
+```typescript
+// Existing account: set the strategy, then let the agent pick the protocols.
+await sdk.updateUserProfile({
+  asset: "NVDAc",
+  strategy: "yieldmaxxing",
+  chains: [8453],
+});
+await sdk.resumeAgent();
+
+// 1 NVDAc = 100000000 (8 decimals). Must leave at least ~$100 in the Safe.
+await sdk.depositFunds(userAddress, 8453, "100000000", "NVDAc");
+```
+
+`updateUserProfile` stores the strategy but does not compute a protocol list;
+`resumeAgent` is what recomputes it from the stored strategy for every asset.
+Skipping it leaves NVDAc with an empty protocol list and nothing gets deployed.
 
 ### 11. APY Per Strategy
 

@@ -31,8 +31,7 @@ export type DailyApyHistoryPeriod = `${AllowedHistoryDays}D`;
  *
  * Current configuration:
  * - Mainnet USDC/EURC: 10,000 units; Base/Arbitrum USDC/EURC: 100 units
- * - WETH: Data API `/price?token=eth` converted to ~`MIN_WETH_USD[chainId]`
- *   (Mainnet $10,000; Base/Arbitrum $100).
+ * - WETH and NVDAc: quoted in USD, see `MIN_PORTFOLIO_USD`
  */
 export const MIN_PORTFOLIO_BALANCE: Partial<
   Record<SupportedChainId, Record<string, bigint>>
@@ -51,11 +50,19 @@ export const MIN_PORTFOLIO_BALANCE: Partial<
   },
 };
 
-/** Target USD value for the WETH minimum, per chain. */
-export const MIN_WETH_USD: Record<SupportedChainId, bigint> = {
-  1: 10000n,
-  8453: 100n,
-  42161: 100n,
+/**
+ * Minimums quoted in USD rather than in token units, per chain and per asset.
+ *
+ * Volatile assets cannot use a fixed least-unit threshold, so the SDK reads the
+ * live price from Data API `/price?token=<asset.priceTokenSymbol>` and converts
+ * at deposit time. Takes precedence over `MIN_PORTFOLIO_BALANCE`.
+ */
+export const MIN_PORTFOLIO_USD: Partial<
+  Record<SupportedChainId, Record<string, bigint>>
+> = {
+  1: { WETH: 10000n },
+  8453: { WETH: 100n, NVDAc: 100n },
+  42161: { WETH: 100n },
 };
 
 /**

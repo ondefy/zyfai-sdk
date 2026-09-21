@@ -13,7 +13,7 @@ export type Hex = `0x${string}`;
 export type Strategy = "conservative" | "aggressive" | "yieldmaxxing";
 
 /** Public asset symbols supported by the SDK */
-export type SupportedAsset = "USDC" | "WETH" | "EURC";
+export type SupportedAsset = "USDC" | "WETH" | "EURC" | "NVDAc";
 
 export interface RpcUrlsConfig {
   1?: string;

@@ -4,10 +4,10 @@
 
 import { HttpClient } from "../utils/http-client";
 import {
-  minWethWeiForUsd,
-  parseEthUsdPrice,
+  parseTokenUsdPrice,
+  usdToTokenUnits,
   type TokenPriceResponse,
-} from "../utils/eth-price";
+} from "../utils/token-price";
 import {
   ENDPOINTS,
   DATA_ENDPOINTS,
@@ -17,7 +17,7 @@ import {
 import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS, VAULT_ABI, VAULT_ADDRESS } from "../config/abis";
 import {
   MIN_PORTFOLIO_BALANCE,
-  MIN_WETH_USD,
+  MIN_PORTFOLIO_USD,
   formatMinPortfolioLabel,
   type DailyApyHistoryPeriod,
 } from "../config/constants";
@@ -98,6 +98,8 @@ import {
   getChainConfig,
   isSupportedChain,
   getDefaultTokenAddress,
+  getAssetChainIds,
+  resolveAssetSymbol,
   ASSET_CONFIGS,
   type SupportedChainId,
 } from "../config/chains";
@@ -429,17 +431,22 @@ export class ZyfaiSDK {
       const userDetailsUSDC = await this.getUserDetails("USDC");
       const userDetailsETH = await this.getUserDetails("WETH");
       const userDetailsEURC = await this.getUserDetails("EURC");
+      const userDetailsNVDAc = await this.getUserDetails("NVDAc");
 
       // If user has no chains configured, use all supported chains
       const chains: number[] =
         userDetailsUSDC.chains && userDetailsUSDC.chains.length > 0
           ? userDetailsUSDC.chains
           : [8453, 42161];
-      // EURC is Mainnet/Base only
-      const eurcChains: number[] =
-        userDetailsEURC.chains && userDetailsEURC.chains.length > 0
-          ? userDetailsEURC.chains.filter((c) => c === 1 || c === 8453)
-          : [1, 8453];
+      // Assets that do not exist everywhere are clamped to their own chains.
+      const chainsFor = (asset: SupportedAsset, stored?: number[]): number[] => {
+        const supported = getAssetChainIds(asset) as number[];
+        return stored && stored.length > 0
+          ? stored.filter((c) => supported.includes(c))
+          : supported;
+      };
+      const eurcChains = chainsFor("EURC", userDetailsEURC.chains);
+      const nvdacChains = chainsFor("NVDAc", userDetailsNVDAc.chains);
 
       // Fetch all protocols (API returns array directly, not { protocols: [...] })
       const allProtocols = await this.httpClient.get<Protocol[]>(
@@ -456,44 +463,35 @@ export class ZyfaiSDK {
       const usdcStrategy = internalStrategyOf(userDetailsUSDC.strategy);
       const ethStrategy = internalStrategyOf(userDetailsETH.strategy);
       const eurcStrategy = internalStrategyOf(userDetailsEURC.strategy);
+      const nvdacStrategy = internalStrategyOf(userDetailsNVDAc.strategy);
 
-      // Helper function to filter protocols by strategy (+ optional chain list)
-      const filterProtocolsByStrategy = (
-        strategy: string,
-        selectedChains: number[]
-      ): string[] => {
-        return allProtocols
-          .filter((protocol: Protocol) => {
-            const hasMatchingChain = protocol.chains.some((chain: number) =>
-              selectedChains.includes(chain)
-            );
-            if (!hasMatchingChain) {
-              return false;
-            }
-            // Async users get every protocol; degen users get safe + degen;
-            // safe users only get safe_strategy protocols.
-            if (strategy === "async_strategy") {
-              return (
-                protocol.strategies?.includes("safe_strategy") ||
-                protocol.strategies?.includes("degen_strategy") ||
-                protocol.strategies?.includes("async_strategy")
-              );
-            }
-            if (strategy === "degen_strategy") {
-              return (
-                protocol.strategies?.includes("safe_strategy") ||
-                protocol.strategies?.includes("degen_strategy")
-              );
-            }
-            return protocol.strategies?.includes("safe_strategy");
-          })
-          .map((protocol: Protocol) => protocol.id);
-      };
-
-      // Get filtered protocols for each asset based on their strategy
-      const usdcProtocols = filterProtocolsByStrategy(usdcStrategy, chains);
-      const ethProtocols = filterProtocolsByStrategy(ethStrategy, chains);
-      const eurcProtocols = filterProtocolsByStrategy(eurcStrategy, eurcChains);
+      // Same selection as the first-deposit path: chain + asset support +
+      // strategy. Filtering on the asset matters — only Superform lists NVDAc,
+      // so a strategy-only filter would whitelist protocols that cannot hold it.
+      const usdcProtocols = getMatchingProtocolIds(
+        allProtocols,
+        usdcStrategy,
+        chains,
+        "USDC"
+      );
+      const ethProtocols = getMatchingProtocolIds(
+        allProtocols,
+        ethStrategy,
+        chains,
+        "WETH"
+      );
+      const eurcProtocols = getMatchingProtocolIds(
+        allProtocols,
+        eurcStrategy,
+        eurcChains,
+        "EURC"
+      );
+      const nvdacProtocols = getMatchingProtocolIds(
+        allProtocols,
+        nvdacStrategy,
+        nvdacChains,
+        "NVDAc"
+      );
 
       // Update each asset with its respective protocols
       await this.updateUserProfile({
@@ -506,9 +504,14 @@ export class ZyfaiSDK {
         protocols: ethProtocols,
       });
 
-      return await this.updateUserProfile({
+      await this.updateUserProfile({
         asset: "EURC",
         protocols: eurcProtocols,
+      });
+
+      return await this.updateUserProfile({
+        asset: "NVDAc",
+        protocols: nvdacProtocols,
       });
     } catch (error) {
       throw new Error(`Failed to resume agent: ${(error as Error).message}`);
@@ -1441,16 +1444,15 @@ export class ZyfaiSDK {
         ENDPOINTS.PROTOCOLS()
       );
 
-      const allChains: SupportedChainId[] = [1, 8453, 42161];
-      const assets: SupportedAsset[] = ["USDC", "WETH", "EURC"];
+      const assets: SupportedAsset[] = ["USDC", "WETH", "EURC", "NVDAc"];
 
       for (const asset of assets) {
         try {
-          const chainsForAsset: SupportedChainId[] =
-            asset === "EURC" ? [1, 8453] : allChains;
+          // Each asset is only patched on the chains it actually exists on
+          // (EURC skips Arbitrum, NVDAc is Base-only).
           await this.updateUserProtocolsForAsset(
             asset,
-            chainsForAsset,
+            getAssetChainIds(asset),
             strategy,
             allProtocols
           );
@@ -1700,22 +1702,26 @@ export class ZyfaiSDK {
         );
       }
 
-      const assetSymbol = asset.toUpperCase();
+      const assetSymbol = resolveAssetSymbol(asset);
       const assetConfig = ASSET_CONFIGS[assetSymbol];
-      if (!assetConfig) {
+
+      const assetChains = getAssetChainIds(assetSymbol);
+      if (!assetChains.includes(chainId)) {
         throw new Error(
-          `Unsupported asset: ${assetSymbol}. Supported: USDC, WETH, EURC.`
+          `${assetSymbol} is not available on chain ${chainId}. Supported chains: ${assetChains.join(", ")}.`
         );
       }
 
       let minRequired = MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
-      if (assetSymbol === "WETH") {
+      const minUsd = MIN_PORTFOLIO_USD[chainId]?.[assetSymbol];
+      if (minUsd !== undefined) {
         const priceResponse = await this.httpClient.dataGet<TokenPriceResponse>(
-          DATA_ENDPOINTS.TOKEN_PRICE("eth")
+          DATA_ENDPOINTS.TOKEN_PRICE(assetConfig.priceTokenSymbol)
         );
-        minRequired = minWethWeiForUsd(
-          parseEthUsdPrice(priceResponse),
-          MIN_WETH_USD[chainId]
+        minRequired = usdToTokenUnits(
+          minUsd,
+          parseTokenUsdPrice(priceResponse),
+          assetConfig.decimals
         );
       }
 
