@@ -157,6 +157,7 @@ if (result.success) {
 
 - `"conservative"` (default): Low-risk, stable yield strategy
 - `"aggressive"`: High-risk, high-reward strategy
+- `"yieldmaxxing"`: Aggressive plus protocols with delayed withdrawals — see [Strategies](#strategies)
 
 ### 2. Multi-Chain Support
 
@@ -313,6 +314,7 @@ Deploy a Safe smart wallet for a user. **Deployment is handled by the backend AP
 - `strategy`: Optional strategy selection (default: `"conservative"`)
   - `"conservative"`: Low-risk, stable yield strategy (default)
   - `"aggressive"`: High-risk, high-reward strategy
+  - `"yieldmaxxing"`: Aggressive plus protocols with delayed withdrawals — see [Strategies](#strategies)
 
 **Returns:**
 
@@ -525,6 +527,33 @@ if (result.success) {
 - Check the `message` field for the withdrawal status
 - Use `getHistory()` to track the withdrawal transaction once it's processed
 
+**Delayed withdrawals (`yieldmaxxing` strategy)**
+
+Positions held in protocols with asynchronous withdrawals (Ipor, Superform)
+cannot be exited on demand. For those the backend sends the immediately
+available portion straight away, then queues a redemption for the rest and
+forwards the funds to the EOA once the protocol releases them — roughly a day
+on Ipor, three on Superform.
+
+The user has nothing else to call, but `withdrawFunds` returns as soon as the
+immediate portion is sent, so its `txHash` does not cover the whole amount.
+Track the remainder through `getPortfolio`:
+
+```typescript
+await sdk.withdrawFunds(userAddress, 8453);
+
+const { portfolio } = await sdk.getPortfolio(userAddress);
+portfolio.pendingAsyncWithdrawals
+  ?.filter((w) => w.status === "REQUESTED" || w.status === "CLAIMABLE")
+  .forEach((w) => {
+    console.log(`${w.amount} ${w.token?.symbol} from ${w.protocol?.name}`);
+    console.log(`Expected to be claimable around ${w.estimatedClaimAt}`);
+  });
+```
+
+These funds are missing from `portfolioByAssetType` while in flight — see
+[Total balance](#total-balance).
+
 ### 6. Get Available Protocols
 
 Retrieve all available DeFi protocols and pools for a specific chain:
@@ -589,6 +618,54 @@ portfolio.positions?.forEach((slot) => {
 **Note**: Portfolio balances are live; earnings used for the fee may come from a
 snapshot, so net values can differ slightly from a fully live calculation.
 
+#### Total balance
+
+`portfolioByAssetType` is **not** the user's total balance. The backend builds
+it from exactly two sources: the underlying amount of every deployed position,
+and the idle balances sitting in the Safe. Anything that is in neither place is
+missing from it.
+
+That gap is real under the `yieldmaxxing` strategy. When the agent requests a
+redemption from a delayed-withdrawal protocol, the position leaves the snapshot
+immediately while the funds stay in the vault for a day or three. During that
+window they are in no balance field — only in `pendingAsyncWithdrawals`.
+
+```typescript
+const { portfolio } = await sdk.getPortfolio(userAddress);
+
+const IN_FLIGHT = ["REQUESTED", "CLAIMABLE"];
+
+const totalFor = (assetType: string, tokenSymbol: string) => {
+  const settled = BigInt(portfolio.portfolioByAssetType?.[assetType]?.balance ?? "0x0");
+
+  const inFlight = (portfolio.pendingAsyncWithdrawals ?? [])
+    .filter((w) => IN_FLIGHT.includes(w.status) && w.token?.symbol === tokenSymbol)
+    .reduce((sum, w) => sum + BigInt(w.amount), 0n);
+
+  return settled + inFlight;
+};
+```
+
+Two ways to get this wrong:
+
+- **Do not add `staleBalances`.** They are the same idle Safe balances that
+  `portfolioByAssetType` already counts, exposed as a per-chain view for
+  surfacing funds waiting to be deployed. Adding them double-counts.
+- **Do not add every `pendingAsyncWithdrawals` entry.** The array also keeps
+  `CLAIMED` requests for 24 hours so you can show a recent history. Those funds
+  are already back in the Safe and therefore already counted. Filter on
+  `REQUESTED` and `CLAIMABLE`.
+
+Each in-flight entry carries the information needed to show progress:
+`status`, `amount` (in the token's least units — apply `token.decimals`),
+`protocol.name`, `pool`, `estimatedClaimAt`, and `statusMessage` when the
+protocol is temporarily refusing claims. A `FAILED` status is not a loss: the
+position is restored and the request is retried on the next cycle.
+
+`pauseMessageByToken` is a companion field holding user-facing copy when
+deposits are paused for a token (tokenized stocks over the weekend, for
+example), keyed by token symbol.
+
 ### 8. Analytics & Data Endpoints
 
 The SDK provides access to various analytics and data endpoints:
@@ -603,7 +680,7 @@ const user = await sdk.getUserDetails();
 console.log("Smart Wallet:", user.user.smartWallet);
 console.log("Active Chains:", user.user.chains);
 console.log("Active Protocols:", user.user.protocols);
-console.log("Strategy:", user.user.strategy); // "conservative" | "aggressive"
+console.log("Strategy:", user.user.strategy); // "conservative" | "aggressive" | "yieldmaxxing"
 console.log("Has Active Session:", user.user.hasActiveSessionKey);
 
 // Feature flags
@@ -624,7 +701,7 @@ console.log("Wallet Type:", user.user.walletType);
 
 **Available Fields:**
 - **Core Info**: `id`, `address`, `smartWallet`, `chains`, `protocols`
-- **Strategy**: `strategy` (conservative or aggressive)
+- **Strategy**: `strategy` (conservative, aggressive or yieldmaxxing)
 - **Session**: `hasActiveSessionKey` (boolean)
 - **Features**: `autocompounding`, `autoSelectProtocols`, `omniAccount`, `crosschainStrategy`, `executorProxy`, `splitting`, `minSplits`
 - **Optional**: `email`, `telegramId`, `agentName`, `walletType`, `customization`, `registered`
@@ -871,6 +948,34 @@ aggressiveOpps.data.forEach((o) => {
   console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
 });
 ```
+
+#### Get Yieldmaxxing Opportunities (Delayed Withdrawals)
+
+```typescript
+const asyncOpps = await sdk.getAsyncOpportunities(8453);
+asyncOpps.data.forEach((o) => {
+  console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
+});
+```
+
+#### Strategies
+
+Every method that takes a `strategy` accepts one of three values. Each tier is a
+superset of the previous one: an aggressive user also gets conservative pools,
+and a yieldmaxxing user gets everything.
+
+| Strategy | Backend value | Pools unlocked |
+| --- | --- | --- |
+| `conservative` (default) | `safe_strategy` | Low-risk pools only |
+| `aggressive` | `degen_strategy` | Conservative + higher-risk pools |
+| `yieldmaxxing` | `async_strategy` | Aggressive + pools with **delayed withdrawals** |
+
+`yieldmaxxing` is the only strategy that changes how withdrawals behave. It
+unlocks protocols (Ipor, Superform) that cannot be exited on demand: a
+redemption has to be requested, then claimed once the protocol releases the
+funds — roughly a day on Ipor, three on Superform. The agent handles both steps,
+but the funds are in flight in between. See
+[Withdraw Funds](#5-withdraw-funds) and [Total balance](#total-balance).
 
 ### 11. APY Per Strategy
 

@@ -118,6 +118,7 @@ import {
   convertStrategiesToPublicAndNaming,
   convertAssetInternally,
   removeUnusedFields,
+  type InternalStrategy,
 } from "../utils/strategy";
 import {
   getMatchingProtocolIds,
@@ -319,12 +320,10 @@ export class ZyfaiSDK {
       if (request.strategy) {
         if (!isValidPublicStrategy(request.strategy)) {
           throw new Error(
-            `Invalid strategy: ${request.strategy}. Must be "conservative" or "aggressive".`
+            `Invalid strategy: ${request.strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
           );
         }
-        rebalanceStrategy = toInternalStrategy(
-          request.strategy as "conservative" | "aggressive"
-        );
+        rebalanceStrategy = toInternalStrategy(request.strategy as Strategy);
       }
 
       // Build asset-specific settings from request fields
@@ -464,14 +463,21 @@ export class ZyfaiSDK {
             if (!hasMatchingChain) {
               return false;
             }
-            // Degen users get access to ALL protocols (safe + degen)
+            // Async users get every protocol; degen users get safe + degen;
+            // safe users only get safe_strategy protocols.
+            if (strategy === "async_strategy") {
+              return (
+                protocol.strategies?.includes("safe_strategy") ||
+                protocol.strategies?.includes("degen_strategy") ||
+                protocol.strategies?.includes("async_strategy")
+              );
+            }
             if (strategy === "degen_strategy") {
               return (
                 protocol.strategies?.includes("safe_strategy") ||
                 protocol.strategies?.includes("degen_strategy")
               );
             }
-            // Safe users only get safe_strategy protocols
             return protocol.strategies?.includes("safe_strategy");
           })
           .map((protocol: Protocol) => protocol.id);
@@ -1008,7 +1014,7 @@ export class ZyfaiSDK {
    *
    * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
-   * @param strategy - Optional strategy selection: "conservative" (default) or "aggressive"
+   * @param strategy - Optional strategy selection: "conservative" (default), "aggressive" or "yieldmaxxing"
    * @param createSessionKey - If true, automatically creates a session key after deployment (default: false)
    * @returns Deployment response with Safe address and transaction hash
    *
@@ -1491,7 +1497,8 @@ export class ZyfaiSDK {
     const withPools = await this.filterProtocolIdsWithPools(
       matching,
       effectiveChains,
-      asset
+      asset,
+      internalStrategy
     );
 
     await this.updateUserProfile({
@@ -1503,22 +1510,24 @@ export class ZyfaiSDK {
 
   /**
    * Drop protocols that have no pools on any of the selected chains for the
-   * requested asset. Uses the /customization/pools endpoint with
-   * `degen_strategy` as the master strategy so the response includes both
-   * safe and degen pools — mirrors the front-end behavior.
+   * requested asset. The /customization/pools endpoint filters server-side on
+   * the strategy, and each tier is a superset of the previous one, so the
+   * caller's strategy must be passed through — asking for `degen_strategy`
+   * returns an empty pool set for async-only assets.
    * @internal
    */
   private async filterProtocolIdsWithPools(
     protocolIds: string[],
     chains: number[],
-    asset: SupportedAsset
+    asset: SupportedAsset,
+    internalStrategy: InternalStrategy = "degen_strategy"
   ): Promise<string[]> {
     if (protocolIds.length === 0) return [];
 
     const results = await Promise.allSettled(
       protocolIds.map(async (id) => {
         const poolsData = await this.httpClient.get<any>(
-          ENDPOINTS.CUSTOMIZATION_POOLS(id, "degen_strategy")
+          ENDPOINTS.CUSTOMIZATION_POOLS(id, internalStrategy)
         );
         return { id, hasPool: hasMatchingPool(poolsData, chains, asset) };
       })
@@ -1596,7 +1605,7 @@ export class ZyfaiSDK {
    * @param asset - Asset symbol: "USDC", "WETH", or "EURC".
    *   EURC is supported on Ethereum Mainnet and Base only.
    * @param strategy - Optional strategy for first-deposit protocol patching:
-   *   "conservative" (default) or "aggressive"
+   *   "conservative" (default), "aggressive" or "yieldmaxxing"
    * @returns Deposit response with transaction hash
    *
    * @example
@@ -1668,7 +1677,7 @@ export class ZyfaiSDK {
 
       if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
         throw new Error(
-          `Invalid strategy: ${strategy}. Must be "conservative" or "aggressive".`
+          `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
         );
       }
 
@@ -1900,6 +1909,16 @@ export class ZyfaiSDK {
    * Note: The withdrawal is processed asynchronously, so txHash may not be immediately available
    * Funds are always withdrawn to the Safe owner's address (userAddress)
    *
+   * **Delayed withdrawals.** Positions held under the `"yieldmaxxing"`
+   * strategy sit in protocols that cannot be exited on demand. For those the
+   * backend transfers the immediately available portion, then queues a
+   * redemption for the rest and forwards the funds to the EOA once the
+   * protocol releases them — about a day on Ipor, three on Superform. No
+   * further call is needed, but the returned `txHash` only covers the
+   * immediate portion. Track the remainder through
+   * `getPortfolio().portfolio.pendingAsyncWithdrawals`, whose entries carry a
+   * `status` and an `estimatedClaimAt`.
+   *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
    * @param amount - Optional: Amount in least decimal units to withdraw (partial withdrawal). If not specified, withdraws all funds
@@ -2115,6 +2134,21 @@ export class ZyfaiSDK {
    * Note: portfolio balances are live; earnings used for the fee may be from
    * a snapshot, so net values can differ slightly from a fully live calc.
    *
+   * **Total balance.** `portfolioByAssetType` sums deployed positions and idle
+   * Safe balances, and nothing else. Under the `"yieldmaxxing"` strategy a
+   * redemption in flight has already left its position and has not landed in
+   * the Safe yet, so its funds appear in no balance field at all:
+   *
+   * ```
+   * total = portfolioByAssetType[assetType].balance
+   *       + sum(pendingAsyncWithdrawals where status is REQUESTED or CLAIMABLE)
+   * ```
+   *
+   * Do not add `staleBalances` on top — those are the same idle balances
+   * `portfolioByAssetType` already counts, exposed as a per-chain view.
+   * Do not add `CLAIMED` withdrawals either (the array keeps them for 24
+   * hours); their funds are back in the Safe and already counted.
+   *
    * @param userAddress - User's EOA address
    * @returns Portfolio with optional fee-adjusted balance fields
    *
@@ -2122,6 +2156,11 @@ export class ZyfaiSDK {
    * ```typescript
    * const { portfolio } = await sdk.getPortfolio(userAddress);
    * console.log(portfolio.portfolioByAssetType?.usdc?.balanceWithFee);
+   *
+   * // Funds still locked in an async redemption
+   * const inFlight = (portfolio.pendingAsyncWithdrawals ?? []).filter(
+   *   (w) => w.status === "REQUESTED" || w.status === "CLAIMABLE"
+   * );
    * ```
    */
   async getPortfolio(
@@ -2264,7 +2303,7 @@ export class ZyfaiSDK {
    *
    * @param crossChain - Whether to get cross-chain APY (true = omni account, false = simple account)
    * @param days - Time period: 7, 14, or 30
-   * @param strategy - Strategy type: "conservative" (default) or "aggressive"
+   * @param strategy - Strategy type: "conservative" (default), "aggressive" or "yieldmaxxing"
    * @param chainId - Optional chain ID filter
    * @param tokenSymbol - Optional token symbol filter (e.g. "USDC", "WETH", "WBTC")
    * @returns APY per strategy for a specific chain
@@ -2827,6 +2866,62 @@ export class ZyfaiSDK {
   }
 
   /**
+   * Get yieldmaxxing opportunities — pools reachable only with the
+   * `"yieldmaxxing"` strategy, including protocols whose withdrawals are
+   * asynchronous (Ipor, Superform). Exiting these pools takes about a day
+   * on Ipor and three on Superform; track the redemption through
+   * `getPortfolio().portfolio.pendingAsyncWithdrawals`.
+   *
+   * @param chainId - Optional chain ID filter
+   * @param asset - Optional asset filter (e.g. "USDC", "WETH")
+   * @returns List of yieldmaxxing opportunities
+   *
+   * @example
+   * ```typescript
+   * const opportunities = await sdk.getAsyncOpportunities(8453);
+   * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
+   * ```
+   */
+  async getAsyncOpportunities(
+    chainId?: number,
+    asset?: string,
+    status?: "live" | "not_live"
+  ): Promise<OpportunitiesResponse> {
+    try {
+      const response = await this.httpClient.dataGet<any>(
+        DATA_ENDPOINTS.OPPORTUNITIES_ASYNC(chainId, asset, status)
+      );
+
+      const data = response.data || response || [];
+
+      return {
+        success: true,
+        chainId,
+        strategyType: "yieldmaxxing",
+        data: Array.isArray(data)
+          ? data.map((o: any) => ({
+              id: o.id,
+              protocolId: o.protocol_id || o.protocolId,
+              protocolName: o.protocol_name || o.protocolName,
+              poolName: o.pool_name || o.poolName,
+              chainId: o.chain_id || o.chainId,
+              apy: o.combined_apy || 0,
+              tvl: o.tvl || o.zyfiTvl,
+              asset: o.asset || o.underlying_token,
+              risk: o.risk,
+              strategyType: "yieldmaxxing",
+              status: o.status,
+            }))
+          : [],
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to get yieldmaxxing opportunities: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
    * Get active conservative opportunities (status = "live") with risk and utilization data
    * Returns pool info, liquidity depth (true if > 1M), utilization rate, stability metrics, avg APY, and collateral
    *
@@ -3272,7 +3367,7 @@ export class ZyfaiSDK {
    * Returns the list of pools available for a given protocol, optionally filtered by strategy.
    *
    * @param protocolId - The protocol UUID
-   * @param strategy - Optional strategy filter ("conservative" or "aggressive")
+   * @param strategy - Optional strategy filter ("conservative", "aggressive" or "yieldmaxxing")
    * @returns List of available pool names
    *
    * @example
@@ -3290,7 +3385,7 @@ export class ZyfaiSDK {
    */
   async getAvailablePools(
     protocolId: string,
-    strategy?: "conservative" | "aggressive"
+    strategy?: Strategy
   ): Promise<GetPoolsResponse> {
     try {
       // Map public strategy to internal if provided
@@ -3298,7 +3393,7 @@ export class ZyfaiSDK {
       if (strategy) {
         if (!isValidPublicStrategy(strategy)) {
           throw new Error(
-            `Invalid strategy: ${strategy}. Must be "conservative" or "aggressive".`
+            `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
           );
         }
         internalStrategy = toInternalStrategy(strategy);
@@ -3350,7 +3445,7 @@ export class ZyfaiSDK {
     try {
       if (!isValidPublicStrategy(params.strategy)) {
         throw new Error(
-          `Invalid strategy: ${params.strategy}. Must be "conservative" or "aggressive".`
+          `Invalid strategy: ${params.strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
         );
       }
       const internalStrategy = toInternalStrategy(params.strategy);

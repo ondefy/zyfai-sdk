@@ -1,7 +1,12 @@
 import { staleBalances, type SupportedAsset } from "../types";
 
-export type PublicStrategy = "conservative" | "aggressive";
-export type InternalStrategy = "safe_strategy" | "degen_strategy";
+export type PublicStrategy = "conservative" | "aggressive" | "yieldmaxxing";
+export type InternalStrategy =
+  | "safe_strategy"
+  | "degen_strategy"
+  | "async_strategy";
+
+const PUBLIC_STRATEGIES = `"conservative", "aggressive" or "yieldmaxxing"`;
 
 export function toInternalStrategy(
   publicStrategy: PublicStrategy
@@ -11,15 +16,17 @@ export function toInternalStrategy(
       return "safe_strategy";
     case "aggressive":
       return "degen_strategy";
+    case "yieldmaxxing":
+      return "async_strategy";
     default:
       throw new Error(
-        `Invalid public strategy: ${publicStrategy}. Must be "conservative" or "aggressive".`
+        `Invalid public strategy: ${publicStrategy}. Must be ${PUBLIC_STRATEGIES}.`
       );
   }
 }
 
 export function toPublicStrategy(
-  internalStrategy: InternalStrategy | "safe" | "degen"
+  internalStrategy: InternalStrategy | "safe" | "degen" | "async"
 ): PublicStrategy {
   if (internalStrategy === "safe_strategy" || internalStrategy === "safe") {
     return "conservative";
@@ -27,15 +34,22 @@ export function toPublicStrategy(
   if (internalStrategy === "degen_strategy" || internalStrategy === "degen") {
     return "aggressive";
   }
+  if (internalStrategy === "async_strategy" || internalStrategy === "async") {
+    return "yieldmaxxing";
+  }
   throw new Error(
-    `Invalid internal strategy: ${internalStrategy}. Must be "safe_strategy" or "degen_strategy".`
+    `Invalid internal strategy: ${internalStrategy}. Must be "safe_strategy", "degen_strategy" or "async_strategy".`
   );
 }
 
 export function isValidPublicStrategy(
   strategy: string
 ): strategy is PublicStrategy {
-  return strategy === "conservative" || strategy === "aggressive";
+  return (
+    strategy === "conservative" ||
+    strategy === "aggressive" ||
+    strategy === "yieldmaxxing"
+  );
 }
 
 export function convertStrategyToPublic<T extends { strategy?: string }>(
@@ -54,7 +68,7 @@ export function convertStrategyToPublic<T extends { strategy?: string }>(
     const result = {
       ...obj,
       strategy: toPublicStrategy(
-        obj.strategy as InternalStrategy | "safe" | "degen"
+        obj.strategy as InternalStrategy | "safe" | "degen" | "async"
       ),
     };
     

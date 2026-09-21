@@ -158,6 +158,9 @@ export type {
   PortfolioByChain,
   PortfolioDetailed,
   PortfolioDetailedResponse,
+  AsyncWithdrawal,
+  AsyncWithdrawalStatus,
+  staleBalances,
 
   // Session Types
   Session,
