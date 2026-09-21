@@ -1919,6 +1919,12 @@ export class ZyfaiSDK {
    * `getPortfolio().portfolio.pendingAsyncWithdrawals`, whose entries carry a
    * `status` and an `estimatedClaimAt`.
    *
+   * Once requested, that amount can no longer be withdrawn: it is gone from
+   * both the position snapshot and the Safe balance, so a second call silently
+   * returns only what is left. Validate user-entered amounts against
+   * `portfolioByAssetType`, not against the total that includes in-flight
+   * funds — see `getPortfolio`.
+   *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
    * @param amount - Optional: Amount in least decimal units to withdraw (partial withdrawal). If not specified, withdraws all funds
@@ -2137,12 +2143,20 @@ export class ZyfaiSDK {
    * **Total balance.** `portfolioByAssetType` sums deployed positions and idle
    * Safe balances, and nothing else. Under the `"yieldmaxxing"` strategy a
    * redemption in flight has already left its position and has not landed in
-   * the Safe yet, so its funds appear in no balance field at all:
+   * the Safe yet, so its funds appear in no balance field at all. That makes
+   * two distinct numbers:
    *
    * ```
-   * total = portfolioByAssetType[assetType].balance
-   *       + sum(pendingAsyncWithdrawals where status is REQUESTED or CLAIMABLE)
+   * total       = portfolioByAssetType[assetType].balance
+   *             + sum(pendingAsyncWithdrawals where REQUESTED or CLAIMABLE)
+   *
+   * requestable = portfolioByAssetType[assetType].balance
    * ```
+   *
+   * An in-flight amount is no longer withdrawable: `withdrawFunds` only reaches
+   * the current positions and idle balances, so calling it again neither speeds
+   * those funds up nor errors. They reach the EOA on their own. Cap any
+   * user-entered withdrawal amount at `requestable`, never at `total`.
    *
    * Do not add `staleBalances` on top — those are the same idle balances
    * `portfolioByAssetType` already counts, exposed as a per-chain view.

@@ -551,8 +551,11 @@ portfolio.pendingAsyncWithdrawals
   });
 ```
 
-These funds are missing from `portfolioByAssetType` while in flight — see
-[Total balance](#total-balance).
+Once requested, that amount can no longer be withdrawn: it is gone from both
+the position snapshot and the Safe balance, so a second `withdrawFunds` call
+silently returns only what is left. It is also missing from
+`portfolioByAssetType` while in flight, so validate user-entered amounts
+against that field rather than the total — see [Total balance](#total-balance).
 
 ### 6. Get Available Protocols
 
@@ -630,21 +633,47 @@ redemption from a delayed-withdrawal protocol, the position leaves the snapshot
 immediately while the funds stay in the vault for a day or three. During that
 window they are in no balance field — only in `pendingAsyncWithdrawals`.
 
+So you need **two different numbers**, and showing one where the other belongs
+is the most common mistake:
+
+| Number | Formula | Use it for |
+| --- | --- | --- |
+| **Total balance** | `portfolioByAssetType` + in-flight | "You have X" — the user still owns the in-flight funds |
+| **Requestable** | `portfolioByAssetType` only | Any withdraw form, max button, or amount validation |
+
+An in-flight amount is **no longer withdrawable**. A `withdrawFunds` call only
+reaches positions in the current snapshot and idle Safe balances, and the
+in-flight amount is in neither — calling it again will not pull those funds out
+any faster, nor will it fail with an error. They land on the user's EOA on
+their own once the protocol releases them, so the right UI is to show them as
+pending with their `estimatedClaimAt`, never to offer them for withdrawal.
+
 ```typescript
 const { portfolio } = await sdk.getPortfolio(userAddress);
 
 const IN_FLIGHT = ["REQUESTED", "CLAIMABLE"];
 
-const totalFor = (assetType: string, tokenSymbol: string) => {
-  const settled = BigInt(portfolio.portfolioByAssetType?.[assetType]?.balance ?? "0x0");
+const balancesFor = (assetType: string, tokenSymbol: string) => {
+  // Everything a withdrawal can still act on.
+  const requestable = BigInt(
+    portfolio.portfolioByAssetType?.[assetType]?.balance ?? "0x0"
+  );
 
+  // Owned, but locked in a redemption until the protocol releases it.
   const inFlight = (portfolio.pendingAsyncWithdrawals ?? [])
     .filter((w) => IN_FLIGHT.includes(w.status) && w.token?.symbol === tokenSymbol)
     .reduce((sum, w) => sum + BigInt(w.amount), 0n);
 
-  return settled + inFlight;
+  return { requestable, inFlight, total: requestable + inFlight };
 };
 ```
+
+`requestable` is what a withdrawal can still be asked on, **not** what arrives
+immediately: it also covers async positions the user currently holds, and
+withdrawing those turns them into a new in-flight redemption. Cap the amount a
+user can enter at `requestable`, never at `total` — asking for more does not
+fail loudly, the backend transfers what it can right away and queues a
+redemption for the shortfall.
 
 Two ways to get this wrong:
 
