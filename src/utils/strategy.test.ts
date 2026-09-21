@@ -4,6 +4,7 @@ import {
   isValidPublicStrategy,
   toInternalStrategy,
   toPublicStrategy,
+  toPublicStrategyOrUndefined,
 } from "./strategy";
 
 describe("toInternalStrategy", () => {
@@ -53,5 +54,25 @@ describe("convertStrategyToPublic", () => {
     expect(convertStrategyToPublic({ strategy: "aave_strategy" })).toEqual({
       strategy: "aave_strategy",
     });
+  });
+});
+
+describe("toPublicStrategyOrUndefined", () => {
+  it("converts every backend strategy", () => {
+    expect(toPublicStrategyOrUndefined("safe_strategy")).toBe("conservative");
+    expect(toPublicStrategyOrUndefined("degen_strategy")).toBe("aggressive");
+    expect(toPublicStrategyOrUndefined("async_strategy")).toBe("yieldmaxxing");
+  });
+
+  it("returns undefined rather than leaking an unknown backend value", () => {
+    expect(toPublicStrategyOrUndefined("aave_strategy")).toBeUndefined();
+    expect(toPublicStrategyOrUndefined(undefined)).toBeUndefined();
+    expect(toPublicStrategyOrUndefined("")).toBeUndefined();
+  });
+
+  it("round-trips back through toInternalStrategy", () => {
+    const publicStrategy = toPublicStrategyOrUndefined("async_strategy");
+    expect(isValidPublicStrategy(publicStrategy ?? "")).toBe(true);
+    expect(toInternalStrategy(publicStrategy!)).toBe("async_strategy");
   });
 });

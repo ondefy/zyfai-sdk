@@ -13,7 +13,7 @@ async function main() {
     );
   }
 
-  const chainId = Number(process.env.CHAIN_ID ?? 42161) as SupportedChainId;
+  const chainId = Number(process.env.CHAIN_ID ?? 8453) as SupportedChainId;
   
   // Examples of amounts in correct decimal units:
   // USDC / EURC (6 decimals): "1000000" = 1, "100000000" = 100
@@ -21,7 +21,7 @@ async function main() {
   // EURC is supported on Ethereum Mainnet (1) and Base (8453) only.
 
   const asset = "USDC"; // Can be "USDC", "WETH", or "EURC"
-  const amount = "2000000"; // 2 USDC or EURC (6 decimals)
+  const amount = "10000000"; // 2 USDC or EURC (6 decimals)
 
   const sdk = new ZyfaiSDK({
     apiKey,
@@ -37,7 +37,7 @@ async function main() {
 
   console.log("Depositing funds...", amount, asset, chainId);
   // Deposit with specified asset (USDC by default, or WETH / EURC)
-  const response = await sdk.depositFunds(connected, chainId, amount, asset);
+  const response = await sdk.depositFunds(connected, chainId, amount, asset, "yieldmaxxing");
 
   console.log("Deposit submitted:");
   console.log(`  Transaction: ${response.txHash}`);

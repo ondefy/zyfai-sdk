@@ -42,6 +42,23 @@ export function toPublicStrategy(
   );
 }
 
+/**
+ * Public form of a backend strategy, or `undefined` when the value is absent
+ * or unknown to this SDK version. Never leaks an internal name to callers.
+ */
+export function toPublicStrategyOrUndefined(
+  internalStrategy: string | undefined | null
+): PublicStrategy | undefined {
+  if (!internalStrategy) {
+    return undefined;
+  }
+  try {
+    return toPublicStrategy(internalStrategy as InternalStrategy);
+  } catch {
+    return undefined;
+  }
+}
+
 export function isValidPublicStrategy(
   strategy: string
 ): strategy is PublicStrategy {

@@ -115,6 +115,7 @@ import {
   convertStrategyToPublic,
   convertStrategiesToPublic,
   isValidPublicStrategy,
+  toPublicStrategyOrUndefined,
   convertStrategiesToPublicAndNaming,
   convertAssetInternally,
   removeUnusedFields,
@@ -445,10 +446,16 @@ export class ZyfaiSDK {
         ENDPOINTS.PROTOCOLS()
       );
 
-      // Get strategies for each asset
-      const usdcStrategy = userDetailsUSDC.strategy || "safe_strategy";
-      const ethStrategy = userDetailsETH.strategy || "safe_strategy";
-      const eurcStrategy = userDetailsEURC.strategy || "safe_strategy";
+      // `getUserDetails` reports the public name; the filter below matches on
+      // the backend one.
+      const internalStrategyOf = (strategy?: string): InternalStrategy =>
+        isValidPublicStrategy(strategy ?? "")
+          ? toInternalStrategy(strategy as Strategy)
+          : "safe_strategy";
+
+      const usdcStrategy = internalStrategyOf(userDetailsUSDC.strategy);
+      const ethStrategy = internalStrategyOf(userDetailsETH.strategy);
+      const eurcStrategy = internalStrategyOf(userDetailsEURC.strategy);
 
       // Helper function to filter protocols by strategy (+ optional chain list)
       const filterProtocolsByStrategy = (
@@ -1501,10 +1508,14 @@ export class ZyfaiSDK {
       internalStrategy
     );
 
+    // Persist the strategy alongside the protocols it produced. Without it the
+    // backend keeps its default `safe_strategy` and rebalances a whitelist that
+    // was selected for a wider tier.
     await this.updateUserProfile({
       asset,
       protocols: withPools,
       chains: effectiveChains,
+      ...(strategy !== undefined && { strategy }),
     });
   }
 
@@ -2265,7 +2276,11 @@ export class ZyfaiSDK {
         omniAccount: convertedResponse.omniAccount,
         asset: asset,
         autoSelectProtocols: convertedResponse.assetTypeSettings?.[internalAsset]?.autoSelectProtocols,
-        strategy: convertedResponse.assetTypeSettings?.[internalAsset]?.rebalanceStrategy,
+        // `convertStrategyToPublic` only touches the root `strategy` field;
+        // the per-asset one is nested and has to be converted here.
+        strategy: toPublicStrategyOrUndefined(
+          convertedResponse.assetTypeSettings?.[internalAsset]?.rebalanceStrategy
+        ),
         autocompounding: convertedResponse.assetTypeSettings?.[internalAsset]?.autocompounding,
         crosschainStrategy: convertedResponse.assetTypeSettings?.[internalAsset]?.crosschainStrategy,
         splitting: convertedResponse.assetTypeSettings?.[internalAsset]?.splitting,
