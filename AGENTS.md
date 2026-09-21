@@ -62,6 +62,7 @@ deprecated for new integrations.
 | --- | --- |
 | User-facing API examples | [`README.md`](README.md) |
 | Doc index | [`docs/README.md`](docs/README.md) |
+| Release / changesets | [`docs/RELEASING.md`](docs/RELEASING.md) |
 | Bankr integration | [`docs/BANKR_INTEGRATION.md`](docs/BANKR_INTEGRATION.md) |
 | Review / public contract | [`docs/review-invariants.md`](docs/review-invariants.md) |
 | Past lessons | [`docs/engineering-history.md`](docs/engineering-history.md) |
@@ -88,5 +89,6 @@ These `.agents/review/` policies are for automated CI and its JSON result only. 
    (mirror `examples/`); run `npm run test:integration` against local `zyfai-api`.
    Cross-repo flows: follow
    [`functional-feature-verification`](../.cursor/skills/functional-feature-verification/SKILL.md).
-4. Run `npm run check` before finishing.
-5. Durable lessons → `.cursor/learnings/` or `docs/engineering-history.md`.
+4. PRs with user-facing changes need a changeset (`npm run changeset`); see [`docs/RELEASING.md`](docs/RELEASING.md).
+5. Run `npm run check` before finishing.
+6. Durable lessons → `.cursor/learnings/` or `docs/engineering-history.md`.

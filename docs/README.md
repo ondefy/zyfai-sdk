@@ -3,6 +3,7 @@
 | Task | Document |
 | --- | --- |
 | User-facing API reference | [`../README.md`](../README.md) |
+| Release / changesets | [`RELEASING.md`](RELEASING.md) |
 | Bankr integration | [`BANKR_INTEGRATION.md`](BANKR_INTEGRATION.md) |
 | Review / public contract rules | [`review-invariants.md`](review-invariants.md) |
 | Engineering history | [`engineering-history.md`](engineering-history.md) |
