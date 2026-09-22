@@ -1,8 +1,10 @@
 /**
- * Zyfai SDK Types
+ * Public TypeScript types for `@zyfai/sdk` request/response shapes and events.
  */
 
+/** Checksummed Ethereum address. */
 export type Address = `0x${string}`;
+/** Hex-encoded byte string (e.g. signatures, calldata). */
 export type Hex = `0x${string}`;
 
 /**
@@ -15,15 +17,28 @@ export type Strategy = "conservative" | "aggressive" | "yieldmaxxing";
 /** Public asset symbols supported by the SDK */
 export type SupportedAsset = "USDC" | "WETH" | "EURC" | "NVDAc";
 
+/** Optional per-chain RPC URLs for on-chain reads and writes. */
 export interface RpcUrlsConfig {
+  /** Ethereum mainnet */
   1?: string;
+  /** Base */
   8453?: string;
+  /** Arbitrum One */
   42161?: string;
 }
 
+/**
+ * SDK constructor configuration.
+ *
+ * @remarks
+ * A single partner `apiKey` authenticates both execution and data API calls.
+ */
 export interface SDKConfig {
+  /** Partner API key from [sdk.zyf.ai](https://sdk.zyf.ai). */
   apiKey: string;
+  /** Override default viem RPC endpoints per chain. */
   rpcUrls?: RpcUrlsConfig;
+  /** Optional attribution string sent on SIWE login. */
   referralSource?: string;
   /** @internal Local integration tests only — not part of the public SDK contract. */
   executionApiUrl?: string;
@@ -606,16 +621,20 @@ export interface DebankPortfolioResponse {
 // Opportunities Types
 // ============================================================================
 
+/** Yield opportunity row from the data API opportunities endpoints. */
 export interface Opportunity {
+  /** Opportunity identifier. */
   id: string;
   protocolId: string;
   protocolName: string;
   poolName: string;
   chainId: number;
+  /** Gross APY percentage. */
   apy: number;
   tvl?: number;
   asset?: string;
   risk?: string;
+  /** Public {@link Strategy} bucket for this pool. */
   strategyType: Strategy;
   status?: string;
 }
@@ -683,24 +702,41 @@ export interface RebalanceFrequencyResponse {
   description?: string;
 }
 
+/** Result of {@link ZyfaiSDK.sendDeposit} and {@link ZyfaiSDK.depositFunds}. */
 export interface DepositResponse {
   success: boolean;
+  /** On-chain ERC-20 transfer transaction hash. */
   txHash: string;
+  /** Safe address that received the transfer. */
   smartWallet: string;
+  /** Deposited amount in least units (decimal string). */
   amount: string;
-  /** Current lifecycle state; high-level methods return pending after their normal completion window. */
+  /**
+   * Deposit lifecycle record. After `sendDeposit`, status is usually
+   * `handover_pending` until {@link ZyfaiSDK.waitForDepositCredit} completes.
+   */
   registration: DepositLifecycleResponse;
 }
 
+/**
+ * Custody handover and balance-credit states for a registered deposit.
+ *
+ * @remarks
+ * `credited` with `balanceCredited: true` means funds are investable.
+ */
 export type DepositLifecycleStatus =
   | "handover_pending"
   | "credited"
   | "recovered_to_eoa";
 
+/** Deposit registration and credit lifecycle (execution API). */
 export interface DepositLifecycleResponse {
+  /** Lifecycle id — pass to {@link ZyfaiSDK.getDepositStatus} / {@link ZyfaiSDK.waitForDepositCredit}. */
   id: string;
   status: DepositLifecycleStatus;
+  /** True when the Safe balance reflects the deposit. */
   balanceCredited: boolean;
+  /** Backend URL for status polling (informational). */
   statusUrl: string;
 }
 
@@ -710,16 +746,22 @@ export interface LogDepositResponse {
   deposit: DepositLifecycleResponse;
 }
 
+/** Polling overrides for {@link ZyfaiSDK.waitForDepositCredit}. */
 export interface WaitForDepositCreditOptions {
+  /** Milliseconds between {@link ZyfaiSDK.getDepositStatus} calls. */
   intervalMs?: number;
+  /** Maximum wait before throwing `DepositCreditTimeoutError`. */
   timeoutMs?: number;
 }
 
+/** Result of {@link ZyfaiSDK.withdrawFunds}. */
 export interface WithdrawResponse {
   success: boolean;
   message: string;
+  /** Present once the withdrawal transaction is submitted on-chain. */
   txHash?: string;
   type: "full" | "partial";
+  /** Withdrawn amount in least units (decimal string). */
   amount: string;
 }
 
@@ -765,7 +807,9 @@ export interface UserPosition {
   tvl: number;
 }
 
+/** Input for {@link ZyfaiSDK.simulateBestPositions}. */
 export interface SimulateBestPositionsParams {
+  /** Human-readable amount (not least units). */
   amount: number;
   token: string;
   networks: number | number[];
@@ -817,6 +861,7 @@ export interface ExcludedPool {
   failed_checks?: string[];
 }
 
+/** Simulation result keyed by chain id string. */
 export interface SimulateBestPositionsResponse {
   success: boolean;
   data: Record<string, SimulatedPosition[]>;
@@ -894,10 +939,13 @@ export interface RegisterAgentResponse {
 // Customization Types
 // ============================================================================
 
+/** One protocol/pool customization row for {@link ZyfaiSDK.customizeBatch}. */
 export interface CustomizationConfig {
   protocolId: string;
+  /** Pool display names; empty when `autoselect` is true. */
   pools: string[];
   chainId: number;
+  /** When true, the engine picks pools automatically. */
   autoselect: boolean;
 }
 
@@ -1045,12 +1093,14 @@ export interface LiquidityDropEvent {
   timestamp: string;
 }
 
+/** Optional subscribe filters for {@link ZyfaiSDK.subscribeToEvents}. */
 export interface ZyfaiEventFilters {
   chains?: string[];
   protocols?: string[];
   pools?: string[];
 }
 
+/** WebSocket event callbacks for {@link ZyfaiSDK.subscribeToEvents}. */
 export interface ZyfaiEventHandlers {
   onDepeg?: (data: DepegEvent) => void;
   onNewCollateralDetected?: (data: NewCollateralDetectedEvent) => void;

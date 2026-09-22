@@ -59,8 +59,13 @@ interface BankrSubmitResponse {
  * const sdk = new ZyfaiSDK({ apiKey: process.env.ZYFAI_API_KEY });
  * 
  * const address = await sdk.connectAccount(provider);
- * await sdk.deploySafe(address, 8453, 'conservative', true);
+ * const sent = await sdk.sendDeposit(address, 8453, "10000000", "USDC", "conservative");
+ * await sdk.waitForDepositCredit(sent.registration.id, 8453);
  * ```
+ *
+ * @remarks
+ * The provider implements EIP-1193 methods used by the SDK (`eth_requestAccounts`,
+ * `eth_chainId`, `personal_sign`, `eth_sendTransaction`, etc.).
  */
 export function createBankrProvider(config: BankrProviderConfig) {
   const { 

@@ -36,7 +36,8 @@
     "prepublishOnly": "npm run build",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch",
-    "docs:json": "typedoc --json docs/api.json"
+    "docs:json": "typedoc --json docs/api.json",
+    "lint:tsdoc": "eslint src"
   },
   "keywords": [
     "zyfai",
@@ -77,7 +78,11 @@
   "devDependencies": {
     "@changesets/changelog-github": "^0.5.2",
     "@changesets/cli": "^2.31.1",
+    "@microsoft/tsdoc": "^0.15.1",
+    "@typescript-eslint/parser": "^8.26.0",
     "@types/node": "^20.0.0",
+    "eslint": "^9.22.0",
+    "eslint-plugin-tsdoc": "^0.4.0",
     "dotenv": "^17.2.3",
     "ethers": "^6.17.0",
     "tsup": "^8.0.0",

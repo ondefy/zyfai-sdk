@@ -8,6 +8,7 @@
   "excludePrivate": true,
   "excludeProtected": true,
   "excludeInternal": true,
+  "skipErrorChecking": true,
   "categorizeByGroup": true,
   "searchInComments": true,
   "sort": ["source-order"],
