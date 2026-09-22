@@ -29,6 +29,8 @@ export interface SDKConfig {
   executionApiUrl?: string;
   /** @internal Local integration tests only — not part of the public SDK contract. */
   dataApiUrl?: string;
+  /** @internal Override client-side minimum portfolio checks (local integration). */
+  bypassMinPortfolio?: boolean;
 }
 
 // Response Types
@@ -686,11 +688,31 @@ export interface DepositResponse {
   txHash: string;
   smartWallet: string;
   amount: string;
+  /** Current lifecycle state; high-level methods return pending after their normal completion window. */
+  registration: DepositLifecycleResponse;
+}
+
+export type DepositLifecycleStatus =
+  | "handover_pending"
+  | "credited"
+  | "recovered_to_eoa";
+
+export interface DepositLifecycleResponse {
+  id: string;
+  status: DepositLifecycleStatus;
+  balanceCredited: boolean;
+  statusUrl: string;
 }
 
 export interface LogDepositResponse {
   success: boolean;
   message: string;
+  deposit: DepositLifecycleResponse;
+}
+
+export interface WaitForDepositCreditOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
 }
 
 export interface WithdrawResponse {

@@ -66,9 +66,36 @@ export const MIN_PORTFOLIO_USD: Partial<
 };
 
 /**
- * Format a minimum threshold (raw units + decimals) as a human-readable
- * string, e.g. `10000 USDC` or `0.005 WETH`. Supports fractional amounts.
+ * Default poll interval for `waitForDepositCredit`, per chain (ms).
+ *
+ * L2s use tighter polling so credit is detected within a few blocks.
  */
+export const DEPOSIT_CREDIT_INTERVAL_MS: Record<SupportedChainId, number> = {
+  1: 2_000,
+  8453: 500,
+  42161: 250,
+};
+
+/**
+ * Default timeout for `waitForDepositCredit`, per chain (ms).
+ *
+ * These are user-facing completion windows, not the backend's full recovery
+ * budget. A caller that needs to wait longer can pass `timeoutMs` explicitly.
+ */
+export const DEPOSIT_CREDIT_TIMEOUT_MS: Record<SupportedChainId, number> = {
+  1: 60_000, // 1 minute
+  8453: 20_000, // ~10 Base blocks
+  42161: 20_000, // ~10 Arbitrum blocks
+};
+
+export const getDepositCreditIntervalMs = (
+  chainId: SupportedChainId,
+): number => DEPOSIT_CREDIT_INTERVAL_MS[chainId];
+
+export const getDepositCreditTimeoutMs = (
+  chainId: SupportedChainId,
+): number => DEPOSIT_CREDIT_TIMEOUT_MS[chainId];
+
 export const formatMinPortfolioLabel = (
   raw: bigint,
   decimals: number,

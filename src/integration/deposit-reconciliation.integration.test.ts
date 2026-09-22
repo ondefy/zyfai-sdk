@@ -8,7 +8,7 @@ import { getDefaultTokenAddress } from "../config/chains";
 import { LOCAL_EXECUTION_API_BASE_URL } from "../config/endpoints";
 import { ZyfaiSDK } from "../core/ZyfaiSDK";
 import {
-  depositReconciliationEnvReady,
+  freshFundedUserEnvReady,
   pollUntil,
   setupFreshFundedUser,
 } from "./utils";
@@ -18,7 +18,7 @@ const CHAIN_ID = 8453;
 const DEPOSIT_AMOUNT = 100_000n;
 const FUNDING_ETH_AMOUNT = 20_000_000_000_000n;
 
-describe.skipIf(!depositReconciliationEnvReady())(
+describe.skipIf(!freshFundedUserEnvReady())(
   "deposit-reconciliation",
   { timeout: 480_000 },
   () => {

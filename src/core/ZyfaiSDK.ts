@@ -3,6 +3,7 @@
  */
 
 import { HttpClient } from "../utils/http-client";
+import { sleep } from "../utils/poll";
 import {
   parseTokenUsdPrice,
   usdToTokenUnits,
@@ -14,13 +15,23 @@ import {
   API_ENDPOINT,
   WS_ENDPOINT,
 } from "../config/endpoints";
-import { ERC20_ABI, IDENTITY_REGISTRY_ABI, IDENTITY_REGISTRY_ADDRESS, VAULT_ABI, VAULT_ADDRESS } from "../config/abis";
+import {
+  ERC20_ABI,
+  IDENTITY_REGISTRY_ABI,
+  IDENTITY_REGISTRY_ADDRESS,
+  VAULT_ABI,
+  VAULT_ADDRESS,
+} from "../config/abis";
 import {
   MIN_PORTFOLIO_BALANCE,
   MIN_PORTFOLIO_USD,
   formatMinPortfolioLabel,
+  getDepositCreditIntervalMs,
+  getDepositCreditTimeoutMs,
   type DailyApyHistoryPeriod,
 } from "../config/constants";
+import { shouldBypassMinPortfolioCheck } from "../config/local-dev";
+
 import type {
   SDKConfig,
   DeploySafeResponse,
@@ -31,6 +42,8 @@ import type {
   SessionKeyResponse,
   DepositResponse,
   LogDepositResponse,
+  DepositLifecycleResponse,
+  WaitForDepositCreditOptions,
   WithdrawResponse,
   ProtocolsResponse,
   PortfolioResponse,
@@ -137,6 +150,13 @@ import {
 } from "../utils/zyfi-fees";
 import { SiweMessage } from "siwe";
 
+class DepositCreditTimeoutError extends Error {
+  constructor(depositId: string) {
+    super(`Timed out waiting for deposit ${depositId} to be credited`);
+    this.name = "DepositCreditTimeoutError";
+  }
+}
+
 /**
  * Assets the agent manages on a user's behalf. Pausing, resuming and the
  * post-deploy protocol assignment all walk this list, so an asset added here
@@ -158,18 +178,19 @@ export class ZyfaiSDK {
   private referralSource?: string;
 
   /**
-   * Warn that a legacy method is deprecated in favor of depositFunds.
+   * Warn that a legacy method is deprecated in favor of sendDeposit.
    * Predeployed wallets no longer require deploySafe / createSessionKey.
    */
   private warnDeprecatedOnboardingMethod(methodName: string): void {
     console.warn(
       `[ZyfaiSDK] ${methodName}() is deprecated for partner integrations. ` +
-        `Prefer depositFunds() — predeployed Safes and session keys are handled ` +
-        `automatically on first deposit.`
+        `Prefer sendDeposit() — predeployed Safes and session keys are handled ` +
+        `automatically on first deposit.`,
     );
   }
 
   private readonly executionApiUrl: string;
+  private readonly bypassMinPortfolio: boolean;
 
   constructor(config: SDKConfig | string) {
     const sdkConfig: SDKConfig =
@@ -181,6 +202,7 @@ export class ZyfaiSDK {
       referralSource,
       executionApiUrl,
       dataApiUrl,
+      bypassMinPortfolio,
     } = sdkConfig;
 
     if (!apiKey) {
@@ -188,6 +210,9 @@ export class ZyfaiSDK {
     }
 
     this.executionApiUrl = executionApiUrl ?? API_ENDPOINT;
+    this.bypassMinPortfolio =
+      bypassMinPortfolio ??
+      shouldBypassMinPortfolioCheck(this.executionApiUrl);
     this.httpClient = new HttpClient(apiKey, {
       executionApiUrl: this.executionApiUrl,
       dataApiUrl,
@@ -277,7 +302,7 @@ export class ZyfaiSDK {
                 Origin: uri,
               },
             }
-          : undefined
+          : undefined,
       );
       const authToken = loginResponse.accessToken;
 
@@ -294,7 +319,7 @@ export class ZyfaiSDK {
         (loginResponse.smartWallet as Address) || null;
     } catch (error) {
       throw new Error(
-        `Failed to authenticate user: ${(error as Error).message}`
+        `Failed to authenticate user: ${(error as Error).message}`,
       );
     }
   }
@@ -315,7 +340,7 @@ export class ZyfaiSDK {
    * ```
    */
   async updateUserProfile(
-    request: UpdateUserProfileRequest
+    request: UpdateUserProfileRequest,
   ): Promise<UpdateUserProfileResponse> {
     try {
       // Authenticate user first to get JWT token
@@ -331,7 +356,7 @@ export class ZyfaiSDK {
       if (request.strategy) {
         if (!isValidPublicStrategy(request.strategy)) {
           throw new Error(
-            `Invalid strategy: ${request.strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
+            `Invalid strategy: ${request.strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
           );
         }
         rebalanceStrategy = toInternalStrategy(request.strategy as Strategy);
@@ -339,14 +364,21 @@ export class ZyfaiSDK {
 
       // Build asset-specific settings from request fields
       const assetSettings: Record<string, any> = {};
-      if (rebalanceStrategy !== undefined) assetSettings.rebalanceStrategy = rebalanceStrategy;
-      if (request.autocompounding !== undefined) assetSettings.autocompounding = request.autocompounding;
-      if (request.crosschainStrategy !== undefined) assetSettings.crosschainStrategy = request.crosschainStrategy;
-      if (request.splitting !== undefined) assetSettings.splitting = request.splitting;
-      if (request.minSplits !== undefined) assetSettings.minSplits = request.minSplits;
+      if (rebalanceStrategy !== undefined)
+        assetSettings.rebalanceStrategy = rebalanceStrategy;
+      if (request.autocompounding !== undefined)
+        assetSettings.autocompounding = request.autocompounding;
+      if (request.crosschainStrategy !== undefined)
+        assetSettings.crosschainStrategy = request.crosschainStrategy;
+      if (request.splitting !== undefined)
+        assetSettings.splitting = request.splitting;
+      if (request.minSplits !== undefined)
+        assetSettings.minSplits = request.minSplits;
       if (request.chains !== undefined) assetSettings.chains = request.chains;
-      if (request.autoSelectProtocols !== undefined) assetSettings.autoSelectProtocols = request.autoSelectProtocols;
-      if (request.protocols !== undefined) assetSettings.protocols = request.protocols;
+      if (request.autoSelectProtocols !== undefined)
+        assetSettings.autoSelectProtocols = request.autoSelectProtocols;
+      if (request.protocols !== undefined)
+        assetSettings.protocols = request.protocols;
 
       // Build internal payload with assetTypeSettings
       const payload: UpdateUserProfileInternalRequest = {
@@ -356,20 +388,19 @@ export class ZyfaiSDK {
       };
 
       // Add global fields that stay at root level
-      if (request.omniAccount !== undefined) payload.omniAccount = request.omniAccount;
-      if (request.agentName !== undefined) payload.agentName = request.agentName;
+      if (request.omniAccount !== undefined)
+        payload.omniAccount = request.omniAccount;
+      if (request.agentName !== undefined)
+        payload.agentName = request.agentName;
 
       // Update user profile via API
-      await this.httpClient.patch<any>(
-        ENDPOINTS.USER_ME,
-        payload
-      );
+      await this.httpClient.patch<any>(ENDPOINTS.USER_ME, payload);
 
       // Fetch fresh user details after update and return directly
       return await this.getUserDetails(asset);
     } catch (error) {
       throw new Error(
-        `Failed to update user profile: ${(error as Error).message}`
+        `Failed to update user profile: ${(error as Error).message}`,
       );
     }
   }
@@ -432,7 +463,7 @@ export class ZyfaiSDK {
       // Fetched once and shared: the per-asset helper would otherwise refetch
       // the full protocol list on every iteration.
       const allProtocols = await this.httpClient.get<any[]>(
-        ENDPOINTS.PROTOCOLS()
+        ENDPOINTS.PROTOCOLS(),
       );
 
       let latest: UpdateUserProfileResponse | undefined;
@@ -444,7 +475,7 @@ export class ZyfaiSDK {
           asset,
           getAssetChainIds(asset),
           undefined,
-          allProtocols
+          allProtocols,
         );
       }
 
@@ -476,7 +507,9 @@ export class ZyfaiSDK {
    * console.log('Splitting enabled:', result.success);
    * ```
    */
-  async enableSplitting(minSplits: number = 1): Promise<UpdateUserProfileResponse> {
+  async enableSplitting(
+    minSplits: number = 1,
+  ): Promise<UpdateUserProfileResponse> {
     if (minSplits > 4) {
       throw new Error("minSplits cannot exceed 4");
     }
@@ -489,7 +522,9 @@ export class ZyfaiSDK {
 
       return response;
     } catch (error) {
-      throw new Error(`Failed to enable splitting: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to enable splitting: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -519,7 +554,9 @@ export class ZyfaiSDK {
 
       return response;
     } catch (error) {
-      throw new Error(`Failed to disable splitting: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to disable splitting: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -545,7 +582,7 @@ export class ZyfaiSDK {
   async updateMinSplits(minSplits: number): Promise<UpdateUserProfileResponse> {
     try {
       if (minSplits < 1) {
-        throw new Error('minSplits must be at least 1');
+        throw new Error("minSplits must be at least 1");
       }
 
       const response = await this.updateUserProfile({
@@ -554,7 +591,9 @@ export class ZyfaiSDK {
 
       return response;
     } catch (error) {
-      throw new Error(`Failed to update min splits: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to update min splits: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -574,7 +613,7 @@ export class ZyfaiSDK {
    */
   private async initializeUser(
     smartWallet: string,
-    chainId: number
+    chainId: number,
   ): Promise<InitializeUserResponse> {
     try {
       // Ensure authentication is present
@@ -587,7 +626,7 @@ export class ZyfaiSDK {
         DATA_ENDPOINTS.USER_INITIALIZE,
         {
           walletAddress: smartWallet,
-        }
+        },
       );
 
       return {
@@ -637,7 +676,7 @@ export class ZyfaiSDK {
     if (this.walletClient && this.currentProvider) {
       const chainConfig = getChainConfig(
         (this.walletClient.chain?.id as SupportedChainId) || 8453,
-        this.rpcUrls
+        this.rpcUrls,
       );
 
       this.walletClient = createWalletClient({
@@ -656,7 +695,7 @@ export class ZyfaiSDK {
       } catch (error) {
         console.warn(
           "Failed to authenticate after wallet switch:",
-          (error as Error).message
+          (error as Error).message,
         );
       }
     }
@@ -681,7 +720,7 @@ export class ZyfaiSDK {
    */
   async connectAccount(
     account: string | any,
-    chainId: SupportedChainId = 8453 as SupportedChainId
+    chainId: SupportedChainId = 8453 as SupportedChainId,
   ): Promise<Address> {
     if (!isSupportedChain(chainId)) {
       throw new Error(`Unsupported chain ID: ${chainId}`);
@@ -734,7 +773,7 @@ export class ZyfaiSDK {
 
       if (!provider) {
         throw new Error(
-          "Invalid account parameter. Expected private key string or wallet provider."
+          "Invalid account parameter. Expected private key string or wallet provider.",
         );
       }
 
@@ -775,7 +814,7 @@ export class ZyfaiSDK {
         this.currentChainId = chainId; // Store chain ID for consistency
       } else {
         throw new Error(
-          "Invalid wallet provider. Expected EIP-1193 provider or viem WalletClient."
+          "Invalid wallet provider. Expected EIP-1193 provider or viem WalletClient.",
         );
       }
     }
@@ -832,7 +871,7 @@ export class ZyfaiSDK {
       const targetChainId = chainId || this.currentChainId || 8453;
       const targetChainConfig = getChainConfig(
         targetChainId as SupportedChainId,
-        this.rpcUrls
+        this.rpcUrls,
       );
       return createWalletClient({
         account: this.signer,
@@ -854,9 +893,7 @@ export class ZyfaiSDK {
   private isConnectedUser(userAddress: string): boolean {
     const connected =
       this.signer?.address ?? this.walletClient?.account?.address;
-    return (
-      !!connected && connected.toLowerCase() === userAddress.toLowerCase()
-    );
+    return !!connected && connected.toLowerCase() === userAddress.toLowerCase();
   }
 
   /**
@@ -868,7 +905,7 @@ export class ZyfaiSDK {
   private async getSafeAddressFor(
     userAddress: string,
     chainId: SupportedChainId,
-    deriveIfMissing: boolean = true
+    deriveIfMissing: boolean = true,
   ): Promise<Address | null> {
     if (this.isPredeployed && this.isConnectedUser(userAddress)) {
       if (this.connectedSmartWallet) return this.connectedSmartWallet;
@@ -881,7 +918,7 @@ export class ZyfaiSDK {
       if (!deriveIfMissing) return null;
       throw new Error(
         "Predeployed smart wallet address is not available from the API yet. " +
-          "Ensure the user has signed in so the pool can reserve their wallet."
+          "Ensure the user has signed in so the pool can reserve their wallet.",
       );
     }
 
@@ -915,7 +952,7 @@ export class ZyfaiSDK {
    */
   async getSmartWalletAddress(
     userAddress: string,
-    chainId: SupportedChainId
+    chainId: SupportedChainId,
   ): Promise<SmartWalletResponse> {
     // Validate inputs
     if (!userAddress) {
@@ -936,14 +973,14 @@ export class ZyfaiSDK {
 
     const isDeployed = await isSafeDeployed(
       safeAddress,
-      chainConfig.publicClient
+      chainConfig.publicClient,
     );
 
     const isOwner = isDeployed
       ? await isOwnableValidatorOwner(
           safeAddress,
           userAddress as Address,
-          chainConfig.publicClient
+          chainConfig.publicClient,
         )
       : false;
 
@@ -957,7 +994,7 @@ export class ZyfaiSDK {
   /**
    * Deploy Safe Smart Wallet for a user
    *
-   * @deprecated Prefer `depositFunds()`. Predeployed Safes and session keys are
+   * @deprecated Prefer `sendDeposit()`. Predeployed Safes and session keys are
    * managed automatically on first deposit. This method remains available for
    * legacy flows.
    *
@@ -969,8 +1006,9 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * // Preferred: depositFunds handles predeployed wallet onboarding
-   * await sdk.depositFunds(userAddress, 8453, amount, "USDC");
+   * // Preferred: sendDeposit handles predeployed wallet onboarding
+   * const sent = await sdk.sendDeposit(userAddress, 8453, amount, "USDC");
+   * await sdk.waitForDepositCredit(sent.registration.id, 8453);
    *
    * // Legacy: deploy with default conservative strategy
    * await sdk.deploySafe(userAddress, 8453);
@@ -980,7 +1018,7 @@ export class ZyfaiSDK {
     userAddress: string,
     chainId: SupportedChainId,
     strategy?: Strategy,
-    createSessionKey?: boolean
+    createSessionKey?: boolean,
   ): Promise<DeploySafeResponse> {
     this.warnDeprecatedOnboardingMethod("deploySafe");
     try {
@@ -1002,12 +1040,12 @@ export class ZyfaiSDK {
       if (this.isPredeployed && this.isConnectedUser(userAddress)) {
         const predeployedAddress = await this.getSafeAddressFor(
           userAddress,
-          chainId
+          chainId,
         );
         if (!predeployedAddress) {
           throw new Error(
             "Predeployed smart wallet address is not available from the API yet. " +
-              "Ensure the user has signed in so the pool can reserve their wallet."
+              "Ensure the user has signed in so the pool can reserve their wallet.",
           );
         }
         try {
@@ -1015,7 +1053,7 @@ export class ZyfaiSDK {
         } catch (initError) {
           console.warn(
             "Failed to initialize user after Safe deployment:",
-            (initError as Error).message
+            (initError as Error).message,
           );
         }
         await this.updateUserProtocols(strategy);
@@ -1040,7 +1078,7 @@ export class ZyfaiSDK {
 
       const alreadyDeployed = await isSafeDeployed(
         safeAddress,
-        chainConfig.publicClient
+        chainConfig.publicClient,
       );
 
       // Verify that userAddress is an EOA (only if not already deployed to save RPC calls)
@@ -1069,7 +1107,7 @@ export class ZyfaiSDK {
           } catch (sessionKeyError) {
             console.warn(
               "Failed to create session key:",
-              (sessionKeyError as Error).message
+              (sessionKeyError as Error).message,
             );
           }
         }
@@ -1107,7 +1145,7 @@ export class ZyfaiSDK {
         // Log the error but don't fail deployment
         console.warn(
           "Failed to initialize user after Safe deployment:",
-          (initError as Error).message
+          (initError as Error).message,
         );
       }
 
@@ -1123,7 +1161,7 @@ export class ZyfaiSDK {
           // Log the error but don't fail deployment
           console.warn(
             "Failed to create session key after Safe deployment:",
-            (sessionKeyError as Error).message
+            (sessionKeyError as Error).message,
           );
         }
       }
@@ -1139,7 +1177,7 @@ export class ZyfaiSDK {
       console.error("Safe deployment failed:", error);
       throw new Error(
         `Safe deployment failed: ${(error as Error).message}. ` +
-          `deploySafe() is deprecated — prefer depositFunds() for predeployed wallet onboarding.`
+          `deploySafe() is deprecated — prefer sendDeposit() for predeployed wallet onboarding.`,
       );
     }
   }
@@ -1148,7 +1186,7 @@ export class ZyfaiSDK {
    * Create session key with auto-fetched configuration from Zyfai API
    * This is the simplified method that automatically fetches session configuration
    *
-   * @deprecated Prefer `depositFunds()`. Predeployed wallets already have the
+   * @deprecated Prefer `sendDeposit()`. Predeployed wallets already have the
    * agent session enabled; session activation is handled after first deposit.
    * This method remains available for legacy flows.
    *
@@ -1158,8 +1196,9 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * // Preferred: depositFunds handles session onboarding for predeployed wallets
-   * await sdk.depositFunds(userAddress, 8453, amount, "USDC");
+   * // Preferred: sendDeposit handles session onboarding for predeployed wallets
+   * const sent = await sdk.sendDeposit(userAddress, 8453, amount, "USDC");
+   * await sdk.waitForDepositCredit(sent.registration.id, 8453);
    *
    * // Legacy:
    * const result = await sdk.createSessionKey(userAddress, 8453);
@@ -1167,7 +1206,7 @@ export class ZyfaiSDK {
    */
   async createSessionKey(
     userAddress: string,
-    chainId: SupportedChainId
+    chainId: SupportedChainId,
   ): Promise<SessionKeyResponse> {
     this.warnDeprecatedOnboardingMethod("createSessionKey");
     try {
@@ -1178,7 +1217,7 @@ export class ZyfaiSDK {
       // Get userId from authentication (stored during login)
       if (!this.authenticatedUserId) {
         throw new Error(
-          "User ID not available. Please ensure authentication completed successfully."
+          "User ID not available. Please ensure authentication completed successfully.",
         );
       }
 
@@ -1208,7 +1247,7 @@ export class ZyfaiSDK {
 
       // Fetch personalized session configuration (requires SIWE auth)
       const sessionConfigResponse = await this.httpClient.get<any>(
-        ENDPOINTS.SESSION_KEYS_CONFIG
+        ENDPOINTS.SESSION_KEYS_CONFIG,
       );
 
       // Handle both array format and wrapped object format
@@ -1236,15 +1275,15 @@ export class ZyfaiSDK {
         session.actions?.some(
           (action: any) =>
             action.actionTarget === DEFAULT_ACTION_TARGET &&
-            action.actionTargetSelector === DEFAULT_ACTION_SELECTOR
-        )
+            action.actionTargetSelector === DEFAULT_ACTION_SELECTOR,
+        ),
       );
 
       // Determine account type for ignoreSecurityAttestations
       const chainConfig = getChainConfig(chainId, this.rpcUrls);
       const accountType = await getAccountType(
         userAddress as Address,
-        chainConfig.publicClient
+        chainConfig.publicClient,
       );
 
       const signingParams: SigningParams = {
@@ -1257,7 +1296,7 @@ export class ZyfaiSDK {
         userAddress,
         chainId,
         sessions,
-        signingParams
+        signingParams,
       );
 
       // Ensure signature is available (should always be from signSessionKey)
@@ -1270,7 +1309,7 @@ export class ZyfaiSDK {
       const activation = await this.activateSessionKey(
         signer as Address,
         signatureResult.signature,
-        signatureResult.sessionNonces
+        signatureResult.sessionNonces,
       );
 
       // Update local state to reflect the new session key
@@ -1284,7 +1323,7 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(
         `Failed to create session key: ${(error as Error).message}. ` +
-          `createSessionKey() is deprecated — prefer depositFunds() for predeployed wallet onboarding.`
+          `createSessionKey() is deprecated — prefer sendDeposit() for predeployed wallet onboarding.`,
       );
     }
   }
@@ -1297,7 +1336,7 @@ export class ZyfaiSDK {
     userAddress: string,
     chainId: SupportedChainId,
     sessions: Session[],
-    signingParams?: SigningParams
+    signingParams?: SigningParams,
   ): Promise<SessionKeyResponse> {
     try {
       // Validate inputs
@@ -1319,12 +1358,12 @@ export class ZyfaiSDK {
       // Check if the user address is a Safe
       const accountType = await getAccountType(
         userAddress as Address,
-        chainConfig.publicClient
+        chainConfig.publicClient,
       );
 
       if (accountType !== "EOA") {
         throw new Error(
-          `Invalid account type for ${userAddress}. Must be an EOA.`
+          `Invalid account type for ${userAddress}. Must be an EOA.`,
         );
       }
 
@@ -1346,7 +1385,7 @@ export class ZyfaiSDK {
         },
         sessions,
         allPublicClients,
-        signingParams
+        signingParams,
       );
 
       return {
@@ -1356,7 +1395,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to sign session key: ${(error as Error).message}`
+        `Failed to sign session key: ${(error as Error).message}`,
       );
     }
   }
@@ -1372,17 +1411,22 @@ export class ZyfaiSDK {
    *    asset/chain/strategy combo.
    * 4. Persist via `updateUserProfile` (writes `assetTypeSettings`).
    *
-   * Called from `deploySafe` after every path, and from `depositFunds` on
+   * Called from `deploySafe` after every path, and from `sendDeposit` on
    * the account's first deposit (when USDC chains are still empty).
    *
    * @internal
    */
-  private async updateUserProtocols(strategy?: Strategy): Promise<void> {
+  private async updateUserProtocols(
+    strategy?: Strategy,
+    options?: { strict?: boolean },
+  ): Promise<void> {
+    const strict = options?.strict ?? false;
+    const assetErrors: string[] = [];
+
     try {
       const allProtocols = await this.httpClient.get<any[]>(
-        ENDPOINTS.PROTOCOLS()
+        ENDPOINTS.PROTOCOLS(),
       );
-
 
       for (const asset of MANAGED_ASSETS) {
         try {
@@ -1392,17 +1436,31 @@ export class ZyfaiSDK {
             asset,
             getAssetChainIds(asset),
             strategy,
-            allProtocols
+            allProtocols,
           );
         } catch (assetError) {
-          console.warn(
-            `Failed to update ${asset} protocols: ${(assetError as Error).message}`
-          );
+          const message = (assetError as Error).message;
+          if (strict) {
+            assetErrors.push(`${asset}: ${message}`);
+          } else {
+            console.warn(`Failed to update ${asset} protocols: ${message}`);
+          }
         }
       }
+
+      if (strict && assetErrors.length > 0) {
+        throw new Error(
+          `Failed to configure user protocols for first deposit: ${assetErrors.join(
+            "; ",
+          )}`,
+        );
+      }
     } catch (error) {
+      if (strict) {
+        throw error;
+      }
       console.warn(
-        `Failed to update user protocols: ${(error as Error).message}`
+        `Failed to update user protocols: ${(error as Error).message}`,
       );
     }
   }
@@ -1415,14 +1473,14 @@ export class ZyfaiSDK {
     asset: SupportedAsset,
     chains: SupportedChainId[],
     strategy: Strategy | undefined,
-    allProtocols: any[]
+    allProtocols: any[],
   ): Promise<UpdateUserProfileResponse> {
     const userDetails = await this.getUserDetails(asset);
 
     // Merge existing chains with the target chains — never overwrite.
     const existingChains = userDetails.chains ?? [];
     const effectiveChains = Array.from(
-      new Set<number>([...existingChains, ...chains])
+      new Set<number>([...existingChains, ...chains]),
     );
 
     // Explicit strategy wins; otherwise keep the user's current strategy for
@@ -1438,14 +1496,14 @@ export class ZyfaiSDK {
       allProtocols,
       internalStrategy,
       effectiveChains,
-      asset
+      asset,
     );
 
     const withPools = await this.filterProtocolIdsWithPools(
       matching,
       effectiveChains,
       asset,
-      internalStrategy
+      internalStrategy,
     );
 
     // Persist the strategy alongside the protocols it produced. Without it the
@@ -1470,7 +1528,7 @@ export class ZyfaiSDK {
    * together.
    *
    * Mostly needed for assets that are not set up by the account's first
-   * deposit, or to change an existing account's strategy — `depositFunds`
+   * deposit, or to change an existing account's strategy — `sendDeposit`
    * ignores its `strategy` argument after the first deposit.
    *
    * @param params.asset - Asset to configure
@@ -1502,7 +1560,7 @@ export class ZyfaiSDK {
     try {
       if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
         throw new Error(
-          `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
+          `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
         );
       }
 
@@ -1515,23 +1573,25 @@ export class ZyfaiSDK {
       const unsupported = targetChains.filter((c) => !supported.includes(c));
       if (unsupported.length > 0) {
         throw new Error(
-          `${asset} is not available on chain ${unsupported.join(", ")}. Supported chains: ${supported.join(", ")}.`
+          `${asset} is not available on chain ${unsupported.join(
+            ", ",
+          )}. Supported chains: ${supported.join(", ")}.`,
         );
       }
 
       const allProtocols = await this.httpClient.get<any[]>(
-        ENDPOINTS.PROTOCOLS()
+        ENDPOINTS.PROTOCOLS(),
       );
 
       return await this.updateUserProtocolsForAsset(
         asset,
         targetChains,
         strategy,
-        allProtocols
+        allProtocols,
       );
     } catch (error) {
       throw new Error(
-        `Failed to set ${asset} strategy: ${(error as Error).message}`
+        `Failed to set ${asset} strategy: ${(error as Error).message}`,
       );
     }
   }
@@ -1548,21 +1608,21 @@ export class ZyfaiSDK {
     protocolIds: string[],
     chains: number[],
     asset: SupportedAsset,
-    internalStrategy: InternalStrategy = "degen_strategy"
+    internalStrategy: InternalStrategy = "degen_strategy",
   ): Promise<string[]> {
     if (protocolIds.length === 0) return [];
 
     const results = await Promise.allSettled(
       protocolIds.map(async (id) => {
         const poolsData = await this.httpClient.get<any>(
-          ENDPOINTS.CUSTOMIZATION_POOLS(id, internalStrategy)
+          ENDPOINTS.CUSTOMIZATION_POOLS(id, internalStrategy),
         );
         return { id, hasPool: hasMatchingPool(poolsData, chains, asset) };
-      })
+      }),
     );
 
     return results.flatMap((r) =>
-      r.status === "fulfilled" && r.value.hasPool ? [r.value.id] : []
+      r.status === "fulfilled" && r.value.hasPool ? [r.value.id] : [],
     );
   }
 
@@ -1572,7 +1632,7 @@ export class ZyfaiSDK {
   private async activateSessionKey(
     signer: Address,
     signature: Hex,
-    sessionNonces?: bigint[]
+    sessionNonces?: bigint[],
   ): Promise<AddSessionKeyResponse> {
     const nonces = this.normalizeSessionNonces(sessionNonces);
 
@@ -1584,7 +1644,7 @@ export class ZyfaiSDK {
 
     return await this.httpClient.post<AddSessionKeyResponse>(
       ENDPOINTS.SESSION_KEYS_ADD,
-      payload
+      payload,
     );
   }
 
@@ -1594,7 +1654,7 @@ export class ZyfaiSDK {
   private normalizeSessionNonces(sessionNonces?: bigint[]): number[] {
     if (!sessionNonces || sessionNonces.length === 0) {
       throw new Error(
-        "Session nonces missing from signature result. Cannot register session key."
+        "Session nonces missing from signature result. Cannot register session key.",
       );
     }
 
@@ -1610,55 +1670,6 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Deposit funds from EOA to Safe smart wallet
-   * Transfers tokens from the connected wallet to the user's Safe and logs the deposit
-   *
-   * Token address is selected from `asset` for the given chain:
-   * - Ethereum Mainnet (1), Base (8453), Arbitrum (42161): USDC or WETH
-   * - Ethereum Mainnet (1), Base (8453): EURC
-   *
-   * On the account's first deposit (USDC profile has no chains yet), patches
-   * protocol selection for USDC, WETH, and EURC across all supported chains
-   * (EURC on Mainnet/Base only) before the transfer and log_deposit.
-   * Pass `strategy` to select protocols for that first-deposit setup
-   * (same role as the former `deploySafe` strategy argument). On every later
-   * deposit the argument is ignored without error, since re-running the patch
-   * would overwrite a protocol selection the user may have customised. To
-   * change the strategy of an existing account, call
-   * `updateUserProfile({ asset, strategy })`.
-   *
-   * Minimum portfolio balance enforced (Safe balance + deposit amount):
-   * - Stablecoins: `MIN_PORTFOLIO_BALANCE` (Mainnet 10,000 USDC/EURC; Base/Arbitrum 100)
-   * - WETH: about $10,000 on Mainnet, $100 on Base/Arbitrum, from Data API `/price?token=eth`
-   *
-   * @param userAddress - User's address (owner of the Safe)
-   * @param chainId - Target chain ID
-   * @param amount - Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals)
-   * @param asset - Asset symbol: "USDC", "WETH", or "EURC".
-   *   EURC is supported on Ethereum Mainnet and Base only.
-   * @param strategy - Optional strategy for first-deposit protocol patching:
-   *   "conservative" (default), "aggressive" or "yieldmaxxing". Ignored on
-   *   later deposits — use `updateUserProfile` to change an existing account.
-   * @returns Deposit response with transaction hash
-   *
-   * @example
-   * ```typescript
-   * // Deposit 10,000 USDC (6 decimals) to Safe on Base
-   * const result = await sdk.depositFunds(
-   *   "0xUser...",
-   *   8453,
-   *   "10000000000",
-   *   "USDC"
-   * );
-   *
-   * // First deposit with aggressive strategy
-   * await sdk.depositFunds(userAddress, 8453, "10000000000", "USDC", "aggressive");
-   *
-   * // Changing the strategy of an account that has already deposited
-   * await sdk.updateUserProfile({ asset: "USDC", strategy: "yieldmaxxing" });
-   * ```
-   */
-  /**
    * Deploy the connected predeployed (pool) wallet on one or more chains.
    *
    * A pool wallet is only deployed on the chains it has been onboarded to (see
@@ -1668,15 +1679,18 @@ export class ZyfaiSDK {
    * resolves once all requested chains have landed on-chain. Idempotent — chains
    * already deployed are a no-op.
    *
-   * Optional for deposits: `depositFunds` no longer pre-deploys the target chain — the ERC20
+   * Optional for deposits: `sendDeposit` no longer pre-deploys the target chain — the ERC20
    * transfer lands on the counterfactual address and the backend deploys + hands over on first
    * deposit (report-deposit). Use this only to pre-provision chains ahead of time.
    *
    * @param chainIds - Chain IDs to deploy the wallet on (e.g. [1, 42161])
    */
-  async deployOnChains(
-    chainIds: SupportedChainId[]
-  ): Promise<{ success: boolean; safeAddress: string; chains: number[]; status: string }> {
+  async deployOnChains(chainIds: SupportedChainId[]): Promise<{
+    success: boolean;
+    safeAddress: string;
+    chains: number[];
+    status: string;
+  }> {
     if (!chainIds?.length) {
       throw new Error("At least one chainId is required");
     }
@@ -1687,12 +1701,18 @@ export class ZyfaiSDK {
     return this.httpClient.post(ENDPOINTS.DEPLOY_CHAINS, { chainIds });
   }
 
-  async depositFunds(
+  /**
+   * Send a deposit from an EOA to its Safe smart wallet.
+   *
+   * Confirms the ERC-20 transfer and starts the custody-credit lifecycle. Use
+   * `waitForDepositCredit(result.registration.id, chainId)` to await credit.
+   */
+  async sendDeposit(
     userAddress: string,
     chainId: SupportedChainId,
     amount: string,
     asset: string,
-    strategy?: Strategy
+    strategy?: Strategy,
   ): Promise<DepositResponse> {
     try {
       if (!userAddress) {
@@ -1713,7 +1733,7 @@ export class ZyfaiSDK {
 
       if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
         throw new Error(
-          `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
+          `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
         );
       }
 
@@ -1723,28 +1743,37 @@ export class ZyfaiSDK {
       const assetChains = getAssetChainIds(assetSymbol);
       if (!assetChains.includes(chainId)) {
         throw new Error(
-          `${assetSymbol} is not available on chain ${chainId}. Supported chains: ${assetChains.join(", ")}.`
+          `${assetSymbol} is not available on chain ${chainId}. Supported chains: ${assetChains.join(
+            ", ",
+          )}.`,
         );
       }
 
-      let minRequired = MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
-      const minUsd = MIN_PORTFOLIO_USD[chainId]?.[assetSymbol];
+      let minRequired = this.bypassMinPortfolio
+        ? undefined
+        : MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
+      const minUsd = this.bypassMinPortfolio
+        ? undefined
+        : MIN_PORTFOLIO_USD[chainId]?.[assetSymbol];
+      const token = getDefaultTokenAddress(chainId, assetSymbol);
+      const walletClient = this.getWalletClient();
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
+
       if (minUsd !== undefined) {
-        const priceResponse = await this.httpClient.dataGet<TokenPriceResponse>(
-          DATA_ENDPOINTS.TOKEN_PRICE(assetConfig.priceTokenSymbol)
-        );
+        const [, priceResponse] = await Promise.all([
+          this.authenticateUser(),
+          this.httpClient.dataGet<TokenPriceResponse>(
+            DATA_ENDPOINTS.TOKEN_PRICE(assetConfig.priceTokenSymbol),
+          ),
+        ]);
         minRequired = usdToTokenUnits(
           minUsd,
           parseTokenUsdPrice(priceResponse),
-          assetConfig.decimals
+          assetConfig.decimals,
         );
+      } else {
+        await this.authenticateUser();
       }
-
-      const token = getDefaultTokenAddress(chainId, assetSymbol);
-
-      const walletClient = this.getWalletClient();
-      await this.authenticateUser();
-      const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
       // Get Safe address (predeployed wallets use the backend-assigned
       // address; they are never derived from the EOA).
@@ -1753,11 +1782,20 @@ export class ZyfaiSDK {
         throw new Error("Smart wallet address is not available");
       }
 
-      // Check if Safe is deployed
-      const isDeployed = await isSafeDeployed(
-        safeAddress,
-        chainConfig.publicClient
-      );
+      const amountBigInt = BigInt(amount);
+
+      const [isDeployed, currentSafeBalance] = await Promise.all([
+        isSafeDeployed(safeAddress, chainConfig.publicClient),
+        minRequired !== undefined
+          ? (chainConfig.publicClient.readContract({
+              address: token as Address,
+              abi: ERC20_ABI,
+              functionName: "balanceOf",
+              args: [safeAddress],
+            }) as Promise<bigint>)
+          : Promise.resolve(undefined),
+        this.prepareFirstDeposit(strategy),
+      ]).then(([deployed, balance]) => [deployed, balance] as const);
 
       if (!isDeployed) {
         // Predeployed (pool) wallets are only deployed on the chains they've been onboarded to;
@@ -1768,52 +1806,29 @@ export class ZyfaiSDK {
         // their own userOp-signed deploySafe), so keep failing for them.
         if (!(this.isPredeployed && this.isConnectedUser(userAddress))) {
           throw new Error(
-            `Safe not available for ${userAddress} on chain ${chainId}.`
+            `Safe not available for ${userAddress} on chain ${chainId}.`,
           );
         }
       }
-
-      // First deposit on the account: patch protocols/chains for all assets.
-      // Gate on empty USDC chains so pauseAgent (clears protocols, keeps chains)
-      // does not re-run this on later deposits.
-      try {
-        const usdcDetails = await this.getUserDetails("USDC");
-        if ((usdcDetails.chains?.length ?? 0) === 0) {
-          await this.updateUserProtocols(strategy);
-        }
-      } catch (protocolError) {
-        console.warn(
-          "Failed to update user protocols before deposit:",
-          (protocolError as Error).message
-        );
-      }
-
-      const amountBigInt = BigInt(amount);
 
       // Enforce minimum total portfolio balance only when a threshold is
       // configured for this (chainId, asset) pair. No config = no check.
       if (minRequired !== undefined) {
-        const currentSafeBalance = (await chainConfig.publicClient.readContract({
-          address: token as Address,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [safeAddress],
-        })) as bigint;
-
-        const totalAfterDeposit = currentSafeBalance + amountBigInt;
+        const safeBalance = currentSafeBalance!;
+        const totalAfterDeposit = safeBalance + amountBigInt;
         if (totalAfterDeposit < minRequired) {
           const minLabel = formatMinPortfolioLabel(
             minRequired,
             assetConfig.decimals,
-            assetSymbol
+            assetSymbol,
           );
           throw new Error(
             `Minimum portfolio balance not met on chain ${chainId}. ` +
               `Total portfolio must be at least ${minLabel}. ` +
-              `Current Safe balance: ${currentSafeBalance.toString()}, ` +
+              `Current Safe balance: ${safeBalance.toString()}, ` +
               `deposit amount: ${amountBigInt.toString()}, ` +
               `total after deposit: ${totalAfterDeposit.toString()} ` +
-              `(raw units, ${assetConfig.decimals} decimals).`
+              `(raw units, ${assetConfig.decimals} decimals).`,
           );
         }
       }
@@ -1836,21 +1851,19 @@ export class ZyfaiSDK {
         throw new Error("Deposit transaction failed");
       }
 
-      try {
-        await this.logDeposit(chainId, txHash, amount, token);
-      } catch (logError) {
-        throw new Error(
-          `On-chain deposit succeeded (tx=${txHash}) but backend registration failed: ` +
-            `${(logError as Error).message}. ` +
-            `Call connectAccount() then logDeposit(${chainId}, "${txHash}", "${amount}") to retry.`
-        );
-      }
+      const registration = await this.registerDeposit(
+        chainId,
+        txHash,
+        amount,
+        token,
+      );
 
       return {
         success: true,
         txHash,
         smartWallet: safeAddress,
         amount: amountBigInt.toString(),
+        registration,
       };
     } catch (error) {
       throw new Error(`Deposit failed: ${(error as Error).message}`);
@@ -1858,9 +1871,246 @@ export class ZyfaiSDK {
   }
 
   /**
+   * @deprecated Compatibility convenience method. Prefer `sendDeposit()` followed by
+   * `waitForDepositCredit()` when the caller owns the completion UX.
+   */
+  async depositFunds(
+    userAddress: string,
+    chainId: SupportedChainId,
+    amount: string,
+    asset: string,
+    strategy?: Strategy,
+  ): Promise<DepositResponse> {
+    this.warnDeprecatedOnboardingMethod("depositFunds");
+    const sent = await this.sendDeposit(
+      userAddress,
+      chainId,
+      amount,
+      asset,
+      strategy,
+    );
+    return {
+      ...sent,
+      registration: await this.waitForDepositCredit(
+        sent.registration.id,
+        chainId,
+      ),
+    };
+  }
+
+  /**
+   * Prepare ERC-20 transfer calldata for builders using a custom signer,
+   * sponsored transaction provider, or mobile wallet. Most custom-wallet
+   * integrations can compose this with `ensureFirstDepositSetup()` and
+   * `logDeposit()` instead.
+   */
+  async buildDepositTransfer(params: {
+    userAddress: string;
+    chainId: SupportedChainId;
+    amount: string;
+    asset: SupportedAsset;
+  }): Promise<{
+    safeAddress: Address;
+    tokenAddress: Address;
+    to: Address;
+    data: Hex;
+    value: "0";
+  }> {
+    const { userAddress, chainId, amount, asset } = params;
+    if (!userAddress || !amount || BigInt(amount) <= 0n) {
+      throw new Error("A user address and positive amount are required");
+    }
+    if (!isSupportedChain(chainId)) {
+      throw new Error(`Unsupported chain ID: ${chainId}`);
+    }
+    const assetSymbol = resolveAssetSymbol(asset);
+    const assetChains = getAssetChainIds(assetSymbol);
+    if (!assetChains.includes(chainId)) {
+      throw new Error(
+        `${assetSymbol} is not available on chain ${chainId}. Supported chains: ${assetChains.join(
+          ", ",
+        )}.`,
+      );
+    }
+    const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
+    if (!safeAddress) {
+      throw new Error("Smart wallet address is not available");
+    }
+
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+    const isDeployed = await isSafeDeployed(
+      safeAddress,
+      chainConfig.publicClient,
+    );
+    if (
+      !(isDeployed || (this.isPredeployed && this.isConnectedUser(userAddress)))
+    ) {
+      throw new Error(
+        `Safe not available for ${userAddress} on chain ${chainId}.`,
+      );
+    }
+
+    const amountBigInt = BigInt(amount);
+    await this.enforceMinimumPortfolioBalance(
+      chainId,
+      asset,
+      amountBigInt,
+      safeAddress,
+    );
+
+    const tokenAddress = getDefaultTokenAddress(
+      chainId,
+      assetSymbol,
+    ) as Address;
+    return {
+      safeAddress,
+      tokenAddress,
+      to: tokenAddress,
+      data: encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [safeAddress, amountBigInt],
+      }),
+      value: "0",
+    };
+  }
+
+  /** Apply the same per-asset minimum portfolio rule as sendDeposit. */
+  private async enforceMinimumPortfolioBalance(
+    chainId: SupportedChainId,
+    asset: SupportedAsset,
+    amount: bigint,
+    safeAddress: Address,
+  ): Promise<void> {
+    if (this.bypassMinPortfolio) {
+      return;
+    }
+
+    const assetSymbol = resolveAssetSymbol(asset);
+    const assetConfig = ASSET_CONFIGS[assetSymbol];
+    let minRequired = MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
+    const minUsd = MIN_PORTFOLIO_USD[chainId]?.[assetSymbol];
+
+    if (minUsd !== undefined) {
+      const [, priceResponse] = await Promise.all([
+        this.authenticateUser(),
+        this.httpClient.dataGet<TokenPriceResponse>(
+          DATA_ENDPOINTS.TOKEN_PRICE(assetConfig.priceTokenSymbol),
+        ),
+      ]);
+      minRequired = usdToTokenUnits(
+        minUsd,
+        parseTokenUsdPrice(priceResponse),
+        assetConfig.decimals,
+      );
+    }
+
+    if (minRequired === undefined) return;
+
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+    const token = getDefaultTokenAddress(chainId, assetSymbol) as Address;
+    const currentSafeBalance = (await chainConfig.publicClient.readContract({
+      address: token,
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [safeAddress],
+    })) as bigint;
+    const totalAfterDeposit = currentSafeBalance + amount;
+
+    if (totalAfterDeposit < minRequired) {
+      const minLabel = formatMinPortfolioLabel(
+        minRequired,
+        assetConfig.decimals,
+        assetSymbol,
+      );
+      throw new Error(
+        `Minimum portfolio balance not met on chain ${chainId}. ` +
+          `Total portfolio must be at least ${minLabel}. ` +
+          `Current Safe balance: ${currentSafeBalance.toString()}, ` +
+          `deposit amount: ${amount.toString()}, ` +
+          `total after deposit: ${totalAfterDeposit.toString()} ` +
+          `(raw units, ${assetConfig.decimals} decimals).`,
+      );
+    }
+  }
+
+  /**
+   * Idempotently apply the first-deposit profile configuration for builders
+   * composing an advanced custom transfer flow. Most custom-wallet
+   * integrations can use this with `buildDepositTransfer()` and `logDeposit()`.
+   *
+   * When setup runs (`applied: true`), protocol configuration is persisted
+   * before returning. Failures throw so callers can abort before submitting a
+   * transfer. High-level deposit methods still treat setup as best-effort.
+   */
+  async ensureFirstDepositSetup(
+    strategy?: Strategy,
+  ): Promise<{ applied: boolean }> {
+    if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
+      throw new Error(
+        `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+      );
+    }
+
+    await this.authenticateUser();
+    const usdcDetails = await this.getUserDetails("USDC");
+    if ((usdcDetails.chains?.length ?? 0) > 0) {
+      return { applied: false };
+    }
+    await this.updateUserProtocols(strategy, { strict: true });
+
+    const usdcAfterSetup = await this.getUserDetails("USDC");
+    if ((usdcAfterSetup.chains?.length ?? 0) === 0) {
+      throw new Error(
+        "First-deposit setup did not persist USDC chain configuration.",
+      );
+    }
+
+    return { applied: true };
+  }
+
+  /** Best-effort first-deposit setup shared by both high-level deposit flows. */
+  private async prepareFirstDeposit(strategy?: Strategy): Promise<void> {
+    try {
+      await this.ensureFirstDepositSetup(strategy);
+    } catch (protocolError) {
+      console.warn(
+        "Failed to update user protocols before deposit:",
+        (protocolError as Error).message,
+      );
+    }
+  }
+
+  /** Shared post-transfer registration path for every deposit flow. */
+  private async registerDeposit(
+    chainId: SupportedChainId,
+    txHash: string,
+    amount: string,
+    tokenAddress: string,
+  ): Promise<DepositLifecycleResponse> {
+    let registration: LogDepositResponse;
+    try {
+      registration = await this.logDeposit(
+        chainId,
+        txHash,
+        amount,
+        tokenAddress,
+      );
+    } catch (logError) {
+      throw new Error(
+        `On-chain deposit succeeded (tx=${txHash}) but backend registration failed: ` +
+          `${(logError as Error).message}. ` +
+          `Call connectAccount() then logDeposit(${chainId}, "${txHash}", "${amount}") to retry.`,
+      );
+    }
+
+    return registration.deposit;
+  }
+
+  /**
    * Log a deposit that was executed client-side.
    *
-   * `depositFunds()` already calls this after the ERC20 transfer. If you send the
+   * `sendDeposit()` already calls this after the ERC20 transfer. If you send the
    * transfer yourself (front, Privy, Biconomy, custom wallet) you **must** call
    * `logDeposit` — otherwise the backend never sees the deposit: a reserved pool
    * wallet stays reserved (no ownership rotation), and yield/agent tracking does
@@ -1908,7 +2158,7 @@ export class ZyfaiSDK {
     chainId: SupportedChainId,
     txHash: string,
     amount: string,
-    tokenAddress?: string
+    tokenAddress?: string,
   ): Promise<LogDepositResponse> {
     try {
       if (!isSupportedChain(chainId)) {
@@ -1927,20 +2177,95 @@ export class ZyfaiSDK {
 
       await this.authenticateUser();
 
-      await this.httpClient.post(ENDPOINTS.LOG_DEPOSIT, {
-        chainId,
-        transaction: txHash,
-        token,
-        amount,
-      });
+      const deposit = await this.httpClient.post<DepositLifecycleResponse>(
+        ENDPOINTS.LOG_DEPOSIT,
+        {
+          chainId,
+          transaction: txHash,
+          token,
+          amount,
+        },
+      );
 
       return {
         success: true,
-        message: "Deposit logged successfully",
+        message:
+          deposit.status === "credited"
+            ? "Deposit credited successfully"
+            : "Deposit accepted; custody handover is pending",
+        deposit,
       };
     } catch (error) {
       throw new Error(`Log deposit failed: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Fetch the custody handover and balance-credit lifecycle for a registered
+   * deposit. A status of `credited` is required before funds are investable.
+   */
+  async getDepositStatus(depositId: string): Promise<DepositLifecycleResponse> {
+    if (!depositId) {
+      throw new Error("Deposit ID is required");
+    }
+    await this.authenticateUser();
+    return this.httpClient.get<DepositLifecycleResponse>(
+      ENDPOINTS.DEPOSIT_STATUS(depositId),
+    );
+  }
+
+  /**
+   * Await deposit credit after `logDeposit` returns `handover_pending`.
+   *
+   * Polls `getDepositStatus` until `status === "credited"` and
+   * `balanceCredited === true`. Rejects on recovery, timeout, or poll errors.
+   *
+   * Poll interval and timeout are chain-specific. Mainnet defaults to a 2s
+   * interval and 1 minute ceiling; Base/Arbitrum use tighter polling (~500ms /
+   * ~250ms) with a ~20 second completion window. Override `timeoutMs` when a
+   * caller intentionally wants to wait longer than the normal UX window.
+   *
+   * Requires `connectAccount()` on the same SDK instance first.
+   */
+  async waitForDepositCredit(
+    depositId: string,
+    chainId: SupportedChainId,
+    options?: WaitForDepositCreditOptions,
+  ): Promise<DepositLifecycleResponse> {
+    if (!depositId) {
+      throw new Error("Deposit ID is required");
+    }
+
+    if (!isSupportedChain(chainId)) {
+      throw new Error(`Unsupported chain ID: ${chainId}`);
+    }
+
+    const intervalMs =
+      options?.intervalMs ?? getDepositCreditIntervalMs(chainId);
+    const timeoutMs = options?.timeoutMs ?? getDepositCreditTimeoutMs(chainId);
+    const started = Date.now();
+
+    while (Date.now() - started < timeoutMs) {
+      const status = await this.getDepositStatus(depositId);
+
+      if (status.status === "credited" && status.balanceCredited) {
+        return status;
+      }
+
+      if (status.status === "recovered_to_eoa") {
+        throw new Error(
+          `Deposit ${depositId} recovered to EOA (status=${status.status}); balance was not credited`,
+        );
+      }
+
+      if (Date.now() - started >= timeoutMs) {
+        break;
+      }
+
+      await sleep(intervalMs);
+    }
+
+    throw new DepositCreditTimeoutError(depositId);
   }
 
   /**
@@ -1998,7 +2323,7 @@ export class ZyfaiSDK {
     userAddress: string,
     chainId: SupportedChainId,
     amount?: string,
-    tokenSymbol?: string
+    tokenSymbol?: string,
   ): Promise<WithdrawResponse> {
     try {
       if (!userAddress) {
@@ -2021,12 +2346,12 @@ export class ZyfaiSDK {
       // Check if Safe is deployed
       const isDeployed = await isSafeDeployed(
         safeAddress,
-        chainConfig.publicClient
+        chainConfig.publicClient,
       );
 
       if (!isDeployed) {
         throw new Error(
-          `Safe not deployed for ${userAddress}. Please deploy the Safe first using deploySafe().`
+          `Safe not deployed for ${userAddress}. Please deploy the Safe first using deploySafe().`,
         );
       }
 
@@ -2036,7 +2361,7 @@ export class ZyfaiSDK {
       await this.assertAsyncRedemptionSlotFree(
         userAddress,
         chainId,
-        tokenSymbol
+        tokenSymbol,
       );
 
       type WithdrawApiResponse = {
@@ -2089,7 +2414,7 @@ export class ZyfaiSDK {
   private async assertAsyncRedemptionSlotFree(
     userAddress: string,
     chainId: SupportedChainId,
-    tokenSymbol?: string
+    tokenSymbol?: string,
   ): Promise<void> {
     let portfolio: PortfolioDetailed;
     try {
@@ -2102,7 +2427,7 @@ export class ZyfaiSDK {
     const blocking = findBlockingAsyncRedemption(
       portfolio,
       chainId,
-      tokenSymbol
+      tokenSymbol,
     );
     if (!blocking) return;
 
@@ -2110,9 +2435,13 @@ export class ZyfaiSDK {
       ? ` Estimated settlement: ${blocking.estimatedClaimAt}.`
       : "";
     throw new Error(
-      `A redemption is already in flight for ${blocking.token?.symbol ?? "this asset"} ` +
-        `on ${blocking.pool ?? "the pool"} (status ${blocking.status}), and async pools ` +
-        `allow only one at a time. Wait for it to reach CLAIMED before withdrawing the rest.${eta}`
+      `A redemption is already in flight for ${
+        blocking.token?.symbol ?? "this asset"
+      } ` +
+        `on ${blocking.pool ?? "the pool"} (status ${
+          blocking.status
+        }), and async pools ` +
+        `allow only one at a time. Wait for it to reach CLAIMED before withdrawing the rest.${eta}`,
     );
   }
 
@@ -2131,7 +2460,7 @@ export class ZyfaiSDK {
    * ```
    */
   async getAvailableProtocols(
-    chainId: SupportedChainId
+    chainId: SupportedChainId,
   ): Promise<ProtocolsResponse> {
     try {
       if (!isSupportedChain(chainId)) {
@@ -2139,7 +2468,7 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.get<any[]>(
-        ENDPOINTS.PROTOCOLS(chainId)
+        ENDPOINTS.PROTOCOLS(chainId),
       );
 
       return {
@@ -2149,7 +2478,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get available protocols: ${(error as Error).message}`
+        `Failed to get available protocols: ${(error as Error).message}`,
       );
     }
   }
@@ -2172,7 +2501,7 @@ export class ZyfaiSDK {
    */
   async getPositions(
     userAddress: string,
-    chainId?: SupportedChainId
+    chainId?: SupportedChainId,
   ): Promise<PortfolioResponse> {
     try {
       if (!userAddress) {
@@ -2189,7 +2518,7 @@ export class ZyfaiSDK {
       const smartWallet = await this.getSafeAddressFor(
         userAddress,
         targetChainId,
-        false
+        false,
       );
 
       if (!smartWallet) {
@@ -2202,7 +2531,7 @@ export class ZyfaiSDK {
 
       // Use the /data/position endpoint with smart wallet address
       const response = await this.httpClient.get<any>(
-        ENDPOINTS.DATA_POSITION(smartWallet)
+        ENDPOINTS.DATA_POSITION(smartWallet),
       );
 
       // Convert strategy field in position data from backend format to public format
@@ -2219,7 +2548,6 @@ export class ZyfaiSDK {
       throw new Error(`Failed to get positions: ${(error as Error).message}`);
     }
   }
-
 
   /**
    * Get portfolio positions and balances for a user, enriched with
@@ -2270,9 +2598,7 @@ export class ZyfaiSDK {
    * );
    * ```
    */
-  async getPortfolio(
-    userAddress: string,
-  ): Promise<PortfolioDetailedResponse> {
+  async getPortfolio(userAddress: string): Promise<PortfolioDetailedResponse> {
     try {
       if (!userAddress) {
         throw new Error("User address is required");
@@ -2281,7 +2607,7 @@ export class ZyfaiSDK {
       const smartWallet = await this.getSafeAddressFor(
         userAddress,
         8453 as SupportedChainId,
-        false
+        false,
       );
 
       if (!smartWallet) {
@@ -2294,7 +2620,7 @@ export class ZyfaiSDK {
 
       const [response, earningsResult] = await Promise.all([
         this.httpClient.get<PortfolioDetailed>(
-          ENDPOINTS.DATA_PORTFOLIO(smartWallet)
+          ENDPOINTS.DATA_PORTFOLIO(smartWallet),
         ),
         this.httpClient
           .dataGet<any>(DATA_ENDPOINTS.ONCHAIN_EARNINGS(smartWallet))
@@ -2308,7 +2634,7 @@ export class ZyfaiSDK {
 
       const portfolio = enrichPortfolioWithFees(
         convertedResponse,
-        currentEarningsByChain
+        currentEarningsByChain,
       );
 
       return {
@@ -2339,7 +2665,9 @@ export class ZyfaiSDK {
    * console.log("Chains:", user.user.chains);
    * ```
    */
-  async getUserDetails(asset: SupportedAsset = "USDC"): Promise<UpdateUserProfileResponse> {
+  async getUserDetails(
+    asset: SupportedAsset = "USDC",
+  ): Promise<UpdateUserProfileResponse> {
     try {
       await this.authenticateUser();
 
@@ -2353,26 +2681,36 @@ export class ZyfaiSDK {
         success: true,
         agentName: convertedResponse.agentName,
         smartWallet: convertedResponse.smartWallet,
-        chains: convertedResponse.assetTypeSettings?.[internalAsset]?.chains || [],
+        chains:
+          convertedResponse.assetTypeSettings?.[internalAsset]?.chains || [],
         hasActiveSessionKey: convertedResponse.hasActiveSessionKey || false,
         omniAccount: convertedResponse.omniAccount,
         asset: asset,
-        autoSelectProtocols: convertedResponse.assetTypeSettings?.[internalAsset]?.autoSelectProtocols,
+        autoSelectProtocols:
+          convertedResponse.assetTypeSettings?.[internalAsset]
+            ?.autoSelectProtocols,
         // `convertStrategyToPublic` only touches the root `strategy` field;
         // the per-asset one is nested and has to be converted here.
         strategy: toPublicStrategyOrUndefined(
-          convertedResponse.assetTypeSettings?.[internalAsset]?.rebalanceStrategy
+          convertedResponse.assetTypeSettings?.[internalAsset]
+            ?.rebalanceStrategy,
         ),
-        autocompounding: convertedResponse.assetTypeSettings?.[internalAsset]?.autocompounding,
-        crosschainStrategy: convertedResponse.assetTypeSettings?.[internalAsset]?.crosschainStrategy,
-        splitting: convertedResponse.assetTypeSettings?.[internalAsset]?.splitting,
-        minSplits: convertedResponse.assetTypeSettings?.[internalAsset]?.minSplits || 0,
-        protocols: convertedResponse.assetTypeSettings?.[internalAsset]?.protocols || [],
+        autocompounding:
+          convertedResponse.assetTypeSettings?.[internalAsset]?.autocompounding,
+        crosschainStrategy:
+          convertedResponse.assetTypeSettings?.[internalAsset]
+            ?.crosschainStrategy,
+        splitting:
+          convertedResponse.assetTypeSettings?.[internalAsset]?.splitting,
+        minSplits:
+          convertedResponse.assetTypeSettings?.[internalAsset]?.minSplits || 0,
+        protocols:
+          convertedResponse.assetTypeSettings?.[internalAsset]?.protocols || [],
         customization: convertedResponse.customization,
       };
     } catch (error) {
       throw new Error(
-        `Failed to get user details: ${(error as Error).message}`
+        `Failed to get user details: ${(error as Error).message}`,
       );
     }
   }
@@ -2430,7 +2768,7 @@ export class ZyfaiSDK {
     days: number = 7,
     strategy: Strategy = "conservative",
     chainId?: number,
-    tokenSymbol?: string
+    tokenSymbol?: string,
   ): Promise<APYPerStrategyResponse> {
     try {
       const internalStrategy = toInternalStrategy(strategy);
@@ -2444,12 +2782,12 @@ export class ZyfaiSDK {
           strategy: internalStrategyShort,
           chainId,
           tokenSymbol,
-        })
+        }),
       );
 
       // Convert strategy field in each data item from backend format to public format
       const convertedData = convertStrategiesToPublicAndNaming(
-        response.data || []
+        response.data || [],
       ) as any;
 
       return {
@@ -2459,7 +2797,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get APY per strategy: ${(error as Error).message}`
+        `Failed to get APY per strategy: ${(error as Error).message}`,
       );
     }
   }
@@ -2475,9 +2813,13 @@ export class ZyfaiSDK {
    * console.log("Total Volume:", volume.volumeInUSD);
    * ```
    */
-  async getVolume(assetType: "usdc" | "eth" | "eurc" = "usdc"): Promise<VolumeResponse> {
+  async getVolume(
+    assetType: "usdc" | "eth" | "eurc" = "usdc",
+  ): Promise<VolumeResponse> {
     try {
-      const response = await this.httpClient.get<any>(ENDPOINTS.DATA_VOLUME(assetType));
+      const response = await this.httpClient.get<any>(
+        ENDPOINTS.DATA_VOLUME(assetType),
+      );
 
       return {
         success: true,
@@ -2511,7 +2853,7 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.get<any>(
-        ENDPOINTS.DATA_ACTIVE_WALLETS(chainId)
+        ENDPOINTS.DATA_ACTIVE_WALLETS(chainId),
       );
 
       const wallets = Array.isArray(response)
@@ -2530,7 +2872,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get active wallets: ${(error as Error).message}`
+        `Failed to get active wallets: ${(error as Error).message}`,
       );
     }
   }
@@ -2548,7 +2890,7 @@ export class ZyfaiSDK {
    * ```
    */
   async getSmartWalletByEOA(
-    eoaAddress: string
+    eoaAddress: string,
   ): Promise<SmartWalletByEOAResponse> {
     try {
       if (!eoaAddress) {
@@ -2556,7 +2898,7 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.get<any>(
-        ENDPOINTS.DATA_BY_EOA(eoaAddress)
+        ENDPOINTS.DATA_BY_EOA(eoaAddress),
       );
 
       // API returns: { agent: "0x...", chains: [...] }
@@ -2572,7 +2914,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get smart wallets by EOA: ${(error as Error).message}`
+        `Failed to get smart wallets by EOA: ${(error as Error).message}`,
       );
     }
   }
@@ -2596,7 +2938,7 @@ export class ZyfaiSDK {
    */
   async getFirstTopup(
     walletAddress: string,
-    chainId: number
+    chainId: number,
   ): Promise<FirstTopupResponse> {
     try {
       if (!walletAddress) {
@@ -2607,7 +2949,7 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.get<any>(
-        ENDPOINTS.DATA_FIRST_TOPUP(walletAddress, chainId)
+        ENDPOINTS.DATA_FIRST_TOPUP(walletAddress, chainId),
       );
 
       return {
@@ -2648,7 +2990,7 @@ export class ZyfaiSDK {
       fromDate?: string;
       toDate?: string;
       assetType?: "usdc" | "eth" | "eurc";
-    }
+    },
   ): Promise<HistoryResponse> {
     try {
       if (!walletAddress) {
@@ -2661,7 +3003,7 @@ export class ZyfaiSDK {
       let endpoint = ENDPOINTS.DATA_HISTORY(
         walletAddress,
         chainId,
-        options?.assetType
+        options?.assetType,
       );
       if (options?.limit) endpoint += `&limit=${options.limit}`;
       if (options?.offset) endpoint += `&offset=${options.offset}`;
@@ -2672,14 +3014,14 @@ export class ZyfaiSDK {
 
       // Convert strategy field in each history entry from backend format to public format
       const convertedData = convertStrategiesToPublic<HistoryEntry>(
-        response.data || []
+        response.data || [],
       ).map((entry) =>
         entry.rebalanceLog
           ? {
               ...entry,
               rebalanceLog: enrichRebalanceLog(entry.rebalanceLog),
             }
-          : entry
+          : entry,
       );
 
       return {
@@ -2716,7 +3058,7 @@ export class ZyfaiSDK {
    * ```
    */
   async getOnchainEarnings(
-    walletAddress: string
+    walletAddress: string,
   ): Promise<OnchainEarningsResponse> {
     try {
       if (!walletAddress) {
@@ -2724,7 +3066,7 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.ONCHAIN_EARNINGS(walletAddress)
+        DATA_ENDPOINTS.ONCHAIN_EARNINGS(walletAddress),
       );
 
       const data = response.data || response;
@@ -2744,7 +3086,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get onchain earnings: ${(error as Error).message}`
+        `Failed to get onchain earnings: ${(error as Error).message}`,
       );
     }
   }
@@ -2765,7 +3107,7 @@ export class ZyfaiSDK {
    * ```
    */
   async calculateOnchainEarnings(
-    walletAddress: string
+    walletAddress: string,
   ): Promise<OnchainEarningsResponse> {
     try {
       if (!walletAddress) {
@@ -2774,7 +3116,7 @@ export class ZyfaiSDK {
 
       const response = await this.httpClient.dataPost<any>(
         DATA_ENDPOINTS.CALCULATE_ONCHAIN_EARNINGS(walletAddress),
-        {}
+        {},
       );
 
       const data = response.data || response;
@@ -2794,7 +3136,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to calculate onchain earnings: ${(error as Error).message}`
+        `Failed to calculate onchain earnings: ${(error as Error).message}`,
       );
     }
   }
@@ -2827,7 +3169,7 @@ export class ZyfaiSDK {
   async getDailyEarnings(
     walletAddress: string,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
   ): Promise<DailyEarningsResponse> {
     try {
       if (!walletAddress) {
@@ -2835,7 +3177,7 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.DAILY_EARNINGS(walletAddress, startDate, endDate)
+        DATA_ENDPOINTS.DAILY_EARNINGS(walletAddress, startDate, endDate),
       );
 
       const data = (response.data || []).map((entry: any) =>
@@ -2848,7 +3190,7 @@ export class ZyfaiSDK {
           total_earnings_by_token: entry.total_earnings_by_token || {},
           daily_total_delta_by_token: entry.daily_total_delta_by_token || {},
           created_at: entry.created_at,
-        } as DailyEarning)
+        } as DailyEarning),
       );
 
       return {
@@ -2863,7 +3205,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get daily earnings: ${(error as Error).message}`
+        `Failed to get daily earnings: ${(error as Error).message}`,
       );
     }
   }
@@ -2888,11 +3230,11 @@ export class ZyfaiSDK {
   async getConservativeOpportunities(
     chainId?: number,
     asset?: string,
-    status?: "live" | "not_live"
+    status?: "live" | "not_live",
   ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId, asset, status)
+        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId, asset, status),
       );
 
       const data = response.data || response || [];
@@ -2919,7 +3261,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get safe opportunities: ${(error as Error).message}`
+        `Failed to get safe opportunities: ${(error as Error).message}`,
       );
     }
   }
@@ -2940,11 +3282,11 @@ export class ZyfaiSDK {
   async getAggressiveOpportunities(
     chainId?: number,
     asset?: string,
-    status?: "live" | "not_live"
+    status?: "live" | "not_live",
   ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId, asset, status)
+        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId, asset, status),
       );
 
       const data = response.data || response || [];
@@ -2971,7 +3313,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get aggressive opportunities: ${(error as Error).message}`
+        `Failed to get aggressive opportunities: ${(error as Error).message}`,
       );
     }
   }
@@ -2996,11 +3338,11 @@ export class ZyfaiSDK {
   async getAsyncOpportunities(
     chainId?: number,
     asset?: string,
-    status?: "live" | "not_live"
+    status?: "live" | "not_live",
   ): Promise<OpportunitiesResponse> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_ASYNC(chainId, asset, status)
+        DATA_ENDPOINTS.OPPORTUNITIES_ASYNC(chainId, asset, status),
       );
 
       const data = response.data || response || [];
@@ -3027,7 +3369,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get yieldmaxxing opportunities: ${(error as Error).message}`
+        `Failed to get yieldmaxxing opportunities: ${(error as Error).message}`,
       );
     }
   }
@@ -3046,10 +3388,13 @@ export class ZyfaiSDK {
    * console.log(JSON.stringify(opps, null, 2));
    * ```
    */
-  async getActiveConservativeOppsRisk(chainId?: number, asset?: string): Promise<any> {
+  async getActiveConservativeOppsRisk(
+    chainId?: number,
+    asset?: string,
+  ): Promise<any> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId, asset)
+        DATA_ENDPOINTS.OPPORTUNITIES_SAFE(chainId, asset),
       );
 
       const data = response.data || response || [];
@@ -3059,14 +3404,18 @@ export class ZyfaiSDK {
             .map((o: any) => {
               const tvl = o.tvl || 0;
               const liquidity = o.liquidity || 0;
-              const utilizationRate =
-                tvl > 0 ? (tvl - liquidity) / tvl : 0;
+              const utilizationRate = tvl > 0 ? (tvl - liquidity) / tvl : 0;
 
               return {
                 poolName: o.pool_name,
                 protocolName: o.protocol_name,
                 chainId: o.chain_id,
-                liquidityDepth: liquidity > 10_000_000 ? "deep" : liquidity > 1_000_000 ? "moderate" : "shallow",
+                liquidityDepth:
+                  liquidity > 10_000_000
+                    ? "deep"
+                    : liquidity > 1_000_000
+                    ? "moderate"
+                    : "shallow",
                 utilizationRate: Math.round(utilizationRate * 10000) / 100,
                 tvlStability: o.isTvlStable ?? null,
                 apyStability: o.isApyStable30Days ?? null,
@@ -3082,7 +3431,9 @@ export class ZyfaiSDK {
       return active;
     } catch (error) {
       throw new Error(
-        `Failed to get active conservative opportunities risk: ${(error as Error).message}`
+        `Failed to get active conservative opportunities risk: ${
+          (error as Error).message
+        }`,
       );
     }
   }
@@ -3101,10 +3452,13 @@ export class ZyfaiSDK {
    * console.log(JSON.stringify(opps, null, 2));
    * ```
    */
-  async getActiveAggressiveOppsRisk(chainId?: number, asset?: string): Promise<any> {
+  async getActiveAggressiveOppsRisk(
+    chainId?: number,
+    asset?: string,
+  ): Promise<any> {
     try {
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId, asset)
+        DATA_ENDPOINTS.OPPORTUNITIES_DEGEN(chainId, asset),
       );
 
       const data = response.data || response || [];
@@ -3114,14 +3468,18 @@ export class ZyfaiSDK {
             .map((o: any) => {
               const tvl = o.tvl || 0;
               const liquidity = o.liquidity || 0;
-              const utilizationRate =
-                tvl > 0 ? (tvl - liquidity) / tvl : 0;
+              const utilizationRate = tvl > 0 ? (tvl - liquidity) / tvl : 0;
 
               return {
                 poolName: o.pool_name,
                 protocolName: o.protocol_name,
                 chainId: o.chain_id,
-                liquidityDepth: liquidity > 10_000_000 ? "deep" : liquidity > 1_000_000 ? "moderate" : "shallow",
+                liquidityDepth:
+                  liquidity > 10_000_000
+                    ? "deep"
+                    : liquidity > 1_000_000
+                    ? "moderate"
+                    : "shallow",
                 utilizationRate: Math.round(utilizationRate * 10000) / 100,
                 tvlStability: o.isTvlStable ?? null,
                 apyStability: o.isApyStable30Days ?? null,
@@ -3137,7 +3495,9 @@ export class ZyfaiSDK {
       return active;
     } catch (error) {
       throw new Error(
-        `Failed to get active aggressive opportunities risk: ${(error as Error).message}`
+        `Failed to get active aggressive opportunities risk: ${
+          (error as Error).message
+        }`,
       );
     }
   }
@@ -3150,7 +3510,10 @@ export class ZyfaiSDK {
    * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
    * @returns Conservative pools with status data
    */
-  async getConservativePoolStatus(chainId?: number, asset?: string): Promise<any> {
+  async getConservativePoolStatus(
+    chainId?: number,
+    asset?: string,
+  ): Promise<any> {
     const pools = await this.getActiveConservativeOppsRisk(chainId, asset);
     return pools.map((p: any) => this.derivePoolStatus(p));
   }
@@ -3163,7 +3526,10 @@ export class ZyfaiSDK {
    * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
    * @returns Aggressive pools with status data
    */
-  async getAggressivePoolStatus(chainId?: number, asset?: string): Promise<any> {
+  async getAggressivePoolStatus(
+    chainId?: number,
+    asset?: string,
+  ): Promise<any> {
     const pools = await this.getActiveAggressiveOppsRisk(chainId, asset);
     return pools.map((p: any) => this.derivePoolStatus(p));
   }
@@ -3185,7 +3551,12 @@ export class ZyfaiSDK {
       (p.tvlStability === true ? 1 : 0) +
       (p.apyStability === true ? 1 : 0) +
       (p.tvlApyCombinedRisk === true ? 1 : 0);
-    const liquidityBonus = p.liquidityDepth === "deep" ? 1 : p.liquidityDepth === "moderate" ? 0.5 : 0;
+    const liquidityBonus =
+      p.liquidityDepth === "deep"
+        ? 1
+        : p.liquidityDepth === "moderate"
+        ? 0.5
+        : 0;
     const healthTotal = stabilityScore + liquidityBonus;
 
     const healthScore =
@@ -3241,7 +3612,7 @@ export class ZyfaiSDK {
    */
   async getDailyApyHistory(
     walletAddress: string,
-    days: DailyApyHistoryPeriod = "7D"
+    days: DailyApyHistoryPeriod = "7D",
   ): Promise<DailyApyHistoryResponse> {
     try {
       if (!walletAddress) {
@@ -3249,7 +3620,7 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.dataGet<any>(
-        DATA_ENDPOINTS.DAILY_APY_HISTORY_WEIGHTED(walletAddress, days)
+        DATA_ENDPOINTS.DAILY_APY_HISTORY_WEIGHTED(walletAddress, days),
       );
 
       const data = response.data || response;
@@ -3264,7 +3635,7 @@ export class ZyfaiSDK {
               positions: (day.positions || []).map(enrichApyPosition),
             },
           ];
-        })
+        }),
       );
 
       return {
@@ -3273,15 +3644,18 @@ export class ZyfaiSDK {
         history,
         totalDays: data.total_days || data.totalDays || 0,
         requestedDays: data.requested_days || data.requestedDays,
-        weightedApyWithRzfiAfterFee: data.average_final_weighted_apy_after_fee_with_rzfi,
+        weightedApyWithRzfiAfterFee:
+          data.average_final_weighted_apy_after_fee_with_rzfi,
         weightedApyAfterFee: data.average_final_weighted_apy_after_fee,
         averageRzfiMerklApr: data.average_rzfi_merkl_apr,
-        weightedApyAfterFeeByChain: data.average_final_weighted_apy_after_fee_by_chain,
-        weightedApyWithRzfiAfterFeeByChain: data.average_final_weighted_apy_after_fee_with_rzfi_by_chain,
+        weightedApyAfterFeeByChain:
+          data.average_final_weighted_apy_after_fee_by_chain,
+        weightedApyWithRzfiAfterFeeByChain:
+          data.average_final_weighted_apy_after_fee_with_rzfi_by_chain,
       };
     } catch (error) {
       throw new Error(
-        `Failed to get daily APY history: ${(error as Error).message}`
+        `Failed to get daily APY history: ${(error as Error).message}`,
       );
     }
   }
@@ -3305,7 +3679,7 @@ export class ZyfaiSDK {
    * ```
    */
   async getRebalanceFrequency(
-    walletAddress: string
+    walletAddress: string,
   ): Promise<RebalanceFrequencyResponse> {
     try {
       if (!walletAddress) {
@@ -3313,7 +3687,7 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.get<any>(
-        ENDPOINTS.DATA_REBALANCE_FREQUENCY(walletAddress)
+        ENDPOINTS.DATA_REBALANCE_FREQUENCY(walletAddress),
       );
 
       return {
@@ -3325,7 +3699,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get rebalance frequency: ${(error as Error).message}`
+        `Failed to get rebalance frequency: ${(error as Error).message}`,
       );
     }
   }
@@ -3358,7 +3732,7 @@ export class ZyfaiSDK {
   }> {
     try {
       const response = await this.httpClient.get<any>(
-        ENDPOINTS.SDK_ALLOWED_WALLETS
+        ENDPOINTS.SDK_ALLOWED_WALLETS,
       );
 
       return {
@@ -3372,7 +3746,7 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to get SDK allowed wallets: ${(error as Error).message}`
+        `Failed to get SDK allowed wallets: ${(error as Error).message}`,
       );
     }
   }
@@ -3408,9 +3782,7 @@ export class ZyfaiSDK {
         },
       };
     } catch (error) {
-      throw new Error(
-        `Failed to get SDK key TVL: ${(error as Error).message}`
-      );
+      throw new Error(`Failed to get SDK key TVL: ${(error as Error).message}`);
     }
   }
 
@@ -3453,7 +3825,7 @@ export class ZyfaiSDK {
    * ```
    */
   async customizeBatch(
-    customizations: CustomizationConfig[]
+    customizations: CustomizationConfig[],
   ): Promise<CustomizeBatchResponse> {
     try {
       // Authenticate user first to get JWT token
@@ -3461,13 +3833,13 @@ export class ZyfaiSDK {
 
       const response = await this.httpClient.post<CustomizeBatchResponse>(
         ENDPOINTS.CUSTOMIZE_BATCH,
-        customizations
+        customizations,
       );
 
       return response;
     } catch (error) {
       throw new Error(
-        `Failed to save customizations: ${(error as Error).message}`
+        `Failed to save customizations: ${(error as Error).message}`,
       );
     }
   }
@@ -3496,7 +3868,7 @@ export class ZyfaiSDK {
    */
   async getAvailablePools(
     protocolId: string,
-    strategy?: Strategy
+    strategy?: Strategy,
   ): Promise<GetPoolsResponse> {
     try {
       // Map public strategy to internal if provided
@@ -3504,20 +3876,20 @@ export class ZyfaiSDK {
       if (strategy) {
         if (!isValidPublicStrategy(strategy)) {
           throw new Error(
-            `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
+            `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
           );
         }
         internalStrategy = toInternalStrategy(strategy);
       }
 
       const response = await this.httpClient.get<GetPoolsResponse>(
-        ENDPOINTS.CUSTOMIZATION_POOLS(protocolId, internalStrategy)
+        ENDPOINTS.CUSTOMIZATION_POOLS(protocolId, internalStrategy),
       );
 
       return response;
     } catch (error) {
       throw new Error(
-        `Failed to get available pools: ${(error as Error).message}`
+        `Failed to get available pools: ${(error as Error).message}`,
       );
     }
   }
@@ -3551,12 +3923,12 @@ export class ZyfaiSDK {
    * ```
    */
   async simulateBestPositions(
-    params: SimulateBestPositionsParams
+    params: SimulateBestPositionsParams,
   ): Promise<SimulateBestPositionsResponse> {
     try {
       if (!isValidPublicStrategy(params.strategy)) {
         throw new Error(
-          `Invalid strategy: ${params.strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`
+          `Invalid strategy: ${params.strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
         );
       }
       const internalStrategy = toInternalStrategy(params.strategy);
@@ -3565,13 +3937,13 @@ export class ZyfaiSDK {
         ENDPOINTS.SIMULATE_BEST_POSITIONS({
           ...params,
           strategy: internalStrategy,
-        })
+        }),
       );
 
       return response;
     } catch (error) {
       throw new Error(
-        `Failed to simulate best positions: ${(error as Error).message}`
+        `Failed to simulate best positions: ${(error as Error).message}`,
       );
     }
   }
@@ -3599,20 +3971,20 @@ export class ZyfaiSDK {
    */
   async getSelectedPools(
     protocolId: string,
-    chainId: number
+    chainId: number,
   ): Promise<GetSelectedPoolsResponse> {
     try {
       // Authenticate user first to get JWT token
       await this.authenticateUser();
 
       const response = await this.httpClient.get<GetSelectedPoolsResponse>(
-        ENDPOINTS.CUSTOMIZATION_SELECTED_POOLS(protocolId, chainId)
+        ENDPOINTS.CUSTOMIZATION_SELECTED_POOLS(protocolId, chainId),
       );
 
       return response;
     } catch (error) {
       throw new Error(
-        `Failed to get selected pools: ${(error as Error).message}`
+        `Failed to get selected pools: ${(error as Error).message}`,
       );
     }
   }
@@ -3630,11 +4002,11 @@ export class ZyfaiSDK {
    * Check if a chain ID supports the Identity Registry
    */
   private isSupportedIdentityRegistryChain(
-    chainId: number
+    chainId: number,
   ): chainId is 8453 | 42161 {
-    return (
-      ZyfaiSDK.IDENTITY_REGISTRY_CHAIN_IDS as readonly number[]
-    ).includes(chainId);
+    return (ZyfaiSDK.IDENTITY_REGISTRY_CHAIN_IDS as readonly number[]).includes(
+      chainId,
+    );
   }
 
   /**
@@ -3658,7 +4030,7 @@ export class ZyfaiSDK {
    */
   async registerAgentOnIdentityRegistry(
     smartWallet: string,
-    chainId: SupportedChainId
+    chainId: SupportedChainId,
   ): Promise<RegisterAgentResponse> {
     if (!smartWallet) {
       throw new Error("Smart wallet address is required");
@@ -3666,7 +4038,7 @@ export class ZyfaiSDK {
 
     if (!this.isSupportedIdentityRegistryChain(chainId)) {
       throw new Error(
-        `Chain ${chainId} is not supported for Identity Registry. Supported chains: Base (8453), Arbitrum (42161)`
+        `Chain ${chainId} is not supported for Identity Registry. Supported chains: Base (8453), Arbitrum (42161)`,
       );
     }
 
@@ -3675,7 +4047,7 @@ export class ZyfaiSDK {
       const tokenUriResponse =
         await this.httpClient.post<AgentTokenUriResponse>(
           ENDPOINTS.AGENT_TOKEN_URI,
-          { smartWallet }
+          { smartWallet },
         );
 
       if (!tokenUriResponse.tokenUri) {
@@ -3717,7 +4089,9 @@ export class ZyfaiSDK {
       };
     } catch (error) {
       throw new Error(
-        `Failed to register agent on Identity Registry: ${(error as Error).message}`
+        `Failed to register agent on Identity Registry: ${
+          (error as Error).message
+        }`,
       );
     }
   }
@@ -3743,7 +4117,7 @@ export class ZyfaiSDK {
   async vaultDeposit(
     amount: string,
     asset: VaultAsset = "USDC",
-    chainId: SupportedChainId = 8453
+    chainId: SupportedChainId = 8453,
   ): Promise<VaultDepositResponse> {
     if (!this.walletClient?.account) {
       throw new Error("Wallet not connected. Call connectAccount first.");
@@ -3761,7 +4135,9 @@ export class ZyfaiSDK {
     const decimals = 6; // USDC has 6 decimals
 
     // Parse amount to smallest unit
-    const parsedAmount = BigInt(Math.floor(parseFloat(amount) * 10 ** decimals));
+    const parsedAmount = BigInt(
+      Math.floor(parseFloat(amount) * 10 ** decimals),
+    );
 
     try {
       // Step 1: Check current allowance
@@ -3818,8 +4194,6 @@ export class ZyfaiSDK {
     }
   }
 
-  
-
   /**
    * Request withdrawal from the Zyfai Vault
    * Withdrawals are async - use getVaultWithdrawStatus and vaultClaim after
@@ -3834,7 +4208,10 @@ export class ZyfaiSDK {
    * // Later, check status and claim
    * ```
    */
-  async vaultWithdraw(shares?: string, chainId: SupportedChainId = 8453): Promise<VaultWithdrawResponse> {
+  async vaultWithdraw(
+    shares?: string,
+    chainId: SupportedChainId = 8453,
+  ): Promise<VaultWithdrawResponse> {
     if (!this.walletClient?.account) {
       throw new Error("Wallet not connected. Call connectAccount first.");
     }
@@ -3857,7 +4234,9 @@ export class ZyfaiSDK {
         });
 
         if (maxShares === 0n) {
-          throw new Error("No shares available to redeem or withdrawals are paused");
+          throw new Error(
+            "No shares available to redeem or withdrawals are paused",
+          );
         }
 
         sharesToRedeem = maxShares as bigint;
@@ -3912,7 +4291,9 @@ export class ZyfaiSDK {
         status: isClaimable ? "claimable" : "pending",
       };
     } catch (error) {
-      throw new Error(`Vault withdraw request failed: ${(error as Error).message}`);
+      throw new Error(
+        `Vault withdraw request failed: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -3932,7 +4313,7 @@ export class ZyfaiSDK {
    */
   async getVaultWithdrawStatus(
     withdrawKey?: Hex,
-    chainId: SupportedChainId = 8453
+    chainId: SupportedChainId = 8453,
   ): Promise<VaultWithdrawStatusResponse> {
     if (!this.walletClient?.account) {
       throw new Error("Wallet not connected. Call connectAccount first.");
@@ -3964,12 +4345,12 @@ export class ZyfaiSDK {
       // Use provided key or get latest
       let keyToCheck = withdrawKey;
       if (!keyToCheck) {
-        keyToCheck = await chainConfig.publicClient.readContract({
+        keyToCheck = (await chainConfig.publicClient.readContract({
           address: VAULT_ADDRESS,
           abi: VAULT_ABI,
           functionName: "getWithdrawKey",
           args: [userAddress, nonce - 1n],
-        }) as Hex;
+        })) as Hex;
       }
 
       // Check status
@@ -4007,7 +4388,9 @@ export class ZyfaiSDK {
         nonce,
       };
     } catch (error) {
-      throw new Error(`Failed to get withdraw status: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to get withdraw status: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -4026,7 +4409,10 @@ export class ZyfaiSDK {
    * }
    * ```
    */
-  async vaultClaim(withdrawKey: Hex, chainId: SupportedChainId = 8453): Promise<VaultClaimResponse> {
+  async vaultClaim(
+    withdrawKey: Hex,
+    chainId: SupportedChainId = 8453,
+  ): Promise<VaultClaimResponse> {
     if (!this.walletClient?.account) {
       throw new Error("Wallet not connected. Call connectAccount first.");
     }
@@ -4058,7 +4444,9 @@ export class ZyfaiSDK {
           throw new Error("This withdrawal has already been claimed");
         }
 
-        throw new Error("Withdrawal is not yet claimable. Please wait for processing.");
+        throw new Error(
+          "Withdrawal is not yet claimable. Please wait for processing.",
+        );
       }
 
       // Claim
@@ -4103,12 +4491,14 @@ export class ZyfaiSDK {
    */
   async getVaultShares(
     userAddress?: string,
-    chainId: SupportedChainId = 8453
+    chainId: SupportedChainId = 8453,
   ): Promise<VaultSharesResponse> {
     const address = userAddress || this.walletClient?.account?.address;
 
     if (!address) {
-      throw new Error("User address required. Provide address or connect wallet first.");
+      throw new Error(
+        "User address required. Provide address or connect wallet first.",
+      );
     }
 
     const chainConfig = getChainConfig(chainId, this.rpcUrls);
@@ -4162,7 +4552,10 @@ export class ZyfaiSDK {
    * unsubscribe();
    * ```
    */
-  subscribeToEvents(handlers: ZyfaiEventHandlers, filters?: ZyfaiEventFilters): () => void {
+  subscribeToEvents(
+    handlers: ZyfaiEventHandlers,
+    filters?: ZyfaiEventFilters,
+  ): () => void {
     let ws: any = null;
     let closed = false;
 
@@ -4171,7 +4564,12 @@ export class ZyfaiSDK {
 
       ws.onopen = () => {
         const msg: any = { type: "subscribe" };
-        if (filters && (filters.chains?.length || filters.protocols?.length || filters.pools?.length)) {
+        if (
+          filters &&
+          (filters.chains?.length ||
+            filters.protocols?.length ||
+            filters.pools?.length)
+        ) {
           msg.filters = filters;
         }
         ws.send(JSON.stringify(msg));

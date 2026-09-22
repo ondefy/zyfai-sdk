@@ -80,7 +80,8 @@ export const ENDPOINTS = {
   USER_ME: "/users/me",
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
-  LOG_DEPOSIT: "/users/log_deposit",
+  LOG_DEPOSIT: "/users/log_deposit/v2",
+  DEPOSIT_STATUS: (depositId: string) => `/users/deposits/${depositId}`,
 
   // Safe Deployment (single endpoint)
   SAFE_DEPLOY: "/users/safe-deploy",
