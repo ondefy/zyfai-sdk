@@ -1950,6 +1950,14 @@ export class ZyfaiSDK {
       );
     }
 
+    const amountBigInt = BigInt(amount);
+    await this.enforceMinimumPortfolioBalance(
+      chainId,
+      asset,
+      amountBigInt,
+      safeAddress,
+    );
+
     const tokenAddress = getDefaultTokenAddress(
       chainId,
       assetSymbol,
@@ -1961,7 +1969,7 @@ export class ZyfaiSDK {
       data: encodeFunctionData({
         abi: ERC20_ABI,
         functionName: "transfer",
-        args: [safeAddress, BigInt(amount)],
+        args: [safeAddress, amountBigInt],
       }),
       value: "0",
     };
@@ -1984,9 +1992,12 @@ export class ZyfaiSDK {
     const minUsd = MIN_PORTFOLIO_USD[chainId]?.[assetSymbol];
 
     if (minUsd !== undefined) {
-      const priceResponse = await this.httpClient.dataGet<TokenPriceResponse>(
-        DATA_ENDPOINTS.TOKEN_PRICE(assetConfig.priceTokenSymbol),
-      );
+      const [, priceResponse] = await Promise.all([
+        this.authenticateUser(),
+        this.httpClient.dataGet<TokenPriceResponse>(
+          DATA_ENDPOINTS.TOKEN_PRICE(assetConfig.priceTokenSymbol),
+        ),
+      ]);
       minRequired = usdToTokenUnits(
         minUsd,
         parseTokenUsdPrice(priceResponse),
