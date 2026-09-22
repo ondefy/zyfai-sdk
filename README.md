@@ -325,7 +325,7 @@ Get the Smart Wallet (Safe) address for a user.
 
 ##### `deploySafe(userAddress: string, chainId: SupportedChainId, strategy?: Strategy): Promise<DeploySafeResponse>`
 
-> **Deprecated** for partner integrations. Prefer `depositFunds()` — predeployed Safes and session keys are handled on first deposit. This method remains available for legacy flows and emits a console warning when called.
+> **Deprecated** for partner integrations. Prefer `sendDeposit()` — predeployed Safes and session keys are handled on first deposit. This method remains available for legacy flows and emits a console warning when called.
 
 Deploy a Safe smart wallet for a user. **Deployment is handled by the backend API**, which manages all RPC calls and bundler interactions. This avoids rate limiting issues.
 
@@ -353,7 +353,7 @@ Deploy a Safe smart wallet for a user. **Deployment is handled by the backend AP
 
 - User must be authenticated (automatically done via `connectAccount()`)
 - Backend handles all RPC calls, avoiding rate limiting
-- Protocol / asset patching runs in `deploySafe` (all paths). `depositFunds` still patches on the account's **first** deposit if USDC `chains` are empty (see Deposit Funds below)
+- Protocol / asset patching runs in `deploySafe` (all paths). `sendDeposit` still patches on the account's **first** deposit if USDC `chains` are empty (see Send a Deposit below)
 
 ##### `addWalletToSdk(walletAddress: string): Promise<AddWalletToSdkResponse>`
 
@@ -380,7 +380,7 @@ Session keys enable delegated transaction execution without exposing the main pr
 
 #### Simple Usage (Legacy — deprecated)
 
-> **Deprecated** for partner integrations. Prefer `depositFunds()` — predeployed wallets already have the agent session enabled. This method remains available for legacy flows and emits a console warning when called.
+> **Deprecated** for partner integrations. Prefer `sendDeposit()` — predeployed wallets already have the agent session enabled. This method remains available for legacy flows and emits a console warning when called.
 
 The SDK automatically fetches optimal session configuration from Zyfai API:
 
@@ -411,11 +411,11 @@ console.log("User ID:", result.userId);
 - User must be authenticated (automatically done via `connectAccount()`)
 - The SDK proactively checks if the user already has an active session key and returns early without requiring any signature if one exists
 - The user record must have `smartWallet` and `chainId` set (predeployed assignment / first deposit)
-- Protocol selection is **not** touched by `createSessionKey` — it's set by `deploySafe` and on the first `depositFunds` call if USDC `chains` are still empty
-- **Deprecated**: prefer `depositFunds()` for partner onboarding; `createSessionKey` remains for legacy flows
+- Protocol selection is **not** touched by `createSessionKey` — it's set by `deploySafe` and on the first `sendDeposit` call if USDC `chains` are still empty
+- **Deprecated**: prefer `sendDeposit()` for partner onboarding; `createSessionKey` remains for legacy flows
 - When `alreadyActive` is `true`, `sessionKeyAddress` and `signature` are not available in the response
 
-### 4. Deposit Funds
+### 4. Send a Deposit
 
 Transfer tokens to your Safe smart wallet. Token address is automatically selected based on chain and the requested asset (defaults to USDC):
 
@@ -435,20 +435,30 @@ Minimums for WETH and NVDAc are quoted in dollars and converted at deposit time 
 Top-ups smaller than the minimum are allowed if the Safe already holds enough of the asset to meet it after the deposit.
 
 ```typescript
-// Deposit 10 USDC (6 decimals) to Safe on Base — no minimum on Base
-const result = await sdk.depositFunds(
+// Send 10 USDC (6 decimals) to Safe on Base.
+const sent = await sdk.sendDeposit(
   userAddress,
   8453, // Chain ID
   "10000000", // Amount: 10 USDC = 10 * 10^6
   "USDC"
 );
 
-// First deposit with aggressive strategy (protocol patching)
-await sdk.depositFunds(userAddress, 8453, "10000000", "USDC", "aggressive");
+// Await custody credit only when this UI needs the completion state.
+const credited = await sdk.waitForDepositCredit(sent.registration.id, 8453);
 
-if (result.success) {
-  console.log("Deposit successful!");
-  console.log("Transaction Hash:", result.txHash);
+// First deposit with aggressive strategy (protocol patching)
+const aggressiveSent = await sdk.sendDeposit(
+  userAddress,
+  8453,
+  "10000000",
+  "USDC",
+  "aggressive",
+);
+await sdk.waitForDepositCredit(aggressiveSent.registration.id, 8453);
+
+if (credited.status === "credited") {
+  console.log("Deposit credited!");
+  console.log("Transaction Hash:", sent.txHash);
 }
 ```
 
@@ -457,9 +467,10 @@ if (result.success) {
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
 - `asset` is required (`"USDC"`, `"WETH"`, `"EURC"`, or `"NVDAc"` — EURC on Mainnet/Base only, NVDAc on Base only); token address is selected from that for the chain. Depositing an asset on a chain where it does not exist throws before any transfer.
 - The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
-- Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `depositFunds()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
-- If first-deposit protocol patching fails, the transfer still runs. `depositFunds()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
-- `depositFunds()` waits through the normal completion window, then returns either an investable `credited` registration or `handover_pending`. Use `waitForDepositCredit()` with an explicit longer timeout or `getDepositStatus()` to continue tracking a pending deposit.
+- Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `sendDeposit()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
+- `sendDeposit()` confirms the ERC-20 transaction and registers its lifecycle, then returns its ID. Call `waitForDepositCredit()` only when the UI needs to wait for custody credit; otherwise track it later with `getDepositStatus()`.
+- `depositFunds()` remains a compatibility wrapper that calls both steps and waits through the normal completion window; it **rejects** if credit is not confirmed in that window (track in-flight deposits with `getDepositStatus()` or call `waitForDepositCredit()` with a longer `timeoutMs`).
+- If first-deposit protocol patching fails, the transfer still runs. `sendDeposit()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
 - **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 - **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"yieldmaxxing"` to an account that has already deposited leaves it on its current strategy. To change an existing account, call `updateUserProfile({ asset, strategy })` for each asset concerned:
 
@@ -469,12 +480,12 @@ if (result.success) {
 
 #### Deposit With an External Wallet (Sponsored Transactions)
 
-`depositFunds()` already calls `logDeposit` after the transfer. For a new
-sponsored or custom-wallet deposit, use `depositWithExternalWallet()` below; it
-sends the ERC-20 request through your wallet and registers the transaction. If
-you have already sent a transfer independently, call `logDeposit` to register
-it — otherwise the backend never sees the deposit: a reserved pool wallet stays
-reserved (no ownership rotation), and yield/agent tracking does not start.
+`sendDeposit()` already calls `logDeposit` after the transfer. For a new
+sponsored or custom-wallet deposit, compose `ensureFirstDepositSetup()`,
+`buildDepositTransfer()`, and `logDeposit()` yourself. If you have already sent
+a transfer independently, call `logDeposit` to register it — otherwise the
+backend never sees the deposit: a reserved pool wallet stays reserved (no
+ownership rotation), and yield/agent tracking does not start.
 
 **Authentication (required).** `log_deposit` is a **user** endpoint. You need both:
 
@@ -491,45 +502,42 @@ const sdk = new ZyfaiSDK({ apiKey: process.env.ZYFAI_API_KEY! });
 // Required before the deposit — same instance that will post log_deposit
 await sdk.connectAccount(walletProviderOrPrivateKey, chainId);
 
-// The SDK configures a first deposit, builds the transfer, and registers it.
-const result = await sdk.depositWithExternalWallet({
+await sdk.ensureFirstDepositSetup("conservative");
+const intent = await sdk.buildDepositTransfer({
   userAddress,
   chainId: 8453,
   amount: "100000000",
   asset: "USDC",
-  strategy: "conservative", // Optional; used on the first deposit only
-}, (transaction) => privyWallet.sendTransaction({
-  to: transaction.to,
-  data: transaction.data,
-}));
+});
+const txHash = await privyWallet.sendTransaction({
+  to: intent.to,
+  data: intent.data,
+});
 
-console.log("Deposit credited:", result.registration?.id);
+// Confirm the external transaction before registering it.
+await publicClient.waitForTransactionReceipt({ hash: txHash });
+const { deposit } = await sdk.logDeposit(
+  8453,
+  txHash,
+  "100000000",
+  intent.tokenAddress,
+);
+await sdk.waitForDepositCredit(deposit.id, 8453);
+
+console.log("Deposit credited:", deposit.id);
 ```
 
-Both high-level deposit methods wait through the normal credit window: **20 seconds** on Base and Arbitrum, and **1 minute** on Mainnet. If handover is still pending, they return `registration.status: "handover_pending"` rather than incorrectly reporting a completed transfer as failed. Use `waitForDepositCredit(id, chainId, { timeoutMs })` only when a caller explicitly wants to wait longer; `getDepositStatus(depositId)` is available for one-off checks.
-
-`depositWithExternalWallet()` is the recommended path for a custom or sponsored
-wallet. It shares the same setup, validation, confirmation, registration, and
-credit-waiting flow as `depositFunds()`; the only difference is that your
-`sendTransaction` callback submits the ERC-20 transfer. Use the lower-level
-`logDeposit()` only when you already have an independently-created transfer to
-register.
-
-**Advanced composition:** `ensureFirstDepositSetup()` and
-`buildDepositTransfer()` remain available when an integration needs to split
-configuration, transaction construction, and registration into separate steps.
-Call setup before submitting a first-deposit transfer, then call `logDeposit()`
-afterward. See the API reference for their full signatures.
+See the external deposit building-block API reference for full signatures.
 
 **When to use `logDeposit`:**
 
-- You did **not** call `depositFunds()` (it already logs the deposit for you)
+- You did **not** call `sendDeposit()` (it already logs the deposit for you)
 - You use sponsored/gasless transactions (Privy, Biconomy, Gelato, etc.)
 - You have a custom wallet / frontend transfer
 - You need more control over transaction execution
 - You want to pay gas fees for your users
 
-**When to prefer `depositFunds()` instead:** one SDK instance, `connectAccount()` once, transfer + `log_deposit` in one call — fewer ways to miss the JWT.
+`depositFunds()` retains its complete credit-waiting flow for existing integrations and still rejects on timeout so a resolved promise means credited balance.
 
 **Serverless / split frontend–backend:** if the browser calls `connectAccount()` but the server calls `logDeposit()`, the server must either (a) run `connectAccount()` itself with the user's signer, or (b) forward the JWT to the same `ZyfaiSDK` instance that posts `log_deposit`. API key alone is not sufficient.
 
@@ -1107,14 +1115,14 @@ console.log(profile.protocols); // Ipor + Superform
 | `chains` | every chain the asset exists on | **Additive** — chains already enabled are kept, so this cannot disable one |
 
 This is the method to reach for when changing an existing account's strategy,
-since `depositFunds` ignores its `strategy` argument after the first deposit.
+since `sendDeposit` ignores its `strategy` argument after the first deposit.
 `resumeAgent` does the same thing for all four assets at once and is meant for
 resuming after `pauseAgent`.
 
 #### Tokenized equities (NVDAc)
 
 `NVDAc` is Coinbase's tokenized NVIDIA share (`0xb20000000000000000000078ee7ce2fE4908108C`),
-**8 decimals, Base only**. It behaves like any other asset — same `depositFunds`,
+**8 decimals, Base only**. It behaves like any other asset — same `sendDeposit`,
 `withdrawFunds` and `getPortfolio` — with three differences worth planning for.
 
 **It only exists under `yieldmaxxing`.** The two protocols that hold it, Ipor
@@ -1138,7 +1146,8 @@ unaffected. `getPortfolio` returns ready-to-display copy in
 await sdk.setAssetStrategy({ asset: "NVDAc", strategy: "yieldmaxxing" });
 
 // 1 NVDAc = 100000000 (8 decimals). Must leave at least ~$100 in the Safe.
-await sdk.depositFunds(userAddress, 8453, "100000000", "NVDAc");
+const sentNvda = await sdk.sendDeposit(userAddress, 8453, "100000000", "NVDAc");
+await sdk.waitForDepositCredit(sentNvda.registration.id, 8453);
 ```
 
 Use `setAssetStrategy` rather than `updateUserProfile` here: the latter stores
@@ -1483,6 +1492,8 @@ npx vitest src/integration/get-protocols.integration.test.ts --fileParallelism=f
 `test:integration` always passes `--fileParallelism=false` so on-chain tests that fund ephemeral users from a shared `PRIVATE_KEY` wallet do not collide on nonce (`replacement transaction underpriced`). Pass a **feature id** (filename without `.integration.test.ts`) after `--` to run a single file.
 
 Tests call `describe.skipIf(!integrationEnvReady())` and skip cleanly when `.env.test` is missing or invalid.
+
+When `executionApiUrl` points at local `zyfai-api` and `NODE_ENV` is not `production`, the SDK skips client-side minimum portfolio checks so small test deposits (e.g. 0.1 USDC) work without topping up 100 USDC on Base.
 
 ### Add a test for a new feature
 

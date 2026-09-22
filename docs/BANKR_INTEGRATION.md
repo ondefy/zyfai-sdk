@@ -54,7 +54,8 @@ const sdk = new ZyfaiSDK({ apiKey: ZYFAI_API_KEY });
 
 const address = await sdk.connectAccount(provider, 8453);
 await sdk.deploySafe(address, 8453, 'conservative', true);
-await sdk.depositFunds(address, 8453, '1000000', 'USDC');
+const sent = await sdk.sendDeposit(address, 8453, '1000000', 'USDC');
+await sdk.waitForDepositCredit(sent.registration.id, 8453);
 ```
 
 ## Links

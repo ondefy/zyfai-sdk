@@ -37,11 +37,13 @@ async function main() {
 
   console.log("Depositing funds...", amount, asset, chainId);
   // Deposit with specified asset (USDC by default, or WETH / EURC)
-  const response = await sdk.depositFunds(connected, chainId, amount, asset, "yieldmaxxing");
+  const response = await sdk.sendDeposit(connected, chainId, amount, asset, "yieldmaxxing");
+  const credited = await sdk.waitForDepositCredit(response.registration.id, chainId);
 
-  console.log("Deposit submitted:");
+  console.log("Deposit credited:");
   console.log(`  Transaction: ${response.txHash}`);
   console.log(`  Smart Wallet: ${response.smartWallet}`);
+  console.log(`  Deposit ID: ${credited.id}`);
 }
 
 main().catch((error) => {

@@ -38,11 +38,13 @@ async function main() {
   );
 
   console.log("Depositing funds...", amount, asset, chainId);
-  const response = await sdk.depositFunds(connected, chainId, amount, asset);
+  const response = await sdk.sendDeposit(connected, chainId, amount, asset);
+  const credited = await sdk.waitForDepositCredit(response.registration.id, chainId);
 
-  console.log("Deposit submitted:");
+  console.log("Deposit credited:");
   console.log(`  Transaction: ${response.txHash}`);
   console.log(`  Smart Wallet: ${response.smartWallet}`);
+  console.log(`  Deposit ID: ${credited.id}`);
 }
 
 main().catch((error) => {

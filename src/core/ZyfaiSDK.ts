@@ -30,6 +30,7 @@ import {
   getDepositCreditTimeoutMs,
   type DailyApyHistoryPeriod,
 } from "../config/constants";
+import { shouldBypassMinPortfolioCheck } from "../config/local-dev";
 
 import type {
   SDKConfig,
@@ -177,31 +178,41 @@ export class ZyfaiSDK {
   private referralSource?: string;
 
   /**
-   * Warn that a legacy method is deprecated in favor of depositFunds.
+   * Warn that a legacy method is deprecated in favor of sendDeposit.
    * Predeployed wallets no longer require deploySafe / createSessionKey.
    */
   private warnDeprecatedOnboardingMethod(methodName: string): void {
     console.warn(
       `[ZyfaiSDK] ${methodName}() is deprecated for partner integrations. ` +
-        `Prefer depositFunds() — predeployed Safes and session keys are handled ` +
+        `Prefer sendDeposit() — predeployed Safes and session keys are handled ` +
         `automatically on first deposit.`,
     );
   }
 
   private readonly executionApiUrl: string;
+  private readonly bypassMinPortfolio: boolean;
 
   constructor(config: SDKConfig | string) {
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
 
-    const { apiKey, rpcUrls, referralSource, executionApiUrl, dataApiUrl } =
-      sdkConfig;
+    const {
+      apiKey,
+      rpcUrls,
+      referralSource,
+      executionApiUrl,
+      dataApiUrl,
+      bypassMinPortfolio,
+    } = sdkConfig;
 
     if (!apiKey) {
       throw new Error("API key is required");
     }
 
     this.executionApiUrl = executionApiUrl ?? API_ENDPOINT;
+    this.bypassMinPortfolio =
+      bypassMinPortfolio ??
+      shouldBypassMinPortfolioCheck(this.executionApiUrl);
     this.httpClient = new HttpClient(apiKey, {
       executionApiUrl: this.executionApiUrl,
       dataApiUrl,
@@ -983,7 +994,7 @@ export class ZyfaiSDK {
   /**
    * Deploy Safe Smart Wallet for a user
    *
-   * @deprecated Prefer `depositFunds()`. Predeployed Safes and session keys are
+   * @deprecated Prefer `sendDeposit()`. Predeployed Safes and session keys are
    * managed automatically on first deposit. This method remains available for
    * legacy flows.
    *
@@ -995,8 +1006,9 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * // Preferred: depositFunds handles predeployed wallet onboarding
-   * await sdk.depositFunds(userAddress, 8453, amount, "USDC");
+   * // Preferred: sendDeposit handles predeployed wallet onboarding
+   * const sent = await sdk.sendDeposit(userAddress, 8453, amount, "USDC");
+   * await sdk.waitForDepositCredit(sent.registration.id, 8453);
    *
    * // Legacy: deploy with default conservative strategy
    * await sdk.deploySafe(userAddress, 8453);
@@ -1165,7 +1177,7 @@ export class ZyfaiSDK {
       console.error("Safe deployment failed:", error);
       throw new Error(
         `Safe deployment failed: ${(error as Error).message}. ` +
-          `deploySafe() is deprecated — prefer depositFunds() for predeployed wallet onboarding.`,
+          `deploySafe() is deprecated — prefer sendDeposit() for predeployed wallet onboarding.`,
       );
     }
   }
@@ -1174,7 +1186,7 @@ export class ZyfaiSDK {
    * Create session key with auto-fetched configuration from Zyfai API
    * This is the simplified method that automatically fetches session configuration
    *
-   * @deprecated Prefer `depositFunds()`. Predeployed wallets already have the
+   * @deprecated Prefer `sendDeposit()`. Predeployed wallets already have the
    * agent session enabled; session activation is handled after first deposit.
    * This method remains available for legacy flows.
    *
@@ -1184,8 +1196,9 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * // Preferred: depositFunds handles session onboarding for predeployed wallets
-   * await sdk.depositFunds(userAddress, 8453, amount, "USDC");
+   * // Preferred: sendDeposit handles session onboarding for predeployed wallets
+   * const sent = await sdk.sendDeposit(userAddress, 8453, amount, "USDC");
+   * await sdk.waitForDepositCredit(sent.registration.id, 8453);
    *
    * // Legacy:
    * const result = await sdk.createSessionKey(userAddress, 8453);
@@ -1310,7 +1323,7 @@ export class ZyfaiSDK {
     } catch (error) {
       throw new Error(
         `Failed to create session key: ${(error as Error).message}. ` +
-          `createSessionKey() is deprecated — prefer depositFunds() for predeployed wallet onboarding.`,
+          `createSessionKey() is deprecated — prefer sendDeposit() for predeployed wallet onboarding.`,
       );
     }
   }
@@ -1398,12 +1411,18 @@ export class ZyfaiSDK {
    *    asset/chain/strategy combo.
    * 4. Persist via `updateUserProfile` (writes `assetTypeSettings`).
    *
-   * Called from `deploySafe` after every path, and from `depositFunds` on
+   * Called from `deploySafe` after every path, and from `sendDeposit` on
    * the account's first deposit (when USDC chains are still empty).
    *
    * @internal
    */
-  private async updateUserProtocols(strategy?: Strategy): Promise<void> {
+  private async updateUserProtocols(
+    strategy?: Strategy,
+    options?: { strict?: boolean },
+  ): Promise<void> {
+    const strict = options?.strict ?? false;
+    const assetErrors: string[] = [];
+
     try {
       const allProtocols = await this.httpClient.get<any[]>(
         ENDPOINTS.PROTOCOLS(),
@@ -1420,14 +1439,26 @@ export class ZyfaiSDK {
             allProtocols,
           );
         } catch (assetError) {
-          console.warn(
-            `Failed to update ${asset} protocols: ${
-              (assetError as Error).message
-            }`,
-          );
+          const message = (assetError as Error).message;
+          if (strict) {
+            assetErrors.push(`${asset}: ${message}`);
+          } else {
+            console.warn(`Failed to update ${asset} protocols: ${message}`);
+          }
         }
       }
+
+      if (strict && assetErrors.length > 0) {
+        throw new Error(
+          `Failed to configure user protocols for first deposit: ${assetErrors.join(
+            "; ",
+          )}`,
+        );
+      }
     } catch (error) {
+      if (strict) {
+        throw error;
+      }
       console.warn(
         `Failed to update user protocols: ${(error as Error).message}`,
       );
@@ -1497,7 +1528,7 @@ export class ZyfaiSDK {
    * together.
    *
    * Mostly needed for assets that are not set up by the account's first
-   * deposit, or to change an existing account's strategy — `depositFunds`
+   * deposit, or to change an existing account's strategy — `sendDeposit`
    * ignores its `strategy` argument after the first deposit.
    *
    * @param params.asset - Asset to configure
@@ -1639,56 +1670,6 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Deposit funds from EOA to Safe smart wallet.
-   * Transfers tokens, registers the deposit, and waits through the normal
-   * credit-completion window. Returns a pending lifecycle if handover continues.
-   *
-   * Token address is selected from `asset` for the given chain:
-   * - Ethereum Mainnet (1), Base (8453), Arbitrum (42161): USDC or WETH
-   * - Ethereum Mainnet (1), Base (8453): EURC
-   *
-   * On the account's first deposit (USDC profile has no chains yet), patches
-   * protocol selection for USDC, WETH, and EURC across all supported chains
-   * (EURC on Mainnet/Base only) before the transfer and log_deposit.
-   * Pass `strategy` to select protocols for that first-deposit setup
-   * (same role as the former `deploySafe` strategy argument). On every later
-   * deposit the argument is ignored without error, since re-running the patch
-   * would overwrite a protocol selection the user may have customised. To
-   * change the strategy of an existing account, call
-   * `updateUserProfile({ asset, strategy })`.
-   *
-   * Minimum portfolio balance enforced (Safe balance + deposit amount):
-   * - Stablecoins: `MIN_PORTFOLIO_BALANCE` (Mainnet 10,000 USDC/EURC; Base/Arbitrum 100)
-   * - WETH: about $10,000 on Mainnet, $100 on Base/Arbitrum, from Data API `/price?token=eth`
-   *
-   * @param userAddress - User's address (owner of the Safe)
-   * @param chainId - Target chain ID
-   * @param amount - Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals)
-   * @param asset - Asset symbol: "USDC", "WETH", or "EURC".
-   *   EURC is supported on Ethereum Mainnet and Base only.
-   * @param strategy - Optional strategy for first-deposit protocol patching:
-   *   "conservative" (default), "aggressive" or "yieldmaxxing". Ignored on
-   *   later deposits — use `updateUserProfile` to change an existing account.
-   * @returns Deposit response with the current credited or pending lifecycle registration
-   *
-   * @example
-   * ```typescript
-   * // Deposit 10,000 USDC (6 decimals) to Safe on Base
-   * const result = await sdk.depositFunds(
-   *   "0xUser...",
-   *   8453,
-   *   "10000000000",
-   *   "USDC"
-   * );
-   *
-   * // First deposit with aggressive strategy
-   * await sdk.depositFunds(userAddress, 8453, "10000000000", "USDC", "aggressive");
-   *
-   * // Changing the strategy of an account that has already deposited
-   * await sdk.updateUserProfile({ asset: "USDC", strategy: "yieldmaxxing" });
-   * ```
-   */
-  /**
    * Deploy the connected predeployed (pool) wallet on one or more chains.
    *
    * A pool wallet is only deployed on the chains it has been onboarded to (see
@@ -1698,7 +1679,7 @@ export class ZyfaiSDK {
    * resolves once all requested chains have landed on-chain. Idempotent — chains
    * already deployed are a no-op.
    *
-   * Optional for deposits: `depositFunds` no longer pre-deploys the target chain — the ERC20
+   * Optional for deposits: `sendDeposit` no longer pre-deploys the target chain — the ERC20
    * transfer lands on the counterfactual address and the backend deploys + hands over on first
    * deposit (report-deposit). Use this only to pre-provision chains ahead of time.
    *
@@ -1720,7 +1701,13 @@ export class ZyfaiSDK {
     return this.httpClient.post(ENDPOINTS.DEPLOY_CHAINS, { chainIds });
   }
 
-  async depositFunds(
+  /**
+   * Send a deposit from an EOA to its Safe smart wallet.
+   *
+   * Confirms the ERC-20 transfer and starts the custody-credit lifecycle. Use
+   * `waitForDepositCredit(result.registration.id, chainId)` to await credit.
+   */
+  async sendDeposit(
     userAddress: string,
     chainId: SupportedChainId,
     amount: string,
@@ -1762,24 +1749,31 @@ export class ZyfaiSDK {
         );
       }
 
-      let minRequired = MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
-      const minUsd = MIN_PORTFOLIO_USD[chainId]?.[assetSymbol];
+      let minRequired = this.bypassMinPortfolio
+        ? undefined
+        : MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
+      const minUsd = this.bypassMinPortfolio
+        ? undefined
+        : MIN_PORTFOLIO_USD[chainId]?.[assetSymbol];
+      const token = getDefaultTokenAddress(chainId, assetSymbol);
+      const walletClient = this.getWalletClient();
+      const chainConfig = getChainConfig(chainId, this.rpcUrls);
+
       if (minUsd !== undefined) {
-        const priceResponse = await this.httpClient.dataGet<TokenPriceResponse>(
-          DATA_ENDPOINTS.TOKEN_PRICE(assetConfig.priceTokenSymbol),
-        );
+        const [, priceResponse] = await Promise.all([
+          this.authenticateUser(),
+          this.httpClient.dataGet<TokenPriceResponse>(
+            DATA_ENDPOINTS.TOKEN_PRICE(assetConfig.priceTokenSymbol),
+          ),
+        ]);
         minRequired = usdToTokenUnits(
           minUsd,
           parseTokenUsdPrice(priceResponse),
           assetConfig.decimals,
         );
+      } else {
+        await this.authenticateUser();
       }
-
-      const token = getDefaultTokenAddress(chainId, assetSymbol);
-
-      const walletClient = this.getWalletClient();
-      await this.authenticateUser();
-      const chainConfig = getChainConfig(chainId, this.rpcUrls);
 
       // Get Safe address (predeployed wallets use the backend-assigned
       // address; they are never derived from the EOA).
@@ -1788,11 +1782,20 @@ export class ZyfaiSDK {
         throw new Error("Smart wallet address is not available");
       }
 
-      // Check if Safe is deployed
-      const isDeployed = await isSafeDeployed(
-        safeAddress,
-        chainConfig.publicClient,
-      );
+      const amountBigInt = BigInt(amount);
+
+      const [isDeployed, currentSafeBalance] = await Promise.all([
+        isSafeDeployed(safeAddress, chainConfig.publicClient),
+        minRequired !== undefined
+          ? (chainConfig.publicClient.readContract({
+              address: token as Address,
+              abi: ERC20_ABI,
+              functionName: "balanceOf",
+              args: [safeAddress],
+            }) as Promise<bigint>)
+          : Promise.resolve(undefined),
+        this.prepareFirstDeposit(strategy),
+      ]).then(([deployed, balance]) => [deployed, balance] as const);
 
       if (!isDeployed) {
         // Predeployed (pool) wallets are only deployed on the chains they've been onboarded to;
@@ -1808,23 +1811,11 @@ export class ZyfaiSDK {
         }
       }
 
-      await this.prepareFirstDeposit(strategy);
-
-      const amountBigInt = BigInt(amount);
-
       // Enforce minimum total portfolio balance only when a threshold is
       // configured for this (chainId, asset) pair. No config = no check.
       if (minRequired !== undefined) {
-        const currentSafeBalance = (await chainConfig.publicClient.readContract(
-          {
-            address: token as Address,
-            abi: ERC20_ABI,
-            functionName: "balanceOf",
-            args: [safeAddress],
-          },
-        )) as bigint;
-
-        const totalAfterDeposit = currentSafeBalance + amountBigInt;
+        const safeBalance = currentSafeBalance!;
+        const totalAfterDeposit = safeBalance + amountBigInt;
         if (totalAfterDeposit < minRequired) {
           const minLabel = formatMinPortfolioLabel(
             minRequired,
@@ -1834,7 +1825,7 @@ export class ZyfaiSDK {
           throw new Error(
             `Minimum portfolio balance not met on chain ${chainId}. ` +
               `Total portfolio must be at least ${minLabel}. ` +
-              `Current Safe balance: ${currentSafeBalance.toString()}, ` +
+              `Current Safe balance: ${safeBalance.toString()}, ` +
               `deposit amount: ${amountBigInt.toString()}, ` +
               `total after deposit: ${totalAfterDeposit.toString()} ` +
               `(raw units, ${assetConfig.decimals} decimals).`,
@@ -1860,7 +1851,7 @@ export class ZyfaiSDK {
         throw new Error("Deposit transaction failed");
       }
 
-      const credited = await this.registerAndWaitForDepositCredit(
+      const registration = await this.registerDeposit(
         chainId,
         txHash,
         amount,
@@ -1872,7 +1863,7 @@ export class ZyfaiSDK {
         txHash,
         smartWallet: safeAddress,
         amount: amountBigInt.toString(),
-        registration: credited,
+        registration,
       };
     } catch (error) {
       throw new Error(`Deposit failed: ${(error as Error).message}`);
@@ -1880,92 +1871,38 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Deposit through a wallet managed by your application.
-   *
-   * Use this for sponsored, gasless, mobile, or otherwise custom wallet flows.
-   * The SDK applies first-deposit configuration, gives your sender the standard
-   * ERC-20 transfer request, waits for on-chain confirmation, registers the
-   * resulting transaction, and waits through the normal credit-completion
-   * window. Returns a pending lifecycle if handover continues.
-   *
-   * `sendTransaction` is the only wallet-specific part of the flow. It must
-   * submit the supplied request and resolve with its transaction hash once
-   * broadcast (confirmation is handled here, matching `depositFunds`).
+   * @deprecated Compatibility convenience method. Prefer `sendDeposit()` followed by
+   * `waitForDepositCredit()` when the caller owns the completion UX.
    */
-  async depositWithExternalWallet(
-    params: {
-      userAddress: string;
-      chainId: SupportedChainId;
-      amount: string;
-      asset: SupportedAsset;
-      strategy?: Strategy;
-    },
-    sendTransaction: (intent: {
-      safeAddress: Address;
-      tokenAddress: Address;
-      to: Address;
-      data: Hex;
-      value: "0";
-    }) => Promise<string>,
+  async depositFunds(
+    userAddress: string,
+    chainId: SupportedChainId,
+    amount: string,
+    asset: string,
+    strategy?: Strategy,
   ): Promise<DepositResponse> {
-    const { userAddress, chainId, amount, asset, strategy } = params;
-
-    if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
-      throw new Error(
-        `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
-      );
-    }
-
-    await this.authenticateUser();
-    await this.prepareFirstDeposit(strategy);
-
-    const intent = await this.buildDepositTransfer({
+    this.warnDeprecatedOnboardingMethod("depositFunds");
+    const sent = await this.sendDeposit(
       userAddress,
       chainId,
       amount,
       asset,
-    });
-    await this.enforceMinimumPortfolioBalance(
-      chainId,
-      asset,
-      BigInt(amount),
-      intent.safeAddress,
+      strategy,
     );
-    const txHash = await sendTransaction(intent);
-
-    if (!txHash || !txHash.startsWith("0x")) {
-      throw new Error("Transaction sender must return a transaction hash");
-    }
-
-    const chainConfig = getChainConfig(chainId, this.rpcUrls);
-    const receipt = await chainConfig.publicClient.waitForTransactionReceipt({
-      hash: txHash as Hex,
-    });
-
-    if (receipt.status !== "success") {
-      throw new Error("Deposit transaction failed");
-    }
-
-    const credited = await this.registerAndWaitForDepositCredit(
-      chainId,
-      txHash,
-      amount,
-      intent.tokenAddress,
-    );
-
     return {
-      success: true,
-      txHash,
-      smartWallet: intent.safeAddress,
-      amount,
-      registration: credited,
+      ...sent,
+      registration: await this.waitForDepositCredit(
+        sent.registration.id,
+        chainId,
+      ),
     };
   }
 
   /**
    * Prepare ERC-20 transfer calldata for builders using a custom signer,
    * sponsored transaction provider, or mobile wallet. Most custom-wallet
-   * integrations should use `depositWithExternalWallet()` instead.
+   * integrations can compose this with `ensureFirstDepositSetup()` and
+   * `logDeposit()` instead.
    */
   async buildDepositTransfer(params: {
     userAddress: string;
@@ -2030,13 +1967,17 @@ export class ZyfaiSDK {
     };
   }
 
-  /** Apply the same per-asset minimum portfolio rule as depositFunds. */
+  /** Apply the same per-asset minimum portfolio rule as sendDeposit. */
   private async enforceMinimumPortfolioBalance(
     chainId: SupportedChainId,
     asset: SupportedAsset,
     amount: bigint,
     safeAddress: Address,
   ): Promise<void> {
+    if (this.bypassMinPortfolio) {
+      return;
+    }
+
     const assetSymbol = resolveAssetSymbol(asset);
     const assetConfig = ASSET_CONFIGS[assetSymbol];
     let minRequired = MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
@@ -2085,7 +2026,11 @@ export class ZyfaiSDK {
   /**
    * Idempotently apply the first-deposit profile configuration for builders
    * composing an advanced custom transfer flow. Most custom-wallet
-   * integrations should use `depositWithExternalWallet()` instead.
+   * integrations can use this with `buildDepositTransfer()` and `logDeposit()`.
+   *
+   * When setup runs (`applied: true`), protocol configuration is persisted
+   * before returning. Failures throw so callers can abort before submitting a
+   * transfer. High-level deposit methods still treat setup as best-effort.
    */
   async ensureFirstDepositSetup(
     strategy?: Strategy,
@@ -2101,7 +2046,15 @@ export class ZyfaiSDK {
     if ((usdcDetails.chains?.length ?? 0) > 0) {
       return { applied: false };
     }
-    await this.updateUserProtocols(strategy);
+    await this.updateUserProtocols(strategy, { strict: true });
+
+    const usdcAfterSetup = await this.getUserDetails("USDC");
+    if ((usdcAfterSetup.chains?.length ?? 0) === 0) {
+      throw new Error(
+        "First-deposit setup did not persist USDC chain configuration.",
+      );
+    }
+
     return { applied: true };
   }
 
@@ -2117,8 +2070,8 @@ export class ZyfaiSDK {
     }
   }
 
-  /** Shared post-transfer path for every high-level deposit flow. */
-  private async registerAndWaitForDepositCredit(
+  /** Shared post-transfer registration path for every deposit flow. */
+  private async registerDeposit(
     chainId: SupportedChainId,
     txHash: string,
     amount: string,
@@ -2140,28 +2093,13 @@ export class ZyfaiSDK {
       );
     }
 
-    try {
-      return await this.waitForDepositCredit(registration.deposit.id, chainId);
-    } catch (error) {
-      if (!(error instanceof DepositCreditTimeoutError)) throw error;
-
-      // A timeout only means the normal UX window elapsed. The transfer and
-      // registration succeeded, so return its current lifecycle rather than
-      // mislabeling an in-flight deposit as failed.
-      const status = await this.getDepositStatus(registration.deposit.id);
-      if (status.status === "recovered_to_eoa") {
-        throw new Error(
-          `Deposit ${status.id} recovered to EOA (status=${status.status}); balance was not credited`,
-        );
-      }
-      return status;
-    }
+    return registration.deposit;
   }
 
   /**
    * Log a deposit that was executed client-side.
    *
-   * `depositFunds()` already calls this after the ERC20 transfer. If you send the
+   * `sendDeposit()` already calls this after the ERC20 transfer. If you send the
    * transfer yourself (front, Privy, Biconomy, custom wallet) you **must** call
    * `logDeposit` — otherwise the backend never sees the deposit: a reserved pool
    * wallet stays reserved (no ownership rotation), and yield/agent tracking does

@@ -73,17 +73,22 @@ async function main() {
 
   try {
     // Token address is automatically selected based on chain (USDC on Mainnet, Base, and Arbitrum)
-    const depositResult = await sdk.depositFunds(
+    const depositResult = await sdk.sendDeposit(
       userAddress,
       chainId,
       "100000", // 0.1 USDC = 100000 (6 decimals)
       "USDC"
     );
+    const credited = await sdk.waitForDepositCredit(
+      depositResult.registration.id,
+      chainId,
+    );
 
-    console.log("\nDeposit successful!");
+    console.log("\nDeposit credited!");
     console.log(`Transaction Hash: ${depositResult.txHash}`);
     console.log(`Amount: ${depositResult.amount}`);
     console.log(`Success: ${depositResult.success}\n`);
+    console.log(`Deposit ID: ${credited.id}\n`);
   } catch (error) {
     console.error("\nDeposit failed:", (error as Error).message);
     console.log("\nNote: Make sure you have:");

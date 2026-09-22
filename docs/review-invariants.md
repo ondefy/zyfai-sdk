@@ -4,7 +4,7 @@
 
 - Methods take **EOA** `userAddress`, never the Safe address.
 - Strategy names at SDK boundary: `conservative` | `aggressive` — convert via `strategy.ts` only.
-- First deposit uses predeployed pool (`depositFunds`) — do not require `deploySafe`/`createSessionKey`.
+- First deposit uses predeployed pool (`sendDeposit`) — do not require `deploySafe`/`createSessionKey`.
 - Fee-adjusted fields: pending fee applies to **current** balance only, not lifetime earnings.
 - Portfolio keys use `assetType` (`usdc`); earnings keys use symbol (`USDC`) — normalize at boundary.
 - First-deposit init gates on `chains` length, not empty `protocols`.

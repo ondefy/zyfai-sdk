@@ -167,17 +167,22 @@ async function main() {
   try {
     console.log(`  Depositing 10 ${tokenName} to Safe...`);
     // Token address is automatically selected (USDC on Mainnet, Base, and Arbitrum)
-    const depositResult = await sdk.depositFunds(
+    const depositResult = await sdk.sendDeposit(
       userAddress,
       chainId,
       "10000000", // 10 USDC = 10 * 10^6 (6 decimals)
       "USDC"
     );
+    const credited = await sdk.waitForDepositCredit(
+      depositResult.registration.id,
+      chainId,
+    );
 
-    console.log("\nDeposit successful");
+    console.log("\nDeposit credited");
     console.log(`  Transaction: ${depositResult.txHash}`);
     console.log(`  Amount: ${depositResult.amount}`);
     console.log(`  Smart Wallet: ${depositResult.smartWallet}`);
+    console.log(`  Deposit ID: ${credited.id}`);
   } catch (error) {
     console.log("\n✗ Deposit failed:", (error as Error).message);
   }

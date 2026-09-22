@@ -29,6 +29,8 @@ export interface SDKConfig {
   executionApiUrl?: string;
   /** @internal Local integration tests only — not part of the public SDK contract. */
   dataApiUrl?: string;
+  /** @internal Override client-side minimum portfolio checks (local integration). */
+  bypassMinPortfolio?: boolean;
 }
 
 // Response Types
