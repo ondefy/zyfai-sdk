@@ -1,20 +1,26 @@
 /**
- * Chain Configuration for Zyfai SDK
- * Supports Ethereum Mainnet, Arbitrum, and Base networks
+ * Chain configuration for SDK execution chains (Ethereum, Base, Arbitrum).
+ *
+ * @remarks
+ * Sonic and other data-only chains may appear in asset metadata but are not
+ * {@link SupportedChainId} execution targets.
  */
 
 import { createPublicClient, http, type Chain, type PublicClient } from "viem";
 import type { RpcUrlsConfig } from "../types";
 import { arbitrum, base, mainnet } from "viem/chains";
 
+/** Chain IDs supported for deposits, withdrawals, and on-chain SDK calls. */
 export type SupportedChainId = 1 | 8453 | 42161;
 
+/** viem chain, RPC URL, and public client for a {@link SupportedChainId}. */
 export interface ChainConfig {
   chain: Chain;
   rpcUrl: string;
   publicClient: PublicClient;
 }
 
+/** Default USDC token addresses per execution chain. */
 export const DEFAULT_TOKEN_ADDRESSES: Record<SupportedChainId, string> = {
   1: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC on Ethereum Mainnet
   8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
@@ -131,6 +137,14 @@ export const getAssetChainIds = (asset: string): SupportedChainId[] =>
     .map(Number)
     .filter((chainId): chainId is SupportedChainId => chainId in CHAINS);
 
+/**
+ * Resolve the canonical ERC-20 address for an asset on a chain.
+ *
+ * @param chainId - Execution chain
+ * @param asset - Asset symbol (defaults to USDC)
+ * @returns Token contract address
+ * @throws If the asset is not configured on the chain
+ */
 export const getDefaultTokenAddress = (chainId: SupportedChainId, asset?: string): string => {
   const address = ASSET_CONFIGS[asset || "USDC"]?.addresses[chainId];
   if (!address || address === "0x0000000000000000000000000000000000000000") {
@@ -164,7 +178,9 @@ export const CHAINS: Record<SupportedChainId, Chain> = {
  * Get chain configuration for a given chain ID.
  *
  * @param chainId - Supported chain ID
- * @param rpcUrls - Optional per-chain RPC URL overrides
+ * @param rpcUrls - Optional per-chain RPC URL overrides from {@link SDKConfig}
+ * @returns Chain metadata and a viem `PublicClient`
+ * @throws If `chainId` is not supported
  */
 export const getChainConfig = (
   chainId: SupportedChainId,
@@ -191,7 +207,10 @@ export const getChainConfig = (
 };
 
 /**
- * Check if a chain ID is supported
+ * Check whether a numeric chain id is an SDK execution chain.
+ *
+ * @param chainId - Chain id to test
+ * @returns True when `chainId` is {@link SupportedChainId}
  */
 export const isSupportedChain = (
   chainId: number
@@ -199,9 +218,7 @@ export const isSupportedChain = (
   return chainId in CHAINS;
 };
 
-/**
- * Get all supported chain IDs
- */
+/** List all {@link SupportedChainId} values. */
 export const getSupportedChainIds = (): SupportedChainId[] => {
   return Object.keys(CHAINS).map(Number) as SupportedChainId[];
 };

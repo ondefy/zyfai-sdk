@@ -8,6 +8,7 @@
 
 import { SupportedChainId } from "../config/chains";
 
+/** Backend stack selector for URL helper functions. */
 export type BackendEnvironment = "production" | "staging" | "local";
 
 /** Execution API (zyfai-api) origin — no `/api/v1` suffix. */
@@ -49,18 +50,26 @@ export const LOCAL_EXECUTION_API_BASE_URL = EXECUTION_API_BASE_URLS.local;
 export const LOCAL_DATA_API_BASE_URL = DATA_API_BASE_URLS.local;
 export const LOCAL_WS_URL = WS_URLS.local;
 
+/**
+ * Execution API origin for an environment (no `/api/v1` suffix).
+ *
+ * @remarks The default {@link ZyfaiSDK} instance always uses production unless
+ * `@internal` test overrides are set on {@link SDKConfig}.
+ */
 export function getExecutionApiBaseUrl(
   environment: BackendEnvironment = "production",
 ): string {
   return EXECUTION_API_BASE_URLS[environment];
 }
 
+/** Data API origin for an environment (no `/api/v2` suffix). */
 export function getDataApiBaseUrl(
   environment: BackendEnvironment = "production",
 ): string {
   return DATA_API_BASE_URLS[environment];
 }
 
+/** Defi-api WebSocket URL (includes `/ws/events`). */
 export function getWsUrl(
   environment: BackendEnvironment = "production",
 ): string {

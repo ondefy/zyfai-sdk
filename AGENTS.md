@@ -91,4 +91,5 @@ These `.agents/review/` policies are for automated CI and its JSON result only. 
    [`functional-feature-verification`](../.cursor/skills/functional-feature-verification/SKILL.md).
 4. PRs with user-facing changes need a changeset (`npm run changeset`); see [`docs/RELEASING.md`](docs/RELEASING.md).
 5. Run `npm run check` before finishing.
-6. Durable lessons → `.cursor/learnings/` or `docs/engineering-history.md`.
+6. Public API comments: follow [`docs/TSDOC.md`](docs/TSDOC.md); run `npm run lint:tsdoc` on files you change.
+7. Durable lessons → `.cursor/learnings/` or `docs/engineering-history.md`.

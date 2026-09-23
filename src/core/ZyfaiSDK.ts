@@ -150,6 +150,7 @@ import {
 } from "../utils/zyfi-fees";
 import { SiweMessage } from "siwe";
 
+/** Thrown when {@link ZyfaiSDK.waitForDepositCredit} exceeds its polling timeout. */
 class DepositCreditTimeoutError extends Error {
   constructor(depositId: string) {
     super(`Timed out waiting for deposit ${depositId} to be credited`);
@@ -164,6 +165,20 @@ class DepositCreditTimeoutError extends Error {
  */
 const MANAGED_ASSETS: SupportedAsset[] = ["USDC", "WETH", "EURC", "NVDAc"];
 
+/**
+ * Client for Zyfai execution (`api.zyf.ai`) and intelligence (`defiapi.zyf.ai`) APIs.
+ *
+ * @remarks
+ * The connected wallet from {@link ZyfaiSDK.connectAccount} is used for **signing only**
+ * (SIWE, on-chain transfers). Pass the user's **EOA** as `userAddress` on execution
+ * methods; the backend resolves the assigned Safe.
+ *
+ * First-time onboarding uses predeployed Safes: {@link ZyfaiSDK.sendDeposit} handles
+ * session and deploy-on-first-deposit without {@link ZyfaiSDK.deploySafe} or
+ * {@link ZyfaiSDK.createSessionKey}.
+ *
+ * @see {@link https://docs.zyf.ai/docs/sdk/agent-quickstart | Agent quickstart}
+ */
 export class ZyfaiSDK {
   private httpClient: HttpClient;
   private signer: PrivateKeyAccount | null = null;
@@ -192,6 +207,22 @@ export class ZyfaiSDK {
   private readonly executionApiUrl: string;
   private readonly bypassMinPortfolio: boolean;
 
+  /**
+   * Create an SDK instance bound to a partner API key.
+   *
+   * @param config - API key string or {@link SDKConfig} with optional `rpcUrls` and `referralSource`
+   *
+   * @remarks
+   * `@internal` fields on {@link SDKConfig} (`executionApiUrl`, `dataApiUrl`,
+   * `bypassMinPortfolio`) are for local integration tests only.
+   *
+   * @throws If `apiKey` is missing
+   *
+   * @example
+   * ```typescript
+   * const sdk = new ZyfaiSDK({ apiKey: process.env.ZYFAI_API_KEY! });
+   * ```
+   */
   constructor(config: SDKConfig | string) {
     const sdkConfig: SDKConfig =
       typeof config === "string" ? { apiKey: config } : config;
@@ -253,7 +284,7 @@ export class ZyfaiSDK {
       // In Node.js contexts (no window), fall back to API endpoint.
       let uri: string;
       let domain: string;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line -- intentional `any` for optional browser `window`
       const globalWindow =
         typeof globalThis !== "undefined"
           ? (globalThis as any).window
@@ -328,8 +359,12 @@ export class ZyfaiSDK {
    * Update user profile with Smart Wallet address and chain configuration
    * This method requires SIWE authentication and is automatically called after deploySafe
    *
-   * @param request - User profile update data
-   * @returns Updated user profile information
+   * @group Portfolio and execution
+   *
+   * @param request - Profile fields to update (per-asset settings supported)
+   * @returns Updated user profile from the execution API
+   *
+   * @throws If strategy is invalid or authentication fails
    *
    * @example
    * ```typescript
@@ -409,7 +444,11 @@ export class ZyfaiSDK {
    * Pause the agent by clearing all protocols
    * Sets the user's protocols to an empty array, effectively pausing automated operations
    *
+   * @group Portfolio and execution
+   *
    * @returns Response indicating success and updated user details
+   *
+   * @remarks Requires {@link ZyfaiSDK.connectAccount} (SIWE).
    *
    * @example
    * ```typescript
@@ -444,7 +483,11 @@ export class ZyfaiSDK {
    * Resume the agent by restoring protocols based on user's strategy for each asset
    * Fetches available protocols and assigns them based on each asset's strategy
    *
+   * @group Portfolio and execution
+   *
    * @returns Response indicating success and updated user details
+   *
+   * @remarks Requires {@link ZyfaiSDK.connectAccount} (SIWE).
    *
    * @example
    * ```typescript
@@ -492,8 +535,15 @@ export class ZyfaiSDK {
    * Enable splitting for the user's account
    * When enabled, deposits are split across multiple protocols based on minSplits setting
    *
-   * @param minSplits - Optional minimum number of protocols to split across (default: 3)
+   * @group Portfolio and execution
+   *
+   * @param minSplits - Minimum protocols to split across (max 4)
+   * @defaultValue 1
    * @returns Response indicating success and updated user details
+   *
+   * @remarks Requires {@link ZyfaiSDK.connectAccount} (SIWE).
+   *
+   * @throws If `minSplits` exceeds 4
    *
    * @example
    * ```typescript
@@ -532,7 +582,11 @@ export class ZyfaiSDK {
    * Disable splitting for the user's account
    * When disabled, deposits will not be split across multiple protocols
    *
+   * @group Portfolio and execution
+   *
    * @returns Response indicating success and updated user details
+   *
+   * @remarks Requires {@link ZyfaiSDK.connectAccount} (SIWE).
    *
    * @example
    * ```typescript
@@ -564,8 +618,12 @@ export class ZyfaiSDK {
    * Update the minimum number of splits for the user's account
    * This controls across how many protocols deposits should be distributed
    *
-   * @param minSplits - Minimum number of protocols to split across
+   * @group Portfolio and execution
+   *
+   * @param minSplits - Minimum number of protocols to split across (at least 1)
    * @returns Response indicating success and updated user details
+   *
+   * @throws If `minSplits` is less than 1
    *
    * @example
    * ```typescript
@@ -702,12 +760,20 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Connect account for signing transactions
-   * Accepts either a private key string or a modern wallet provider
+   * Connect an account for signing (SIWE and on-chain transfers).
    *
-   * @param account - Private key string or wallet provider object
-   * @param chainId - Target chain ID (default: 8453 - Base)
-   * @returns The connected EOA address
+   * @remarks
+   * Required before user-scoped execution calls (deposits, withdrawals, profile).
+   * Data API reads typically need only the API key.
+   *
+   * @group Authentication and wallet
+   *
+   * @param account - Private key hex string or EIP-1193 wallet provider
+   * @param chainId - Initial chain for RPC and SIWE
+   * @defaultValue 8453
+   * @returns The connected EOA address (checksum)
+   *
+   * @throws If the chain is unsupported or the provider returns no accounts
    *
    * @example
    * // With private key
@@ -826,8 +892,11 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Disconnect account and clear authentication state
-   * Resets wallet connection, JWT token, and all authentication-related state
+   * Clear the connected wallet, SIWE session, and cached smart-wallet state.
+   *
+   * @group Authentication and wallet
+   *
+   * @returns Resolves when local SDK state is cleared
    *
    * @example
    * ```typescript
@@ -940,15 +1009,19 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get smart wallet address for a user
-   * Returns the Safe address for an EOA (deterministic for legacy wallets,
-   * backend-assigned for predeployed pool wallets).
+   * Resolve the Safe smart wallet for an EOA on a chain.
+   *
+   * @remarks
+   * Predeployed pool wallets use a backend-assigned address; legacy wallets use
+   * a deterministic CREATE2 address.
+   *
+   * @group Authentication and wallet
    *
    * @param userAddress - User's EOA address
    * @param chainId - Target chain ID
-   * @returns Smart wallet address, deployment status, and whether userAddress
-   *   is an on-chain OwnableValidator owner (false for reserved predeployed
-   *   wallets until the first deposit rotates ownership)
+   * @returns Smart wallet address, deployment status, and on-chain ownership flag
+   *
+   * @throws If `userAddress` is missing or `chainId` is unsupported
    */
   async getSmartWalletAddress(
     userAddress: string,
@@ -994,9 +1067,13 @@ export class ZyfaiSDK {
   /**
    * Deploy Safe Smart Wallet for a user
    *
-   * @deprecated Prefer `sendDeposit()`. Predeployed Safes and session keys are
+   * @deprecated Prefer {@link ZyfaiSDK.sendDeposit}. Predeployed Safes and session keys are
    * managed automatically on first deposit. This method remains available for
    * legacy flows.
+   *
+   * @see {@link ZyfaiSDK.sendDeposit}
+   *
+   * @group Deposits and withdrawals
    *
    * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
@@ -1186,9 +1263,13 @@ export class ZyfaiSDK {
    * Create session key with auto-fetched configuration from Zyfai API
    * This is the simplified method that automatically fetches session configuration
    *
-   * @deprecated Prefer `sendDeposit()`. Predeployed wallets already have the
+   * @deprecated Prefer {@link ZyfaiSDK.sendDeposit}. Predeployed wallets already have the
    * agent session enabled; session activation is handled after first deposit.
    * This method remains available for legacy flows.
+   *
+   * @see {@link ZyfaiSDK.sendDeposit}
+   *
+   * @group Deposits and withdrawals
    *
    * @param userAddress - User's EOA or Safe address
    * @param chainId - Target chain ID
@@ -1538,6 +1619,8 @@ export class ZyfaiSDK {
    * @param params.chains - Chains to enable. Defaults to every chain the asset
    *   exists on. **Additive**: chains already enabled are kept, so this cannot
    *   be used to disable one.
+   * @group Portfolio and execution
+   *
    * @returns The updated profile for that asset
    *
    * @example
@@ -1683,7 +1766,16 @@ export class ZyfaiSDK {
    * transfer lands on the counterfactual address and the backend deploys + hands over on first
    * deposit (report-deposit). Use this only to pre-provision chains ahead of time.
    *
-   * @param chainIds - Chain IDs to deploy the wallet on (e.g. [1, 42161])
+   * @group Deposits and withdrawals
+   *
+   * @param chainIds - Chain IDs to deploy the wallet on (e.g. `[1, 42161]`)
+   * @returns Deployment summary from the execution API
+   *
+   * @throws If `chainIds` is empty or contains an unsupported chain
+   *
+   * @remarks
+   * Requires {@link ZyfaiSDK.connectAccount} (SIWE). Optional ahead of deposits;
+   * {@link ZyfaiSDK.sendDeposit} can deploy on first deposit for predeployed wallets.
    */
   async deployOnChains(chainIds: SupportedChainId[]): Promise<{
     success: boolean;
@@ -1702,10 +1794,33 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Send a deposit from an EOA to its Safe smart wallet.
+   * Transfer funds from the connected EOA to the user's Safe and register the deposit.
    *
-   * Confirms the ERC-20 transfer and starts the custody-credit lifecycle. Use
-   * `waitForDepositCredit(result.registration.id, chainId)` to await credit.
+   * @remarks
+   * Execution API + on-chain ERC-20 `transfer`. Confirms the transaction, then calls
+   * {@link ZyfaiSDK.logDeposit}. Pair with {@link ZyfaiSDK.waitForDepositCredit} for
+   * investable balance. Custom-wallet flows: {@link ZyfaiSDK.buildDepositTransfer},
+   * {@link ZyfaiSDK.logDeposit}, {@link ZyfaiSDK.getDepositStatus}.
+   *
+   * Requires {@link ZyfaiSDK.connectAccount}. Pass the **EOA** as `userAddress`.
+   *
+   * @group Deposits and withdrawals
+   *
+   * @param userAddress - Owner EOA (not the Safe)
+   * @param chainId - Chain for the transfer
+   * @param amount - Amount in least units (string integer)
+   * @param asset - Asset symbol (`USDC`, `WETH`, `EURC`, `NVDAc`)
+   * @param strategy - Optional first-deposit {@link Strategy}
+   * @returns Transfer receipt and deposit registration (not yet credited until polled)
+   *
+   * @throws If validation fails, minimum portfolio is not met, Safe is unavailable, or transfer/register fails
+   *
+   * @example
+   * ```typescript
+   * await sdk.connectAccount(provider);
+   * const sent = await sdk.sendDeposit(eoa, 8453, "10000000", "USDC", "conservative");
+   * await sdk.waitForDepositCredit(sent.registration.id, 8453);
+   * ```
    */
   async sendDeposit(
     userAddress: string,
@@ -1871,8 +1986,12 @@ export class ZyfaiSDK {
   }
 
   /**
-   * @deprecated Compatibility convenience method. Prefer `sendDeposit()` followed by
-   * `waitForDepositCredit()` when the caller owns the completion UX.
+   * @deprecated Compatibility convenience method. Prefer {@link ZyfaiSDK.sendDeposit} followed by
+   * {@link ZyfaiSDK.waitForDepositCredit} when the caller owns the completion UX.
+   *
+   * @see {@link ZyfaiSDK.sendDeposit}
+   *
+   * @group Deposits and withdrawals
    */
   async depositFunds(
     userAddress: string,
@@ -1899,10 +2018,21 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Prepare ERC-20 transfer calldata for builders using a custom signer,
-   * sponsored transaction provider, or mobile wallet. Most custom-wallet
-   * integrations can compose this with `ensureFirstDepositSetup()` and
-   * `logDeposit()` instead.
+   * Build ERC-20 transfer calldata for a custom signer or sponsored tx flow.
+   *
+   * @remarks
+   * Compose with {@link ZyfaiSDK.ensureFirstDepositSetup}, submit the transfer, then
+   * {@link ZyfaiSDK.logDeposit} and {@link ZyfaiSDK.waitForDepositCredit}.
+   *
+   * @group Deposits and withdrawals
+   *
+   * @param params.userAddress - Owner EOA
+   * @param params.chainId - Target chain
+   * @param params.amount - Least units (string integer)
+   * @param params.asset - {@link SupportedAsset}
+   * @returns Safe address, token, and encoded `transfer` calldata
+   *
+   * @throws If inputs are invalid or the Safe address cannot be resolved
    */
   async buildDepositTransfer(params: {
     userAddress: string;
@@ -2042,6 +2172,13 @@ export class ZyfaiSDK {
    * When setup runs (`applied: true`), protocol configuration is persisted
    * before returning. Failures throw so callers can abort before submitting a
    * transfer. High-level deposit methods still treat setup as best-effort.
+   *
+   * @group Deposits and withdrawals
+   *
+   * @param strategy - Optional first-deposit {@link Strategy}
+   * @returns `{ applied: true }` when chain/protocol config was written; `false` if already configured
+   *
+   * @throws If strategy is invalid or setup did not persist
    */
   async ensureFirstDepositSetup(
     strategy?: Strategy,
@@ -2134,8 +2271,12 @@ export class ZyfaiSDK {
    * @param chainId - Chain ID where the deposit was made
    * @param txHash - Transaction hash of the deposit
    * @param amount - Amount in least decimal units (e.g., "100000000" for 100 USDC with 6 decimals)
-   * @param tokenAddress - Optional: Token address (auto-selected based on chain if not provided)
-   * @returns Log deposit response with success status
+   * @param tokenAddress - Optional token contract (defaults per chain)
+   * @returns Log deposit response with lifecycle record
+   *
+   * @group Deposits and withdrawals
+   *
+   * @throws If inputs are invalid or the execution API rejects registration
    *
    * @example
    * ```typescript
@@ -2201,8 +2342,18 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Fetch the custody handover and balance-credit lifecycle for a registered
-   * deposit. A status of `credited` is required before funds are investable.
+   * Fetch custody handover and balance-credit status for a registered deposit.
+   *
+   * @remarks
+   * `status === "credited"` with `balanceCredited === true` means funds are investable.
+   * Requires {@link ZyfaiSDK.connectAccount} (SIWE).
+   *
+   * @group Deposits and withdrawals
+   *
+   * @param depositId - Id from {@link LogDepositResponse} / {@link DepositResponse.registration}
+   * @returns {@link DepositLifecycleResponse}
+   *
+   * @throws If `depositId` is missing
    */
   async getDepositStatus(depositId: string): Promise<DepositLifecycleResponse> {
     if (!depositId) {
@@ -2225,7 +2376,17 @@ export class ZyfaiSDK {
    * ~250ms) with a ~20 second completion window. Override `timeoutMs` when a
    * caller intentionally wants to wait longer than the normal UX window.
    *
-   * Requires `connectAccount()` on the same SDK instance first.
+   * Requires {@link ZyfaiSDK.connectAccount} on the same SDK instance.
+   *
+   * @group Deposits and withdrawals
+   *
+   * @param depositId - Deposit lifecycle id
+   * @param chainId - Chain (controls poll interval and default timeout)
+   * @param options - Optional `intervalMs` and `timeoutMs` overrides
+   * @returns Final lifecycle record when credited
+   *
+   * @throws `DepositCreditTimeoutError` when the poll window elapses without credit
+   * @throws If deposit recovers to EOA or polling fails
    */
   async waitForDepositCredit(
     depositId: string,
@@ -2302,8 +2463,13 @@ export class ZyfaiSDK {
    *
    * @param userAddress - User's address (owner of the Safe)
    * @param chainId - Target chain ID
-   * @param amount - Optional: Amount in least decimal units to withdraw (partial withdrawal). If not specified, withdraws all funds
-   * @returns Withdraw response with message and optional transaction hash (available once processed)
+   * @param amount - Optional amount in least units (partial withdrawal); omit for full withdraw
+   * @param tokenSymbol - Optional asset symbol when withdrawing a specific token
+   * @returns Withdraw response with message and optional transaction hash
+   *
+   * @group Deposits and withdrawals
+   *
+   * @throws If `userAddress` or `chainId` is invalid, or the execution API rejects the request
    *
    * @example
    * ```typescript
@@ -2446,10 +2612,16 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get available DeFi protocols and pools for a specific chain
+   * Get available DeFi protocols and pools for a specific chain.
+   *
+   * @group Portfolio and execution
+   *
+   * @remarks Execution API. Partner API key only.
    *
    * @param chainId - Target chain ID
    * @returns List of available protocols with their pools and APY data
+   *
+   * @throws If `chainId` is unsupported
    *
    * @example
    * ```typescript
@@ -2484,11 +2656,15 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get all active DeFi positions for a user
+   * Get active DeFi positions for a user.
+   *
+   * @group Portfolio and execution
+   *
+   * @remarks Execution API (`/data/position`). Pass the **EOA**; the SDK resolves the Safe.
    *
    * @param userAddress - User's EOA address
-   * @param chainId - Optional chain used to resolve the Safe address (defaults to Base 8453)
-   * @returns User's positions across all protocols
+   * @param chainId - Chain used to resolve the Safe (defaults to Base `8453`)
+   * @returns User's positions across protocols
    *
    * @example
    * ```typescript
@@ -2584,8 +2760,15 @@ export class ZyfaiSDK {
    * Do not add `CLAIMED` withdrawals either (the array keeps them for 24
    * hours); their funds are back in the Safe and already counted.
    *
+   * @group Portfolio and execution
+   *
+   * @remarks Data API portfolio endpoint. See {@link PortfolioDetailed.pendingAsyncWithdrawals}
+   * when using {@link Strategy | yieldmaxxing}.
+   *
    * @param userAddress - User's EOA address
    * @returns Portfolio with optional fee-adjusted balance fields
+   *
+   * @throws If `userAddress` is missing
    *
    * @example
    * ```typescript
@@ -2652,10 +2835,15 @@ export class ZyfaiSDK {
   // ============================================================================
 
   /**
-   * Get current authenticated user details
-   * Requires SIWE authentication
+   * Get the authenticated user's profile for an asset.
    *
-   * @returns User details including smart wallet, chains, protocols, etc.
+   * @group Portfolio and execution
+   *
+   * @remarks Execution API. Requires {@link ZyfaiSDK.connectAccount} (SIWE).
+   *
+   * @param asset - Asset slice of the profile to return
+   * @defaultValue `"USDC"`
+   * @returns User details including smart wallet, chains, and protocols
    *
    * @example
    * ```typescript
@@ -2720,9 +2908,13 @@ export class ZyfaiSDK {
   // ============================================================================
 
   /**
-   * Get total value locked (TVL) across all Zyfai accounts
+   * Get total value locked (TVL) across all Zyfai accounts.
    *
-   * @returns Total TVL in USD and breakdown by chain
+   * @group Analytics and opportunities
+   *
+   * @remarks Data API. Partner API key only; SIWE not required.
+   *
+   * @returns Total TVL in USD
    *
    * @example
    * ```typescript
@@ -2748,7 +2940,11 @@ export class ZyfaiSDK {
   // ============================================================================
 
   /**
-   * Get APY per strategy for a specific chain
+   * Get APY per strategy for a specific chain.
+   *
+   * @group Analytics and opportunities
+   *
+   * @remarks Data API. Partner API key only.
    *
    * @param crossChain - Whether to get cross-chain APY (true = omni account, false = simple account)
    * @param days - Time period: 7, 14, or 30
@@ -2803,7 +2999,11 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get total volume across all Zyfai accounts
+   * Get total volume across all Zyfai accounts.
+   *
+   * @group Analytics and opportunities
+   *
+   * @remarks Data API. Partner API key only.
    *
    * @returns Total volume in USD
    *
@@ -2835,7 +3035,11 @@ export class ZyfaiSDK {
   // ============================================================================
 
   /**
-   * Get active wallets for a specific chain
+   * Get active wallets for a specific chain.
+   *
+   * @group Analytics and opportunities
+   *
+   * @remarks Data API. Partner API key only.
    *
    * @param chainId - Chain ID to filter wallets
    * @returns List of active wallets on the specified chain
@@ -2878,7 +3082,11 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get smart wallets associated with an EOA address
+   * Get smart wallets associated with an EOA address.
+   *
+   * @group Analytics and opportunities
+   *
+   * @remarks Data API. Partner API key only.
    *
    * @param eoaAddress - EOA (externally owned account) address
    * @returns List of smart wallets owned by the EOA
@@ -2924,7 +3132,11 @@ export class ZyfaiSDK {
   // ============================================================================
 
   /**
-   * Get the first topup (deposit) information for a wallet
+   * Get the first topup (deposit) information for a wallet.
+   *
+   * @group Analytics and opportunities
+   *
+   * @remarks Data API. Partner API key only.
    *
    * @param walletAddress - Smart wallet address
    * @param chainId - Chain ID
@@ -2965,7 +3177,11 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get transaction history for a wallet
+   * Get transaction history for a wallet.
+   *
+   * @group Analytics and opportunities
+   *
+   * @remarks Data API. Partner API key only.
    *
    * @param walletAddress - Smart wallet address
    * @param chainId - Chain ID
@@ -3040,7 +3256,11 @@ export class ZyfaiSDK {
   // ============================================================================
 
   /**
-   * Get onchain earnings for a wallet
+   * Get onchain earnings for a wallet.
+   *
+   * @group Analytics and opportunities
+   *
+   * @remarks Data API. Partner API key only.
    *
    * Includes gross totals plus net-of-fee totals:
    * `totalEarningsByTokenWithFee = lifetime + unrealized + current × (1 - feeRate)`.
@@ -3215,7 +3435,11 @@ export class ZyfaiSDK {
   // ============================================================================
 
   /**
-   * Get conservative (low-risk) yield opportunities
+   * Get conservative (low-risk) yield opportunities.
+   *
+   * @group Analytics and opportunities
+   *
+   * @remarks Data API. Partner API key only.
    *
    * @param chainId - Optional chain ID filter
    * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
@@ -3796,6 +4020,10 @@ export class ZyfaiSDK {
    * Allows granular control over which pools to use for each protocol on each chain.
    * This is useful for advanced users who want to target specific pools with desired APY/risk profiles.
    *
+   * @group Customization and simulation
+   *
+   * @remarks Execution API. Requires {@link ZyfaiSDK.connectAccount} (SIWE).
+   *
    * @param customizations - Array of customization configurations
    * @returns Response indicating success
    *
@@ -3849,8 +4077,12 @@ export class ZyfaiSDK {
    *
    * Returns the list of pools available for a given protocol, optionally filtered by strategy.
    *
+   * @group Customization and simulation
+   *
+   * @remarks Execution API. Partner API key only.
+   *
    * @param protocolId - The protocol UUID
-   * @param strategy - Optional strategy filter ("conservative", "aggressive" or "yieldmaxxing")
+   * @param strategy - Optional {@link Strategy} filter
    * @returns List of available pool names
    *
    * @example
@@ -3906,7 +4138,11 @@ export class ZyfaiSDK {
    * calldata contains a "<RECEIVER>" placeholder that must be replaced with the
    * actual receiving address (e.g. the user's Safe) before sending the transaction.
    *
-   * @param params - Simulation parameters
+   * @group Customization and simulation
+   *
+   * @remarks Data API simulation endpoint. Partner API key only.
+   *
+   * @param params - {@link SimulateBestPositionsParams}
    * @returns Chain-keyed map of simulated positions with calldata
    *
    * @example
@@ -3953,6 +4189,10 @@ export class ZyfaiSDK {
    *
    * Returns the pools that are currently configured for the authenticated user
    * for a given protocol and chain combination.
+   *
+   * @group Customization and simulation
+   *
+   * @remarks Execution API. Requires {@link ZyfaiSDK.connectAccount} (SIWE).
    *
    * @param protocolId - The protocol UUID
    * @param chainId - The chain ID
@@ -4101,10 +4341,13 @@ export class ZyfaiSDK {
   // ============================================
 
   /**
-   * Deposit assets into the Zyfai Vault
-   * Currently only supports USDC on Base chain
+   * Deposit assets into the Zyfai Vault (USDC on Base by default).
    *
-   * @param amount - Amount to deposit (in human readable format, e.g., "100" for 100 USDC)
+   * @group Vault
+   *
+   * @remarks On-chain vault flow via connected wallet. Requires {@link ZyfaiSDK.connectAccount}.
+   *
+   * @param amount - Human-readable amount (e.g. `"100"` USDC)
    * @param asset - Asset to deposit (default: "USDC")
    * @returns Deposit transaction result
    *
@@ -4534,9 +4777,14 @@ export class ZyfaiSDK {
    * Events: depeg, liquidity_trap, liquidity_restored, pool_status_change,
    * new_collateral_detected, liquidity_drop.
    *
-   * @param handlers - Callback per event type, plus onError
-   * @param filters - Optional protocol/pool filter sent to the server on subscribe
-   * @returns Cleanup function — call it to close the connection
+   * @group Realtime events
+   *
+   * @remarks Connects to defi-api WebSocket (`WS_ENDPOINT`). Auto-reconnects every 3s until
+   * the returned cleanup function is called.
+   *
+   * @param handlers - {@link ZyfaiEventHandlers}
+   * @param filters - Optional {@link ZyfaiEventFilters} sent on subscribe
+   * @returns Cleanup function — call it to close the connection and stop reconnecting
    *
    * @example
    * ```typescript
