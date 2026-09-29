@@ -19,7 +19,7 @@ Endpoint map: `src/config/endpoints.ts`. Strategy conversion: `src/utils/strateg
 npm install
 npm run check              # typecheck + unit tests + build — canonical validation
 npm run test:unit          # vitest on src/utils/
-npm run test:integration   # opt-in vitest on src/integration/ (--fileParallelism=false; needs .env.test + local api)
+npm run test:integration   # opt-in vitest on src/integration/ (--fileParallelism=false; .env.test; ZYFAI_ENV=local|staging|production)
 npm run build
 npm run dev                # watch build
 npm run docs               # typedoc → docs/api/ (gitignored)
@@ -35,7 +35,7 @@ Watch mode: `npx vitest src/integration/<feature-id>.integration.test.ts --fileP
 | `src/core/ZyfaiSDK.ts` | Main SDK class |
 | `src/config/` | Chains, endpoints, constants, ABIs |
 | `src/utils/` | HTTP client, fees, safe account helpers, strategy |
-| `src/integration/` | Opt-in Vitest tests against local `zyfai-api` (see README) |
+| `src/integration/` | Opt-in Vitest tests; `ZYFAI_ENV` targets local, staging, or prod APIs (see README) |
 | `examples/` | Runnable integration examples |
 
 ## Onboarding flow (current product)
@@ -54,6 +54,7 @@ deprecated for new integrations.
 - All imports at file top — no dynamic `import()`.
 - Amounts for deposits: least units (USDC 6 decimals). Earnings: decimal strings.
 - No emojis in code, logs, or errors.
+- Integration tests: shared helpers in `src/integration/utils.ts`; no file-local helper functions in `*.integration.test.ts` (feature-local constants only).
 - After public API surface changes: update `README.md` and `../sdk-api-docs/`.
 
 ## Context routing
@@ -68,7 +69,8 @@ deprecated for new integrations.
 | Past lessons | [`docs/engineering-history.md`](docs/engineering-history.md) |
 | Runnable examples | [`examples/`](examples/) |
 | Integration testing | [`README.md` § Integration testing](README.md#integration-testing) |
-| Cross-repo feature verification | [`../.cursor/skills/functional-feature-verification/SKILL.md`](../.cursor/skills/functional-feature-verification/SKILL.md) |
+| Cross-repo feature verification (local stack) | [`../.cursor/skills/functional-feature-verification/SKILL.md`](../.cursor/skills/functional-feature-verification/SKILL.md) |
+| Release SDK smoke (staging / prod) | [`../.cursor/skills/backend-smoke/SKILL.md`](../.cursor/skills/backend-smoke/SKILL.md) |
 
 ## Code review
 

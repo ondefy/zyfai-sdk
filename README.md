@@ -1459,33 +1459,95 @@ Some Data API endpoints may require server-side CORS configuration. If you see C
 
 ## Integration testing
 
-Use opt-in Vitest integration tests to prove a new backend feature end-to-end through the **public SDK** against a **local** `zyfai-api` instance. This is the normal workflow when adding or changing execution API behaviour.
-
-Integration tests live in `src/integration/*.integration.test.ts`, mirror the matching script under `examples/`, and are **not** part of `npm run check` (no secrets required in CI). Unit tests in `src/utils/` stay mocked and fast.
+Use opt-in Vitest integration tests to prove backend behaviour end-to-end through the **public SDK**. Tests live in `src/integration/*.integration.test.ts`, mirror scripts under `examples/`, and are **not** part of `npm run check` (no secrets required in CI). Unit tests in `src/utils/` stay mocked and fast.
 
 ### Setup
 
 ```bash
 cd zyfai-sdk
-cp .env.test.example .env.test   # once — fill ZYFAI_API_KEY and PRIVATE_KEY (gitignored)
+cp .env.test.example .env.test   # once — fill keys below (gitignored)
 ```
 
-Vitest loads `.env.test` automatically (`vitest.config.ts`). Apply API migrations, then start the local stack from the workspace parent:
+Vitest loads `.env.test` automatically (`vitest.config.ts`).
+
+**Credentials** — one shared signing wallet, per-environment partner keys:
+
+| Variable | Purpose |
+| --- | --- |
+| `PRIVATE_KEY` | Same test EOA on local, staging, and production |
+| `LOCAL_ZYFAI_API_KEY` | Partner key when `ZYFAI_ENV=local` |
+| `STAGING_ZYFAI_API_KEY` | Partner key when `ZYFAI_ENV=staging` |
+| `PRODUCTION_ZYFAI_API_KEY` | Partner key when `ZYFAI_ENV=production` |
+| `LOCAL_SDK_API_KEYS_ADMIN_API_KEY` | Admin key for `POST /admin/sdk-api-keys` when `ZYFAI_ENV=local` |
+| `STAGING_SDK_API_KEYS_ADMIN_API_KEY` | Same when `ZYFAI_ENV=staging` |
+| `PRODUCTION_SDK_API_KEYS_ADMIN_API_KEY` | Same when `ZYFAI_ENV=production` |
+
+`ZYFAI_ENV` selects the API stack and which `*_ZYFAI_API_KEY` is passed to `integrationSdkConfig()`.
+
+| `ZYFAI_ENV` | Execution API |
+| --- | --- |
+| `local` (default) | `http://localhost:3000` |
+| `staging` | `https://staging-api.zyf.ai` |
+| `production` | `https://api.zyf.ai` |
+
+Helpers in `src/integration/utils.ts` wire URLs from `src/config/endpoints.ts` (`integrationSdkConfig()`, `integrationEnvironment()`, `readIntegrationApiKey()`, `pollUntil`, fresh-user setup, shared release-smoke amount logic). **Do not** add helper `function`s at the top of `*.integration.test.ts` — extend `utils.ts` instead so tests stay readable (`describe` / `it` only, plus feature-local constants).
+
+**Local stack only** (`ZYFAI_ENV=local`): apply API migrations, then start the workspace stack:
 
 ```bash
-cd ../zyfai-api && pnpm migration:up   # required for deposit lifecycle (eoa_deposit.lifecycle_status, …)
+cd ../zyfai-api && pnpm migration:up
 cd ..   # zyfai-workspace root
 pnpm dev
 ```
 
 If the API starts before migrations run, deposit handover crons and `log_deposit` will fail with missing-column errors.
 
+**Test kinds**
+
+Each suite uses `describeIntegrationSuite()` from `utils.ts` with `spendProfile`: `readonly` or `spends_funds`. Suites with `spends_funds` **skip automatically** when `ZYFAI_ENV=production` (use staging for deposit/withdraw smokes).
+
+| Kind | Environments | `describeIntegrationSuite` options |
+| --- | --- | --- |
+| Read-only (e.g. `get-protocols`) | local, staging, production | `{ spendProfile: "readonly" }` |
+| Fresh funded user (`setupFreshFundedUser`) | local, staging | `{ spendProfile: "spends_funds", credentialGate: "fresh_user" }` — **0.1 USDC** per run |
+| Persistent wallet (`PRIVATE_KEY` EOA) | local, staging | `{ spendProfile: "spends_funds" }` (default `credentialGate: "persistent_wallet"`) |
+
+Release prep on **staging**: run one file via workspace skill **[backend-smoke](../.cursor/skills/backend-smoke/SKILL.md)** (e.g. `deposit-withdraw` or `send-deposit-wait-credit` for wallet pool / handover). After prod deploy, use **`get-protocols`** (or another `readonly` suite) only.
+
+#### Fresh-user tests on staging or prod
+
+These call `POST /api/v1/admin/sdk-api-keys`. The api process must have **`SDK_API_KEYS_ADMIN_API_KEY`** in deploy `.env` (many boxes only have `API_KEY` today). One-time on the api host:
+
+```bash
+cd /root/staging-zyfai   # or prod deploy path
+grep '^API_KEY=' .env    # existing ops key — do not paste into chat
+# Add a new line (staging: often same value as API_KEY; prod: prefer a dedicated secret):
+# SDK_API_KEYS_ADMIN_API_KEY='…'
+pm2 reload ecosystem.config.js   # reload API + background per your runbook
+```
+
+In `zyfai-sdk/.env.test`:
+
+```env
+ZYFAI_ENV=staging
+PRIVATE_KEY=…
+STAGING_SDK_API_KEYS_ADMIN_API_KEY=…   # same value as SDK_API_KEYS_ADMIN_API_KEY on the server
+```
+
+Fund `PRIVATE_KEY` on **Base** with a little ETH and USDC (fresh-user tests transfer **0.1 USDC** to each ephemeral EOA). No `STAGING_ZYFAI_API_KEY` required — each run mints a new partner key.
+
+```bash
+npm run test:integration -- send-deposit-wait-credit
+npm run test:integration -- deposit-reconciliation
+```
+
 ### Run tests
 
 ```bash
 npm run test:integration                        # all integration tests (sequential)
-npm run test:integration -- wallet-v-async-deposit   # one file: src/integration/<feature-id>.integration.test.ts
+npm run test:integration -- deposit-withdraw    # one file by feature id
 npm run test:integration -- get-protocols
+ZYFAI_ENV=staging npm run test:integration -- deposit-withdraw
 npx vitest src/integration/get-protocols.integration.test.ts --fileParallelism=false   # watch mode
 ```
 
@@ -1493,7 +1555,9 @@ npx vitest src/integration/get-protocols.integration.test.ts --fileParallelism=f
 
 Tests call `describe.skipIf(!integrationEnvReady())` and skip cleanly when `.env.test` is missing or invalid.
 
-When `executionApiUrl` points at local `zyfai-api` and `NODE_ENV` is not `production`, the SDK skips client-side minimum portfolio checks so small test deposits (e.g. 0.1 USDC) work without topping up 100 USDC on Base.
+When the execution API is **local** or **staging** and `NODE_ENV` is not `production`, the SDK skips client-side minimum portfolio checks so small test deposits (e.g. 0.1 USDC) work without topping up 100 USDC on Base. Production (`api.zyf.ai`) always enforces real minimums.
+
+**Release smoke (`deposit-withdraw`)** on Base USDC: **local and staging only** — **0.1 USDC** round-trip (fund the test EOA on Base with ~0.1 USDC plus gas). Staging api must have **`SMOKE_AMOUNTS_ENABLED=true`** in its `.env` (see `zyfai-api/docs/deployment.md`). One withdraw per run. Production does not run fund-spending integration tests.
 
 ### Add a test for a new feature
 
@@ -1502,42 +1566,46 @@ When `executionApiUrl` points at local `zyfai-api` and `NODE_ENV` is not `produc
 3. Add `src/integration/<feature-id>.integration.test.ts`:
 
 ```typescript
-import { describe, expect, it } from "vitest";
-import { LOCAL_EXECUTION_API_BASE_URL } from "../config/endpoints";
-import { integrationEnvReady } from "./utils";
+import { expect, it } from "vitest";
+import { ZyfaiSDK } from "../core/ZyfaiSDK";
+import {
+  describeIntegrationSuite,
+  integrationSdkConfig,
+  logIntegrationEvidence,
+} from "./utils";
 
-describe.skipIf(!integrationEnvReady())("<feature-id>", { timeout: 180_000 }, () => {
-  it("verifies the contract", async () => {
-    const { ZyfaiSDK } = await import("../core/ZyfaiSDK");
-
-    const sdk = new ZyfaiSDK({
-      apiKey: process.env.ZYFAI_API_KEY!,
-      executionApiUrl: LOCAL_EXECUTION_API_BASE_URL, // http://localhost:3000
+describeIntegrationSuite(
+  "<feature-id>",
+  { spendProfile: "readonly", timeout: 180_000 },
+  () => {
+    it("verifies the contract", async () => {
+      const sdk = new ZyfaiSDK(integrationSdkConfig());
+      await sdk.connectAccount(process.env.PRIVATE_KEY!, 8453);
+      // public SDK calls + expect(); poll async terminal state when needed
+      logIntegrationEvidence("<feature-id>", { chainId: 8453, /* timings, hashes, addresses */ });
     });
-
-    await sdk.connectAccount(process.env.PRIVATE_KEY!, 8453);
-    // public SDK calls + expect(); poll async terminal state when needed
-  });
-});
+  },
+);
 ```
 
 Conventions:
 
-- Target local API via `LOCAL_EXECUTION_API_BASE_URL` from `src/config/endpoints.ts` — never production in integration tests.
+- Use `integrationSdkConfig()` so `ZYFAI_ENV` selects the API stack.
 - Import `ZyfaiSDK` from `../core/ZyfaiSDK` (working tree), not a published npm build.
-- Use only public SDK methods; hardcode chain id and amounts per test file.
-- Set `{ timeout: 180_000 }` on `describe` for async flows (deposits, handover, polling).
+- Use only public SDK methods; hardcode chain id and amounts that apply only to this feature in the test file; put reusable helpers in `./utils`.
+- Set `{ timeout: 180_000 }` (or higher for deposit/withdraw) on `describe` for async flows.
+- At the end of each passing test, call `logIntegrationEvidence("<feature-id>", { chainId, userAddress, tx hashes, timings, … })` from `./utils`. It prints one JSON line (including a `links` map: execution API, Basescan/Etherscan/Arbiscan tx and address URLs) plus a short `[integration] … links` block for copy-paste.
 
-See `src/integration/get-protocols.integration.test.ts` for a minimal example.
+See `src/integration/get-protocols.integration.test.ts` for a minimal example and `deposit-withdraw.integration.test.ts` for persistent-wallet release smoke.
 
 ### Cross-repo features
 
-When a feature spans `zyfai-sdk`, `zyfai-api`, and optionally `predeployment-service`, follow the workspace skill **[functional-feature-verification](../.cursor/skills/functional-feature-verification/SKILL.md)** in the `zyfai-workspace` parent. It covers verification contracts, temporary diagnostics, local stack readiness, and the evidence report template.
+When a feature spans `zyfai-sdk`, `zyfai-api`, and optionally `predeployment-service`, follow the workspace skill **[functional-feature-verification](../.cursor/skills/functional-feature-verification/SKILL.md)** for **local** proof on working heads. For **staging/prod** release smoke, use **[backend-smoke](../.cursor/skills/backend-smoke/SKILL.md)**.
 
 | Command | What it runs |
 | --- | --- |
 | `npm run check` | typecheck + unit tests + build (every PR) |
-| `npm run test:integration` | opt-in tests against local stack (`--fileParallelism=false`) |
+| `npm run test:integration` | opt-in tests (`--fileParallelism=false`; `ZYFAI_ENV` selects API) |
 
 ## Contributing
 

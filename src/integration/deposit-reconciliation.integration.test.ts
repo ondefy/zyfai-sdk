@@ -1,41 +1,42 @@
-import { describe, expect, it } from "vitest";
+import { expect, it } from "vitest";
 import type { Address } from "viem";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { ERC20_ABI } from "../config/abis";
 import { getDefaultTokenAddress } from "../config/chains";
-import { LOCAL_EXECUTION_API_BASE_URL } from "../config/endpoints";
 import { ZyfaiSDK } from "../core/ZyfaiSDK";
 import {
-  freshFundedUserEnvReady,
+  FRESH_FUNDED_USER_ETH_WEI,
+  FRESH_FUNDED_USER_USDC_AMOUNT,
+  describeIntegrationSuite,
+  integrationFreshUserSdkConfig,
+  logIntegrationEvidence,
   pollUntil,
   setupFreshFundedUser,
 } from "./utils";
 
-/** Base USDC — above reconciliation floor (0.1 USDC) but below rebalance minimum (1.5 USDC). */
 const CHAIN_ID = 8453;
-const DEPOSIT_AMOUNT = 100_000n;
-const FUNDING_ETH_AMOUNT = 20_000_000_000_000n;
 
-describe.skipIf(!freshFundedUserEnvReady())(
+describeIntegrationSuite(
   "deposit-reconciliation",
-  { timeout: 480_000 },
+  {
+    spendProfile: "spends_funds",
+    credentialGate: "fresh_user",
+    timeout: 480_000,
+  },
   () => {
     it("credits an on-chain transfer when log_deposit is never called", async () => {
       const token = getDefaultTokenAddress(CHAIN_ID) as Address;
       const user = await setupFreshFundedUser({
         chain: base,
         token,
-        depositAmount: DEPOSIT_AMOUNT,
-        fundingEthAmount: FUNDING_ETH_AMOUNT,
+        depositAmount: FRESH_FUNDED_USER_USDC_AMOUNT,
+        fundingEthAmount: FRESH_FUNDED_USER_ETH_WEI,
         clientName: "deposit-reconciliation-integration",
       });
 
-      const sdk = new ZyfaiSDK({
-        apiKey: user.apiKey,
-        executionApiUrl: LOCAL_EXECUTION_API_BASE_URL,
-      });
+      const sdk = new ZyfaiSDK(integrationFreshUserSdkConfig(user.apiKey));
 
       const acceptanceStart = Date.now();
       const userAddress = await sdk.connectAccount(user.privateKey, CHAIN_ID);
@@ -59,7 +60,7 @@ describe.skipIf(!freshFundedUserEnvReady())(
         address: token,
         abi: ERC20_ABI,
         functionName: "transfer",
-        args: [wallet.address as Address, DEPOSIT_AMOUNT],
+        args: [wallet.address as Address, FRESH_FUNDED_USER_USDC_AMOUNT],
       });
 
       const receipt = await publicClient.waitForTransactionReceipt({
@@ -88,29 +89,26 @@ describe.skipIf(!freshFundedUserEnvReady())(
         functionName: "balanceOf",
         args: [wallet.address as Address],
       });
-      expect(onChainBalance).toBeGreaterThanOrEqual(DEPOSIT_AMOUNT);
+      expect(onChainBalance).toBeGreaterThanOrEqual(FRESH_FUNDED_USER_USDC_AMOUNT);
 
       const positionsAfter = await sdk.getPositions(userAddress, CHAIN_ID);
       expect(positionsAfter.portfolio?.ownershipTransferred).toBe(true);
 
-      console.log(
-        JSON.stringify({
-          evidence: "deposit-reconciliation",
-          userAddress,
-          smartWallet: wallet.address,
-          chainId: CHAIN_ID,
-          txHash,
-          depositAmount: DEPOSIT_AMOUNT.toString(),
-          acceptanceMs,
-          transferMs,
-          terminalMs,
-          funding: {
-            ethAmount: FUNDING_ETH_AMOUNT.toString(),
-            usdcAmount: DEPOSIT_AMOUNT.toString(),
-            ...user.funding,
-          },
-        }),
-      );
+      logIntegrationEvidence("deposit-reconciliation", {
+        userAddress,
+        smartWallet: wallet.address,
+        chainId: CHAIN_ID,
+        txHash,
+        depositAmount: FRESH_FUNDED_USER_USDC_AMOUNT.toString(),
+        acceptanceMs,
+        transferMs,
+        terminalMs,
+        funding: {
+          ethAmount: FRESH_FUNDED_USER_ETH_WEI.toString(),
+          usdcAmount: FRESH_FUNDED_USER_USDC_AMOUNT.toString(),
+          ...user.funding,
+        },
+      });
     });
   },
 );

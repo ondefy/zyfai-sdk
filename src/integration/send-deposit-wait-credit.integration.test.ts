@@ -1,36 +1,41 @@
-import { describe, expect, it } from "vitest";
+import { expect, it } from "vitest";
 import type { Address } from "viem";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
 import { ERC20_ABI } from "../config/abis";
 import { getDefaultTokenAddress } from "../config/chains";
-import { LOCAL_EXECUTION_API_BASE_URL } from "../config/endpoints";
 import { ZyfaiSDK } from "../core/ZyfaiSDK";
-import { freshFundedUserEnvReady, setupFreshFundedUser } from "./utils";
+import {
+  FRESH_FUNDED_USER_ETH_WEI,
+  FRESH_FUNDED_USER_USDC_AMOUNT,
+  describeIntegrationSuite,
+  integrationFreshUserSdkConfig,
+  logIntegrationEvidence,
+  setupFreshFundedUser,
+} from "./utils";
 
-/** Base USDC — above reconciliation floor (0.1 USDC) but below rebalance minimum (1.5 USDC). Min portfolio checks are bypassed against local API. */
+/** Base USDC — 0.1 USDC smoke; above reconciliation floor, below rebalance minimum. */
 const CHAIN_ID = 8453;
-const DEPOSIT_AMOUNT = 100_000n;
-const FUNDING_ETH_AMOUNT = 20_000_000_000_000n;
 
-describe.skipIf(!freshFundedUserEnvReady())(
+describeIntegrationSuite(
   "send-deposit-wait-credit",
-  { timeout: 480_000 },
+  {
+    spendProfile: "spends_funds",
+    credentialGate: "fresh_user",
+    timeout: 480_000,
+  },
   () => {
     it("sendDeposit registers handover_pending then waitForDepositCredit credits", async () => {
       const token = getDefaultTokenAddress(CHAIN_ID) as Address;
       const user = await setupFreshFundedUser({
         chain: base,
         token,
-        depositAmount: DEPOSIT_AMOUNT,
-        fundingEthAmount: FUNDING_ETH_AMOUNT,
+        depositAmount: FRESH_FUNDED_USER_USDC_AMOUNT,
+        fundingEthAmount: FRESH_FUNDED_USER_ETH_WEI,
         clientName: "send-deposit-wait-credit-integration",
       });
 
-      const sdk = new ZyfaiSDK({
-        apiKey: user.apiKey,
-        executionApiUrl: LOCAL_EXECUTION_API_BASE_URL,
-      });
+      const sdk = new ZyfaiSDK(integrationFreshUserSdkConfig(user.apiKey));
 
       const userAddress = await sdk.connectAccount(user.privateKey, CHAIN_ID);
 
@@ -38,7 +43,7 @@ describe.skipIf(!freshFundedUserEnvReady())(
       const sent = await sdk.sendDeposit(
         userAddress,
         CHAIN_ID,
-        DEPOSIT_AMOUNT.toString(),
+        FRESH_FUNDED_USER_USDC_AMOUNT.toString(),
         "USDC",
       );
       const acceptanceMs = Date.now() - sendStart;
@@ -46,7 +51,7 @@ describe.skipIf(!freshFundedUserEnvReady())(
       expect(sent.success).toBe(true);
       expect(sent.txHash).toMatch(/^0x[0-9a-fA-F]{64}$/);
       expect(sent.smartWallet).toMatch(/^0x[0-9a-fA-F]{40}$/);
-      expect(sent.amount).toBe(DEPOSIT_AMOUNT.toString());
+      expect(sent.amount).toBe(FRESH_FUNDED_USER_USDC_AMOUNT.toString());
       expect(sent.registration.id).toBeTruthy();
       expect(sent.registration.status).toBe("handover_pending");
       expect(sent.registration.balanceCredited).toBe(false);
@@ -76,25 +81,23 @@ describe.skipIf(!freshFundedUserEnvReady())(
         functionName: "balanceOf",
         args: [sent.smartWallet as Address],
       });
-      expect(onChainBalance).toBeGreaterThanOrEqual(DEPOSIT_AMOUNT);
+      expect(onChainBalance).toBeGreaterThanOrEqual(FRESH_FUNDED_USER_USDC_AMOUNT);
 
-      console.log(
-        JSON.stringify({
-          evidence: "send-deposit-wait-credit",
-          depositId: sent.registration.id,
-          userAddress,
-          smartWallet: sent.smartWallet,
-          chainId: CHAIN_ID,
-          txHash: sent.txHash,
-          depositAmount: DEPOSIT_AMOUNT.toString(),
-          acceptanceMs,
-          terminalMs,
-          statusTransitions: {
-            acceptance: sent.registration.status,
-            terminal: credited.status,
-          },
-        }),
-      );
+      logIntegrationEvidence("send-deposit-wait-credit", {
+        depositId: sent.registration.id,
+        userAddress,
+        smartWallet: sent.smartWallet,
+        chainId: CHAIN_ID,
+        txHash: sent.txHash,
+        depositAmount: FRESH_FUNDED_USER_USDC_AMOUNT.toString(),
+        acceptanceMs,
+        terminalMs,
+        statusTransitions: {
+          acceptance: sent.registration.status,
+          terminal: credited.status,
+        },
+        funding: user.funding,
+      });
     });
   },
 );

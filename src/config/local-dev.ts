@@ -13,15 +13,32 @@ export function isLocalExecutionApiUrl(executionApiUrl: string): boolean {
   }
 }
 
+/** True when the SDK execution API base URL points at staging zyfai-api. */
+export function isStagingExecutionApiUrl(executionApiUrl: string): boolean {
+  if (executionApiUrl === EXECUTION_API_BASE_URLS.staging) {
+    return true;
+  }
+  try {
+    const { hostname } = new URL(executionApiUrl);
+    return hostname === "staging-api.zyf.ai";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Skip client-side `MIN_PORTFOLIO_*` checks (sendDeposit / buildDepositTransfer).
  *
- * Only when targeting a local execution API and `NODE_ENV` is not `production`
+ * When targeting local or staging execution API and `NODE_ENV` is not `production`
  * (Vitest sets `test`; local `pnpm dev` / examples typically use `development`).
+ * Production API URL always enforces client-side minimums.
  */
 export function shouldBypassMinPortfolioCheck(executionApiUrl: string): boolean {
   if (process.env.NODE_ENV === "production") {
     return false;
   }
-  return isLocalExecutionApiUrl(executionApiUrl);
+  return (
+    isLocalExecutionApiUrl(executionApiUrl) ||
+    isStagingExecutionApiUrl(executionApiUrl)
+  );
 }
