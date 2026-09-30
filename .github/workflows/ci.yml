@@ -21,6 +21,9 @@ jobs:
           node-version: "20"
           cache: npm
       - run: npm ci
-      - run: npm run check
+      - run: npm run typecheck
+      - name: Unit tests
+        run: npm run test:unit
+      - run: npm run build
       - if: github.event_name == 'pull_request'
         run: bash .github/scripts/require-changeset.sh

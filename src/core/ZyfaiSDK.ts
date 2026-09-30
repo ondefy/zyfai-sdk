@@ -34,6 +34,7 @@ import { shouldBypassMinPortfolioCheck } from "../config/local-dev";
 
 import type {
   SDKConfig,
+  UserSessionAuth,
   DeploySafeResponse,
   Address,
   SmartWalletResponse,
@@ -77,6 +78,8 @@ import type {
   SdkKeyTVLResponse,
   BestOpportunityResponse,
   AgentTokenUriResponse,
+  AgentMandate,
+  UpsertAgentMandateRequest,
   RegisterAgentResponse,
   CustomizationConfig,
   CustomizeBatchResponse,
@@ -191,6 +194,112 @@ export class ZyfaiSDK {
   private currentChainId: SupportedChainId | null = null;
   private rpcUrls?: RpcUrlsConfig;
   private referralSource?: string;
+  /** When set, {@link authenticateUser} skips wallet SIWE (server/MCP bearer sessions). */
+  private sessionEoa: Address | null = null;
+
+  /**
+   * Create an SDK instance with an existing Zyfai user JWT (no wallet connected).
+   *
+   * @group Authentication and wallet
+   */
+  static forUser(
+    config: SDKConfig | string,
+    session: UserSessionAuth,
+  ): ZyfaiSDK {
+    const sdk = new ZyfaiSDK(config);
+    sdk.applyUserSession(session);
+    return sdk;
+  }
+
+  /** Alias for MCP delegated grants (scoped agent JWT). */
+  static forDelegatedGrant(
+    config: SDKConfig | string,
+    session: UserSessionAuth,
+  ): ZyfaiSDK {
+    return ZyfaiSDK.forUser(config, session);
+  }
+
+  /**
+   * Attach a Zyfai user JWT for API calls without `connectAccount`.
+   *
+   * @group Authentication and wallet
+   */
+  applyUserSession(session: UserSessionAuth): void {
+    if (!session.accessToken) {
+      throw new Error("accessToken is required");
+    }
+    this.httpClient.setAuthToken(session.accessToken);
+    this.authenticatedUserId = session.userId ?? "bearer-session";
+    this.sessionEoa = session.eoa ? getAddress(session.eoa) : null;
+  }
+
+  /**
+   * @internal Attach headers to execution API requests (MCP server agent channel).
+   */
+  setExecutionRequestHeaders(headers: Record<string, string>): void {
+    this.httpClient.setExtraExecutionHeaders(headers);
+  }
+
+  /** EOA bound via {@link applyUserSession}, if any. */
+  getSessionEoa(): Address | null {
+    return this.sessionEoa;
+  }
+
+  /**
+   * Complete SIWE login with a prepared message and signature (OAuth consent, MCP).
+   *
+   * @group Authentication and wallet
+   *
+   * @param params.message - SIWE message fields (same shape as login API body)
+   * @param params.signature - Wallet signature over the prepared SIWE string
+   * @param params.origin - Origin header value; must match `message.uri`
+   */
+  async authenticateWithSignature(params: {
+    message: {
+      address: string;
+      chainId: number;
+      domain: string;
+      nonce: string;
+      statement?: string;
+      uri: string;
+      version: string;
+      issuedAt: string;
+      resources?: string[];
+      notBefore?: string;
+      expirationTime?: string;
+    };
+    signature: Hex;
+    origin?: string;
+  }): Promise<LoginResponse> {
+    const origin = params.origin ?? params.message.uri;
+    const loginResponse = await this.httpClient.post<LoginResponse>(
+      ENDPOINTS.AUTH_LOGIN,
+      {
+        message: params.message,
+        signature: params.signature,
+        referralSource: this.referralSource,
+      },
+      {
+        headers: {
+          Origin: origin,
+        },
+      },
+    );
+
+    if (!loginResponse.accessToken) {
+      throw new Error("Authentication response missing access token");
+    }
+
+    this.httpClient.setAuthToken(loginResponse.accessToken);
+    this.authenticatedUserId = loginResponse.userId || null;
+    this.hasActiveSessionKey = loginResponse.hasActiveSessionKey || false;
+    this.isPredeployed = loginResponse.predeployed || false;
+    this.connectedSmartWallet =
+      (loginResponse.smartWallet as Address) || null;
+    this.sessionEoa = getAddress(params.message.address);
+
+    return loginResponse;
+  }
 
   /**
    * Warn that a legacy method is deprecated in favor of sendDeposit.
@@ -263,6 +372,9 @@ export class ZyfaiSDK {
     try {
       // Skip if already authenticated
       if (this.authenticatedUserId !== null) {
+        return;
+      }
+      if (this.httpClient.hasAuthToken()) {
         return;
       }
 
@@ -2206,6 +2318,47 @@ export class ZyfaiSDK {
     return { applied: true };
   }
 
+  /**
+   * Prepare entering a position: persist first-deposit profile when needed and
+   * return ERC-20 transfer calldata for the user to sign (does not broadcast).
+   *
+   * @group Deposits and withdrawals
+   */
+  async prepareEnterPosition(params: {
+    userAddress: string;
+    chainId: SupportedChainId;
+    amount: string;
+    asset: SupportedAsset;
+    strategy?: Strategy;
+  }): Promise<{
+    phase: "prepare_transfer";
+    setup: { applied: boolean };
+    transfer: {
+      safeAddress: Address;
+      tokenAddress: Address;
+      to: Address;
+      data: Hex;
+      value: "0";
+    };
+  }> {
+    const { userAddress, chainId, amount, asset, strategy } = params;
+    if (this.sessionEoa && getAddress(userAddress) !== this.sessionEoa) {
+      throw new Error("userAddress does not match authenticated session EOA");
+    }
+    const setup = await this.ensureFirstDepositSetup(strategy);
+    const transfer = await this.buildDepositTransfer({
+      userAddress,
+      chainId,
+      amount,
+      asset,
+    });
+    return {
+      phase: "prepare_transfer",
+      setup,
+      transfer,
+    };
+  }
+
   /** Best-effort first-deposit setup shared by both high-level deposit flows. */
   private async prepareFirstDeposit(strategy?: Strategy): Promise<void> {
     try {
@@ -4052,6 +4205,52 @@ export class ZyfaiSDK {
    * ]);
    * ```
    */
+  /**
+   * Get the user's agent management mandate (autonomy limits).
+   *
+   * @group Agent management
+   */
+  async getAgentMandate(
+    oauthClientId?: string,
+  ): Promise<{ data: AgentMandate | null }> {
+    await this.authenticateUser();
+    const query = oauthClientId
+      ? `?oauthClientId=${encodeURIComponent(oauthClientId)}`
+      : "";
+    return this.httpClient.get<{ data: AgentMandate | null }>(
+      `${ENDPOINTS.USER_AGENT_MANDATE}${query}`,
+    );
+  }
+
+  /**
+   * Create or update the user's agent management mandate.
+   *
+   * @group Agent management
+   */
+  async setAgentMandate(
+    request: UpsertAgentMandateRequest,
+  ): Promise<{ data: AgentMandate }> {
+    await this.authenticateUser();
+    return this.httpClient.put<{ data: AgentMandate }>(
+      ENDPOINTS.USER_AGENT_MANDATE,
+      request,
+    );
+  }
+
+  /**
+   * Revoke the user's agent management mandate.
+   *
+   * @group Agent management
+   */
+  async revokeAgentMandate(
+    oauthClientId: string,
+  ): Promise<{ success: boolean }> {
+    await this.authenticateUser();
+    return this.httpClient.delete<{ success: boolean }>(
+      `${ENDPOINTS.USER_AGENT_MANDATE}?oauthClientId=${encodeURIComponent(oauthClientId)}`,
+    );
+  }
+
   async customizeBatch(
     customizations: CustomizationConfig[],
   ): Promise<CustomizeBatchResponse> {

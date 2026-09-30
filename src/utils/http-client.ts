@@ -26,6 +26,8 @@ export class HttpClient {
   private dataClient: AxiosInstance;
   private apiKey: string;
   private authToken: string | null = null;
+  /** @internal Extra headers on execution API requests (e.g. MCP server channel key). */
+  private extraExecutionHeaders: Record<string, string> = {};
   private origin: string;
   private host: string;
   private readonly dataApiBaseUrl: string;
@@ -73,8 +75,18 @@ export class HttpClient {
     this.authToken = token;
   }
 
+  /** @internal */
+  setExtraExecutionHeaders(headers: Record<string, string>) {
+    this.extraExecutionHeaders = headers;
+  }
+
   clearAuthToken() {
     this.authToken = null;
+  }
+
+  /** Whether a user Bearer token is set on this client instance. */
+  hasAuthToken(): boolean {
+    return this.authToken !== null;
   }
 
   getOrigin(): string {
@@ -91,11 +103,14 @@ export class HttpClient {
       (config) => {
         // Ensure API key is always present
         config.headers["X-API-Key"] = this.apiKey;
-        // Note: Do NOT set Origin header - browsers set it automatically and block manual setting
+        // Note: Do NOT set Origin header - browsers set it automatically and block manually setting
 
         // Add auth token if available
         if (this.authToken) {
           config.headers["Authorization"] = `Bearer ${this.authToken}`;
+        }
+        for (const [key, value] of Object.entries(this.extraExecutionHeaders)) {
+          config.headers[key] = value;
         }
 
         return config;
@@ -167,6 +182,15 @@ export class HttpClient {
     config?: AxiosRequestConfig,
   ): Promise<T> {
     const response = await this.client.patch<T>(url, data, config);
+    return response.data;
+  }
+
+  async put<T>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<T> {
+    const response = await this.client.put<T>(url, data, config);
     return response.data;
   }
 

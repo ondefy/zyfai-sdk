@@ -87,6 +87,7 @@ export const ENDPOINTS = {
 
   // User
   USER_ME: "/users/me",
+  USER_AGENT_MANDATE: "/users/me/agent-mandate",
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
   LOG_DEPOSIT: "/users/log_deposit/v2",

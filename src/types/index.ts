@@ -48,6 +48,41 @@ export interface SDKConfig {
   bypassMinPortfolio?: boolean;
 }
 
+/**
+ * Pre-authenticated user session for server-side SDK clients (e.g. MCP).
+ * Skips SIWE `connectAccount` when the Zyfai access token is already known.
+ */
+/** Agent autonomy limits for MCP / delegated management. */
+export interface AgentMandate {
+  id: string;
+  oauthClientId: string;
+  maxCapitalUsd?: string | null;
+  allowedChainIds: number[];
+  allowedAssets: string[];
+  allowRebalance: boolean;
+  allowWithdraw: boolean;
+  expiresAt?: string | null;
+}
+
+export interface UpsertAgentMandateRequest {
+  oauthClientId: string;
+  maxCapitalUsd?: string | null;
+  allowedChainIds?: number[];
+  allowedAssets?: string[];
+  allowRebalance?: boolean;
+  allowWithdraw?: boolean;
+  expiresAt?: string | null;
+}
+
+export interface UserSessionAuth {
+  /** Zyfai execution API JWT from SIWE login. */
+  accessToken: string;
+  /** Authenticated user id when available. */
+  userId?: string;
+  /** User EOA address (checksum) for address binding checks. */
+  eoa?: Address;
+}
+
 // Response Types
 
 export interface DeploySafeResponse {
