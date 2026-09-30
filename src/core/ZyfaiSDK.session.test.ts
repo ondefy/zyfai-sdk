@@ -2,8 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getAddress } from "viem";
 import { ENDPOINTS } from "../config/endpoints";
 
+const CONNECTED_PRIVATE_KEY =
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+
 const mockHttpClient = {
   setAuthToken: vi.fn(),
+  clearAuthToken: vi.fn(),
   setExtraExecutionHeaders: vi.fn(),
   hasAuthToken: vi.fn(() => false),
   get: vi.fn(),
@@ -87,6 +91,52 @@ describe("ZyfaiSDK user session", () => {
 
       expect(mockHttpClient.get).not.toHaveBeenCalled();
       expect(mockHttpClient.post).not.toHaveBeenCalled();
+    });
+
+    it("rebinds the session EOA after connectAccount replaces a forUser session", async () => {
+      mockHttpClient.post.mockImplementation(async (endpoint: string) => {
+        if (endpoint === ENDPOINTS.AUTH_CHALLENGE) {
+          return { nonce: "abcd1234" };
+        }
+        if (endpoint === ENDPOINTS.AUTH_LOGIN) {
+          return {
+            accessToken: "jwt-connected",
+            userId: "user-connected",
+          };
+        }
+        return {};
+      });
+
+      const sdk = ZyfaiSDK.forUser("test-api-key", {
+        accessToken: "jwt-abc",
+        eoa: SESSION_EOA,
+      });
+
+      const connected = await sdk.connectAccount(CONNECTED_PRIVATE_KEY, 8453);
+
+      expect(sdk.getSessionEoa()).toBe(getAddress(connected));
+      expect(getAddress(connected)).not.toBe(getAddress(SESSION_EOA));
+
+      await expect(
+        sdk.prepareEnterPosition({
+          userAddress: SESSION_EOA,
+          chainId: 8453,
+          amount: "1000000",
+          asset: "USDC",
+        }),
+      ).rejects.toThrow(/does not match authenticated session EOA/);
+      expect(mockHttpClient.get).not.toHaveBeenCalled();
+    });
+
+    it("clears the session EOA on disconnectAccount", async () => {
+      const sdk = ZyfaiSDK.forUser("test-api-key", {
+        accessToken: "jwt-abc",
+        eoa: SESSION_EOA,
+      });
+
+      await sdk.disconnectAccount();
+
+      expect(sdk.getSessionEoa()).toBeNull();
     });
   });
 

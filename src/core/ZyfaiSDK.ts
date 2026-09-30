@@ -194,7 +194,7 @@ export class ZyfaiSDK {
   private currentChainId: SupportedChainId | null = null;
   private rpcUrls?: RpcUrlsConfig;
   private referralSource?: string;
-  /** When set, {@link authenticateUser} skips wallet SIWE (server/MCP bearer sessions). */
+  /** EOA of the active user session (bearer or SIWE). Cleared on disconnect. */
   private sessionEoa: Address | null = null;
 
   /**
@@ -240,7 +240,7 @@ export class ZyfaiSDK {
     this.httpClient.setExtraExecutionHeaders(headers);
   }
 
-  /** EOA bound via {@link applyUserSession}, if any. */
+  /** EOA of the active user session, if one is bound. */
   getSessionEoa(): Address | null {
     return this.sessionEoa;
   }
@@ -460,6 +460,7 @@ export class ZyfaiSDK {
       this.isPredeployed = loginResponse.predeployed || false;
       this.connectedSmartWallet =
         (loginResponse.smartWallet as Address) || null;
+      this.sessionEoa = userAddress;
     } catch (error) {
       throw new Error(
         `Failed to authenticate user: ${(error as Error).message}`,
@@ -840,6 +841,7 @@ export class ZyfaiSDK {
     // Account changed - reset authentication
     this.authenticatedUserId = null;
     this.hasActiveSessionKey = false;
+    this.sessionEoa = null;
     this.httpClient.clearAuthToken();
 
     // Update wallet client with new account
@@ -909,6 +911,7 @@ export class ZyfaiSDK {
     this.isPredeployed = false;
     this.connectedSmartWallet = null;
     this.currentChainId = null;
+    this.sessionEoa = null;
     this.httpClient.clearAuthToken();
 
     // Remove existing event listeners if any
@@ -1037,6 +1040,7 @@ export class ZyfaiSDK {
     this.hasActiveSessionKey = false;
     this.isPredeployed = false;
     this.connectedSmartWallet = null;
+    this.sessionEoa = null;
 
     // Clear JWT token
     this.httpClient.clearAuthToken();

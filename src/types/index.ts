@@ -56,7 +56,8 @@ export interface SDKConfig {
 export interface AgentMandate {
   id: string;
   oauthClientId: string;
-  maxCapitalUsd?: string | null;
+  /** Maximum USD of one deposit. Not total capital under management. */
+  maxDepositUsd?: string | null;
   allowedChainIds: number[];
   allowedAssets: string[];
   allowRebalance: boolean;
@@ -66,7 +67,8 @@ export interface AgentMandate {
 
 export interface UpsertAgentMandateRequest {
   oauthClientId: string;
-  maxCapitalUsd?: string | null;
+  /** Maximum USD of one deposit. Not total capital under management. */
+  maxDepositUsd?: string | null;
   allowedChainIds?: number[];
   allowedAssets?: string[];
   allowRebalance?: boolean;
