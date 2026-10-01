@@ -18,7 +18,7 @@ Endpoint map: `src/config/endpoints.ts`. Strategy conversion: `src/utils/strateg
 ```bash
 npm install
 npm run check              # typecheck + unit tests + build — canonical validation
-npm run test:unit          # vitest on src/utils/
+npm run test:unit          # vitest on all unit tests (excludes src/integration/)
 npm run test:integration   # opt-in vitest on src/integration/ (--fileParallelism=false; .env.test; ZYFAI_ENV=local|staging|production)
 npm run build
 npm run dev                # watch build

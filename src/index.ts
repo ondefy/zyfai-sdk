@@ -75,6 +75,9 @@ export {
 export type {
   // Configuration
   SDKConfig,
+  UserSessionAuth,
+  AgentMandate,
+  UpsertAgentMandateRequest,
 
   // Common Types
   Address,
