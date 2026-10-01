@@ -102,14 +102,45 @@ log "Filtered by gate: ${filtered_count}"
 if [ -s findings.jsonl ]; then
   while IFS= read -r payload; do
     path="$(echo "$payload" | jq -r '.path')"
-    log "Posting inline review comment for: ${path}"
-    curl -fsS \
-      -X POST \
-      -H "Accept: application/vnd.github+json" \
-      -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-      -H "X-GitHub-Api-Version: 2022-11-28" \
-      "https://api.github.com/repos/${REPOSITORY}/pulls/${PR_NUMBER}/comments" \
-      -d "$payload"
+    line="$(echo "$payload" | jq -r '.line')"
+    log "Posting inline review comment for: ${path}:${line}"
+    response_file="$(mktemp)"
+    http_code="$(
+      curl -sS \
+        -o "$response_file" \
+        -w "%{http_code}" \
+        -X POST \
+        -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        "https://api.github.com/repos/${REPOSITORY}/pulls/${PR_NUMBER}/comments" \
+        -d "$payload"
+    )"
+    if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+      cat "$response_file"
+    elif [ "$http_code" = "422" ]; then
+      # Codex sometimes cites a line outside the pull diff. GitHub rejects that
+      # anchor; the finding still appears in the digest and this log.
+      log "Skipping inline comment for ${path}:${line}; GitHub rejected the anchor (HTTP 422)."
+      if jq -e . >/dev/null 2>&1 <"$response_file"; then
+        jq -r '
+          [
+            .message,
+            ((.errors // []) | map(.message // empty) | join("; "))
+          ]
+          | map(select(. != null and . != ""))
+          | join(": ")
+        ' "$response_file" | sed 's/^/[codex-publish]   /'
+      else
+        sed 's/^/[codex-publish]   /' "$response_file"
+      fi
+    else
+      log "Failed to post inline comment for ${path}:${line} (HTTP ${http_code})."
+      cat "$response_file" >&2
+      rm -f "$response_file"
+      exit 1
+    fi
+    rm -f "$response_file"
   done < findings.jsonl
 else
   log "No inline comments to post."
