@@ -182,7 +182,7 @@ describe("enrichApyPosition / enrichRebalanceLog", () => {
 });
 
 describe("enrichOnchainEarningsTotals", () => {
-  it("computes lifetime + unrealized + current × (1 - FEE_RATE), not total × 0.9", () => {
+  it("applies (1 - FEE_RATE) to lifetime, unrealized, and current", () => {
     const result = enrichOnchainEarningsTotals({
       lifetime_earnings_by_token: { USDC: "0.920602" },
       lifetime_earnings_by_chain: {
@@ -196,27 +196,25 @@ describe("enrichOnchainEarningsTotals", () => {
       },
     });
 
-    const expected = 0.920602 + 3.02482 + 0.326653 * (1 - ZYFI_FEE_RATE);
+    const expected =
+      (0.920602 + 3.02482 + 0.326653) * (1 - ZYFI_FEE_RATE);
     expect(
       Math.abs(Number(result.totalEarningsByTokenWithFee.USDC) - expected)
     ).toBeLessThan(1e-9);
     expect(
       Math.abs(Number(result.totalEarningsByChainWithFee["8453"].USDC) - expected)
     ).toBeLessThan(1e-9);
-
-    const totalGross = 0.920602 + 3.02482 + 0.326653;
-    expect(
-      Math.abs(Number(result.totalEarningsByTokenWithFee.USDC) - totalGross * 0.9)
-    ).toBeGreaterThan(1e-6);
   });
 
-  it("does not apply 0.9 to lifetime or unrealized when current is zero", () => {
+  it("applies 0.9 to lifetime and unrealized when current is zero", () => {
     const result = enrichOnchainEarningsTotals({
       lifetime_earnings_by_token: { USDC: "10" },
       unrealized_earnings: { "8453": { USDC: "3" } },
       current_earnings_by_chain: { "8453": {} },
     });
-    expect(result.totalEarningsByTokenWithFee.USDC).toBe("13");
+    expect(
+      Math.abs(Number(result.totalEarningsByTokenWithFee.USDC) - 13 * 0.9)
+    ).toBeLessThan(1e-9);
   });
 });
 
