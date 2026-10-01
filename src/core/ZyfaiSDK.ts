@@ -193,6 +193,8 @@ export class ZyfaiSDK {
   private authenticatedUserId: string | null = null;
   private hasActiveSessionKey: boolean = false;
   private isPredeployed: boolean = false;
+  /** False until SIWE login or GET /users/me has set `isPredeployed`. */
+  private predeployedResolved = false;
   private connectedSmartWallet: Address | null = null;
   private currentProvider: any = null;
   private currentChainId: SupportedChainId | null = null;
@@ -238,6 +240,10 @@ export class ZyfaiSDK {
     this.authenticatedUserId = session.userId ?? "bearer-session";
     this.sessionEoa = session.eoa ? getAddress(session.eoa) : null;
     this.sessionChannel = session.channel;
+    // forUser has no SIWE login response. Re-read predeployed on the next deposit.
+    this.isPredeployed = false;
+    this.predeployedResolved = false;
+    this.connectedSmartWallet = null;
   }
 
   /**
@@ -301,6 +307,7 @@ export class ZyfaiSDK {
     this.authenticatedUserId = loginResponse.userId || null;
     this.hasActiveSessionKey = loginResponse.hasActiveSessionKey || false;
     this.isPredeployed = loginResponse.predeployed || false;
+    this.predeployedResolved = true;
     this.connectedSmartWallet =
       (loginResponse.smartWallet as Address) || null;
     this.sessionEoa = getAddress(params.message.address);
@@ -465,6 +472,7 @@ export class ZyfaiSDK {
       this.authenticatedUserId = loginResponse.userId || null;
       this.hasActiveSessionKey = loginResponse.hasActiveSessionKey || false;
       this.isPredeployed = loginResponse.predeployed || false;
+      this.predeployedResolved = true;
       this.connectedSmartWallet =
         (loginResponse.smartWallet as Address) || null;
       this.sessionEoa = userAddress;
@@ -916,6 +924,7 @@ export class ZyfaiSDK {
     // Reset authentication when connecting a new account
     this.authenticatedUserId = null;
     this.isPredeployed = false;
+    this.predeployedResolved = false;
     this.connectedSmartWallet = null;
     this.currentChainId = null;
     this.sessionEoa = null;
@@ -1046,6 +1055,7 @@ export class ZyfaiSDK {
     this.authenticatedUserId = null;
     this.hasActiveSessionKey = false;
     this.isPredeployed = false;
+    this.predeployedResolved = false;
     this.connectedSmartWallet = null;
     this.sessionEoa = null;
 
@@ -1079,13 +1089,31 @@ export class ZyfaiSDK {
   }
 
   /**
-   * True when userAddress is the currently connected/authenticated wallet.
+   * True when userAddress is the signer, wallet client, or agent session EOA.
    * @private
    */
   private isConnectedUser(userAddress: string): boolean {
     const connected =
-      this.signer?.address ?? this.walletClient?.account?.address;
+      this.signer?.address ??
+      this.walletClient?.account?.address ??
+      this.sessionEoa;
     return !!connected && connected.toLowerCase() === userAddress.toLowerCase();
+  }
+
+  /**
+   * SIWE login sets predeployed. Agent sessions (`forUser`) do not, so read it
+   * from the user record before allowing a transfer to an undeployed pool Safe.
+   * @private
+   */
+  private async hydrateSessionWallet(): Promise<void> {
+    if (this.predeployedResolved || !this.sessionEoa) return;
+    const me = await this.httpClient.get<{
+      predeployed?: boolean;
+      smartWallet?: string | null;
+    }>(ENDPOINTS.USER_ME);
+    this.isPredeployed = !!me?.predeployed;
+    this.connectedSmartWallet = (me?.smartWallet as Address) || null;
+    this.predeployedResolved = true;
   }
 
   /**
@@ -2063,6 +2091,7 @@ export class ZyfaiSDK {
 
       // Get Safe address (predeployed wallets use the backend-assigned
       // address; they are never derived from the EOA).
+      await this.hydrateSessionWallet();
       const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
       if (!safeAddress) {
         throw new Error("Smart wallet address is not available");
@@ -2233,6 +2262,7 @@ export class ZyfaiSDK {
         )}.`,
       );
     }
+    await this.hydrateSessionWallet();
     const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
     if (!safeAddress) {
       throw new Error("Smart wallet address is not available");

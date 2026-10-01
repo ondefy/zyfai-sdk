@@ -23,10 +23,21 @@ vi.mock("../utils/http-client", () => ({
   }),
 }));
 
+vi.mock("../utils/safe-account", async () => {
+  const actual = await vi.importActual<typeof import("../utils/safe-account")>(
+    "../utils/safe-account",
+  );
+  return {
+    ...actual,
+    isSafeDeployed: vi.fn(async () => false),
+  };
+});
+
 import { ZyfaiSDK } from "./ZyfaiSDK";
 
 const SESSION_EOA = "0x1111111111111111111111111111111111111111";
 const OTHER_EOA = "0x2222222222222222222222222222222222222222";
+const POOL_SAFE = "0x3333333333333333333333333333333333333333";
 
 describe("ZyfaiSDK user session", () => {
   beforeEach(() => {
@@ -70,6 +81,55 @@ describe("ZyfaiSDK user session", () => {
       expect(mockHttpClient.get).toHaveBeenCalledWith(
         ENDPOINTS.USER_ASSET_TYPE_SETTINGS,
       );
+    });
+  });
+
+  describe("buildDepositTransfer", () => {
+    const sessionSdk = () =>
+      ZyfaiSDK.forUser(
+        { apiKey: "test-api-key", bypassMinPortfolio: true },
+        { accessToken: "jwt-abc", eoa: SESSION_EOA, userId: "user-1" },
+      );
+
+    it("builds a transfer to an undeployed pool Safe for an agent session", async () => {
+      mockHttpClient.get.mockImplementation(async (url: string) => {
+        if (url === ENDPOINTS.USER_ME) {
+          return { predeployed: true, smartWallet: POOL_SAFE };
+        }
+        throw new Error(`unexpected GET ${url}`);
+      });
+
+      const transfer = await sessionSdk().buildDepositTransfer({
+        userAddress: SESSION_EOA,
+        chainId: 8453,
+        amount: "1000000",
+        asset: "USDC",
+      });
+
+      expect(transfer.safeAddress).toBe(getAddress(POOL_SAFE));
+      expect(transfer.value).toBe("0");
+      expect(transfer.data.startsWith("0x")).toBe(true);
+    });
+
+    it("rejects an undeployed Safe when the session user is not predeployed", async () => {
+      mockHttpClient.get.mockImplementation(async (url: string) => {
+        if (url === ENDPOINTS.USER_ME) {
+          return { predeployed: false, smartWallet: POOL_SAFE };
+        }
+        if (url.includes("/data/by-eoa")) {
+          return { agent: POOL_SAFE, chains: [8453] };
+        }
+        throw new Error(`unexpected GET ${url}`);
+      });
+
+      await expect(
+        sessionSdk().buildDepositTransfer({
+          userAddress: SESSION_EOA,
+          chainId: 8453,
+          amount: "1000000",
+          asset: "USDC",
+        }),
+      ).rejects.toThrow(/Safe not available/);
     });
   });
 
