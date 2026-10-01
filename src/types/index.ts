@@ -81,6 +81,7 @@ export interface ResolvedAgentEnterIntent {
   amount: string;
   strategy?: string | null;
   status: AgentEnterIntentStatusValue;
+  ownerAddress: string;
   expiresAt: string;
 }
 
@@ -88,6 +89,8 @@ export interface ConsumeAgentEnterIntentRequest {
   chainId: number;
   amount: string;
   asset: SupportedAsset;
+  txHash: string;
+  depositId: string;
 }
 
 export interface CompleteAgentEnterIntentRequest {

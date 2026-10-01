@@ -4374,9 +4374,9 @@ export class ZyfaiSDK {
   async consumeAgentEnterIntent(
     actionId: string,
     request: ConsumeAgentEnterIntentRequest,
-  ): Promise<void> {
+  ): Promise<{ data: AgentEnterIntentStatus }> {
     await this.authenticateUser();
-    await this.httpClient.post<void>(
+    return this.httpClient.post<{ data: AgentEnterIntentStatus }>(
       ENDPOINTS.USER_AGENT_ENTER_INTENT_CONSUME(actionId),
       request,
     );
