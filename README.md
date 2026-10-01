@@ -991,16 +991,16 @@ const earnings = await sdk.getOnchainEarnings(walletAddress);
 console.log("Total by token:", earnings.data.totalEarningsByToken);
 // Per-chain totals (chain → token → amount): { "8453": { "USDC": "0.01" }, "42161": {...} }
 console.log("Total by chain:", earnings.data.totalEarningsByChain);
-// Net totals: lifetime + unrealized + current × 0.9 (never total × 0.9)
+// Net totals: (lifetime + unrealized + current) × 0.9
 console.log("Net by token:", earnings.data.totalEarningsByTokenWithFee);
 console.log("Net by chain:", earnings.data.totalEarningsByChainWithFee);
 ```
 
 **Fee formula for `*WithFee` earnings fields**
 
-- `totalWithFee = lifetime + unrealized + current × 0.9`
-- Do **not** apply `× 0.9` to lifetime or unrealized
-- Aligns with portfolio: pending fee = `current × 0.1` only
+- `totalWithFee = (lifetime + unrealized + current) × 0.9`
+- Ledger lifetime and unrealized are gross (`fee × 10` when a fee is taken)
+- Portfolio `balanceWithFee` still subtracts only the pending fee on `current`
 
 #### Calculate Onchain Earnings (Refresh)
 

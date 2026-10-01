@@ -607,9 +607,8 @@ export interface OnchainEarnings {
   totalEarningsByToken: TokenEarnings;
   totalEarningsByChain?: ChainTokenEarnings;
   /**
-   * Net totals: lifetime + unrealized + current × (1 - feeRate).
-   * Unrealized is treated like lifetime (no pending fee).
-   * Does not apply feeRate to lifetime (already crystallised).
+   * Net totals: (lifetime + unrealized + current) × (1 - feeRate).
+   * Ledger buckets are gross. Crystallized yield is fee × 10.
    */
   totalEarningsByTokenWithFee: TokenEarnings;
   totalEarningsByChainWithFee?: ChainTokenEarnings;
