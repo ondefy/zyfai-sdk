@@ -3043,8 +3043,8 @@ export class ZyfaiSDK {
    * Get onchain earnings for a wallet
    *
    * Includes gross totals plus net-of-fee totals:
-   * `totalEarningsByTokenWithFee = lifetime + unrealized + current × (1 - feeRate)`.
-   * Lifetime and unrealized are never multiplied by the keep-rate.
+   * `totalEarningsByTokenWithFee = (lifetime + unrealized + current) × (1 - feeRate)`.
+   * Ledger buckets are gross, so the keep-rate applies to all three.
    *
    * @param walletAddress - Smart wallet address
    * @returns Onchain earnings data with per-token breakdowns

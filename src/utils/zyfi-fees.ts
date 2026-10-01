@@ -1,9 +1,11 @@
 /**
- * Zyfi pending-fee helpers.
+ * Zyfi fee helpers.
  *
- * Pending fee is derived only from `current_earnings_by_chain`
- * (yield not yet crystallised). Lifetime earnings already had the fee
- * taken and must never be multiplied by (1 - FEE_RATE).
+ * Portfolio pending fee is `current × FEE_RATE` only. Fees already taken
+ * have left the wallet.
+ *
+ * Earnings `*WithFee` totals are `(lifetime + unrealized + current) × (1 - FEE_RATE)`.
+ * The ledger stores crystallized yield gross (`fee × 10`).
  */
 
 import { ZYFI_FEE_RATE } from "../config/constants";
@@ -466,11 +468,10 @@ function sumCurrentByToken(
 }
 
 /**
- * Build net total earnings maps:
- * totalWithFee = lifetime + unrealized + current × (1 - FEE_RATE)
+ * Build net total earnings maps.
+ * totalWithFee = (lifetime + unrealized + current) × (1 - FEE_RATE)
  *
- * Unrealized is treated like lifetime (no pending fee).
- * Never applies (1 - FEE_RATE) to lifetime/unrealized or to gross total.
+ * Lifetime and unrealized are gross in the ledger (crystallized as fee × 10).
  */
 export function enrichOnchainEarningsTotals(apiData: {
   lifetime_earnings_by_token?: TokenEarnings | null;
@@ -526,7 +527,7 @@ export function enrichOnchainEarningsTotals(apiData: {
     const unrealized = unrealizedByToken[symbol] ?? 0;
     const current = currentByToken[symbol] ?? 0;
     totalEarningsByTokenWithFee[symbol] = formatHumanAmount(
-      lifetime + unrealized + current * keepRate
+      (lifetime + unrealized + current) * keepRate
     );
   });
 
@@ -552,7 +553,7 @@ export function enrichOnchainEarningsTotals(apiData: {
       const unrealized = parseHumanAmount(unrealizedTokens[symbol]);
       const current = parseHumanAmount(currentTokens[symbol]);
       chainMap[symbol] = formatHumanAmount(
-        lifetime + unrealized + current * keepRate
+        (lifetime + unrealized + current) * keepRate
       );
     });
     totalEarningsByChainWithFee[chainId] = chainMap;
