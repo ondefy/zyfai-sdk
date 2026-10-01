@@ -48,35 +48,7 @@ export interface SDKConfig {
   bypassMinPortfolio?: boolean;
 }
 
-/**
- * Pre-authenticated user session for server-side SDK clients (e.g. MCP).
- * Skips SIWE `connectAccount` when the Zyfai access token is already known.
- */
-/** Agent autonomy limits for MCP / delegated management. */
-export interface AgentMandate {
-  id: string;
-  oauthClientId: string;
-  /** Maximum USD of one deposit. Not total capital under management. */
-  maxDepositUsd?: string | null;
-  allowedChainIds: number[];
-  allowedAssets: string[];
-  allowRebalance: boolean;
-  allowWithdraw: boolean;
-  expiresAt?: string | null;
-}
-
-export interface UpsertAgentMandateRequest {
-  oauthClientId: string;
-  /** Maximum USD of one deposit. Not total capital under management. */
-  maxDepositUsd?: string | null;
-  allowedChainIds?: number[];
-  allowedAssets?: string[];
-  allowRebalance?: boolean;
-  allowWithdraw?: boolean;
-  expiresAt?: string | null;
-}
-
-/** One-time prepare → enter binding for MCP deposit flows (least-unit amount). */
+/** One-time prepare → deposit binding for MCP flows (least-unit amount). */
 export interface CreateAgentEnterIntentRequest {
   chainId: number;
   amount: string;
@@ -87,12 +59,40 @@ export interface CreateAgentEnterIntentRequest {
 export interface AgentEnterIntent {
   actionId: string;
   expiresAt: string;
+  signingTicket: string;
+}
+
+export type AgentEnterIntentStatusValue = "pending" | "completed" | "expired";
+
+export interface AgentEnterIntentStatus {
+  status: AgentEnterIntentStatusValue;
+  actionId?: string;
+  depositId?: string;
+  txHash?: string;
+  chainId?: number;
+  asset?: string;
+  amount?: string;
+}
+
+export interface ResolvedAgentEnterIntent {
+  actionId: string;
+  chainId: number;
+  asset: string;
+  amount: string;
+  strategy?: string | null;
+  status: AgentEnterIntentStatusValue;
+  expiresAt: string;
 }
 
 export interface ConsumeAgentEnterIntentRequest {
   chainId: number;
   amount: string;
   asset: SupportedAsset;
+}
+
+export interface CompleteAgentEnterIntentRequest {
+  txHash: string;
+  depositId: string;
 }
 
 export interface UserSessionAuth {
@@ -102,6 +102,8 @@ export interface UserSessionAuth {
   userId?: string;
   /** User EOA address (checksum) for address binding checks. */
   eoa?: Address;
+  /** Delegated MCP agent JWT (`channel=agent` on the execution API). */
+  channel?: "agent";
 }
 
 // Response Types

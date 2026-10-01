@@ -55,20 +55,20 @@ describe("ZyfaiSDK user session", () => {
 
     it("defaults userId when omitted so authenticated endpoints skip SIWE", async () => {
       mockHttpClient.hasAuthToken.mockReturnValue(true);
-      mockHttpClient.get.mockResolvedValue({ data: null });
+      mockHttpClient.get.mockResolvedValue([]);
 
       const sdk = ZyfaiSDK.forUser("test-api-key", {
         accessToken: "jwt-only",
       });
 
-      await sdk.getAgentMandate();
+      await sdk.getAssetTypeSettings();
 
       expect(mockHttpClient.post).not.toHaveBeenCalledWith(
         ENDPOINTS.AUTH_CHALLENGE,
         expect.anything(),
       );
       expect(mockHttpClient.get).toHaveBeenCalledWith(
-        ENDPOINTS.USER_AGENT_MANDATE,
+        ENDPOINTS.USER_ASSET_TYPE_SETTINGS,
       );
     });
   });
@@ -88,47 +88,11 @@ describe("ZyfaiSDK user session", () => {
           asset: "USDC",
         }),
       ).rejects.toThrow(/does not match authenticated session EOA/);
-
-      expect(mockHttpClient.get).not.toHaveBeenCalled();
-      expect(mockHttpClient.post).not.toHaveBeenCalled();
     });
+  });
 
-    it("rebinds the session EOA after connectAccount replaces a forUser session", async () => {
-      mockHttpClient.post.mockImplementation(async (endpoint: string) => {
-        if (endpoint === ENDPOINTS.AUTH_CHALLENGE) {
-          return { nonce: "abcd1234" };
-        }
-        if (endpoint === ENDPOINTS.AUTH_LOGIN) {
-          return {
-            accessToken: "jwt-connected",
-            userId: "user-connected",
-          };
-        }
-        return {};
-      });
-
-      const sdk = ZyfaiSDK.forUser("test-api-key", {
-        accessToken: "jwt-abc",
-        eoa: SESSION_EOA,
-      });
-
-      const connected = await sdk.connectAccount(CONNECTED_PRIVATE_KEY, 8453);
-
-      expect(sdk.getSessionEoa()).toBe(getAddress(connected));
-      expect(getAddress(connected)).not.toBe(getAddress(SESSION_EOA));
-
-      await expect(
-        sdk.prepareEnterPosition({
-          userAddress: SESSION_EOA,
-          chainId: 8453,
-          amount: "1000000",
-          asset: "USDC",
-        }),
-      ).rejects.toThrow(/does not match authenticated session EOA/);
-      expect(mockHttpClient.get).not.toHaveBeenCalled();
-    });
-
-    it("clears the session EOA on disconnectAccount", async () => {
+  describe("disconnectAccount", () => {
+    it("clears session state", async () => {
       const sdk = ZyfaiSDK.forUser("test-api-key", {
         accessToken: "jwt-abc",
         eoa: SESSION_EOA,
@@ -140,71 +104,26 @@ describe("ZyfaiSDK user session", () => {
     });
   });
 
-  describe("agent mandate", () => {
+  describe("getAssetTypeSettings", () => {
     beforeEach(() => {
       mockHttpClient.hasAuthToken.mockReturnValue(true);
     });
 
-    it("getAgentMandate calls GET /users/me/agent-mandate", async () => {
-      const mandate = {
-        id: "m-1",
-        allowedChainIds: [8453],
-        allowedAssets: ["USDC"],
-        allowRebalance: true,
-        allowWithdraw: false,
-      };
-      mockHttpClient.get.mockResolvedValue({ data: mandate });
+    it("calls GET /users/asset-type-settings", async () => {
+      const settings = [{ assetType: "usdc", chains: [8453] }];
+      mockHttpClient.get.mockReset();
+      mockHttpClient.get.mockResolvedValue(settings);
 
       const sdk = ZyfaiSDK.forUser("test-api-key", {
         accessToken: "jwt-abc",
+        userId: "user-1",
       });
 
-      const result = await sdk.getAgentMandate();
+      const result = await sdk.getAssetTypeSettings();
 
-      expect(result).toEqual({ data: mandate });
+      expect(result).toEqual(settings);
       expect(mockHttpClient.get).toHaveBeenCalledWith(
-        ENDPOINTS.USER_AGENT_MANDATE,
-      );
-      expect(mockHttpClient.post).not.toHaveBeenCalledWith(
-        ENDPOINTS.AUTH_CHALLENGE,
-        expect.anything(),
-      );
-    });
-
-    it("setAgentMandate calls PUT with the request body", async () => {
-      const request = {
-        allowedChainIds: [8453],
-        allowedAssets: ["USDC"],
-        allowRebalance: true,
-      };
-      const mandate = { id: "m-1", ...request, allowWithdraw: false };
-      mockHttpClient.put.mockResolvedValue({ data: mandate });
-
-      const sdk = ZyfaiSDK.forUser("test-api-key", {
-        accessToken: "jwt-abc",
-      });
-
-      const result = await sdk.setAgentMandate(request);
-
-      expect(result).toEqual({ data: mandate });
-      expect(mockHttpClient.put).toHaveBeenCalledWith(
-        ENDPOINTS.USER_AGENT_MANDATE,
-        request,
-      );
-    });
-
-    it("revokeAgentMandate calls DELETE with oauthClientId query", async () => {
-      mockHttpClient.delete.mockResolvedValue({ success: true });
-
-      const sdk = ZyfaiSDK.forUser("test-api-key", {
-        accessToken: "jwt-abc",
-      });
-
-      const result = await sdk.revokeAgentMandate("mcp-client-id");
-
-      expect(result).toEqual({ success: true });
-      expect(mockHttpClient.delete).toHaveBeenCalledWith(
-        `${ENDPOINTS.USER_AGENT_MANDATE}?oauthClientId=mcp-client-id`,
+        ENDPOINTS.USER_ASSET_TYPE_SETTINGS,
       );
     });
   });

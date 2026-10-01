@@ -78,11 +78,12 @@ import type {
   SdkKeyTVLResponse,
   BestOpportunityResponse,
   AgentTokenUriResponse,
-  AgentMandate,
   AgentEnterIntent,
+  AgentEnterIntentStatus,
+  CompleteAgentEnterIntentRequest,
   ConsumeAgentEnterIntentRequest,
   CreateAgentEnterIntentRequest,
-  UpsertAgentMandateRequest,
+  ResolvedAgentEnterIntent,
   RegisterAgentResponse,
   CustomizationConfig,
   CustomizeBatchResponse,
@@ -199,6 +200,8 @@ export class ZyfaiSDK {
   private referralSource?: string;
   /** EOA of the active user session (bearer or SIWE). Cleared on disconnect. */
   private sessionEoa: Address | null = null;
+  /** When set, profile writes use agent-accessible endpoints instead of PATCH /users/me. */
+  private sessionChannel: UserSessionAuth["channel"];
 
   /**
    * Create an SDK instance with an existing Zyfai user JWT (no wallet connected).
@@ -234,6 +237,7 @@ export class ZyfaiSDK {
     this.httpClient.setAuthToken(session.accessToken);
     this.authenticatedUserId = session.userId ?? "bearer-session";
     this.sessionEoa = session.eoa ? getAddress(session.eoa) : null;
+    this.sessionChannel = session.channel;
   }
 
   /**
@@ -1706,9 +1710,57 @@ export class ZyfaiSDK {
       internalStrategy,
     );
 
-    // Persist the strategy alongside the protocols it produced. Without it the
-    // backend keeps its default `safe_strategy` and rebalances a whitelist that
-    // was selected for a wider tier.
+    const mandateChainId =
+      chains.find((c) => !existingChains.includes(c)) ?? chains[0];
+
+    return await this.persistDiscoveredAssetProfile(
+      asset,
+      effectiveChains as SupportedChainId[],
+      withPools,
+      strategy,
+      mandateChainId,
+    );
+  }
+
+  /**
+   * Persist protocol discovery for one asset (user PATCH or agent deposit-setup).
+   * @internal
+   */
+  private async persistDiscoveredAssetProfile(
+    asset: SupportedAsset,
+    effectiveChains: SupportedChainId[],
+    withPools: string[],
+    strategy?: Strategy,
+    agentDepositChainId?: SupportedChainId,
+  ): Promise<UpdateUserProfileResponse> {
+    const internalAsset = convertAssetInternally(asset);
+    const assetSettings: Record<string, unknown> = {
+      chains: effectiveChains,
+      protocols: withPools,
+    };
+    if (strategy !== undefined) {
+      assetSettings.rebalanceStrategy = toInternalStrategy(strategy);
+    }
+
+    if (this.sessionChannel === "agent") {
+      const chainId =
+        agentDepositChainId ??
+        effectiveChains[effectiveChains.length - 1] ??
+        effectiveChains[0];
+      await this.httpClient.post<{ data: { applied: boolean } }>(
+        ENDPOINTS.AGENT_DEPOSIT_SETUP,
+        {
+          asset,
+          chainId,
+          strategy,
+          assetTypeSettings: {
+            [internalAsset]: assetSettings,
+          },
+        },
+      );
+      return await this.getUserDetails(asset);
+    }
+
     return await this.updateUserProfile({
       asset,
       protocols: withPools,
@@ -2326,6 +2378,49 @@ export class ZyfaiSDK {
   }
 
   /**
+   * Idempotently configure the deposit asset for a single chain before MCP prepare.
+   *
+   * @internal
+   */
+  private async ensureDepositProfileForPrepare(params: {
+    strategy?: Strategy;
+    asset: SupportedAsset;
+    chainId: SupportedChainId;
+  }): Promise<{ applied: boolean }> {
+    const { strategy, asset, chainId } = params;
+    if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
+      throw new Error(
+        `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+      );
+    }
+
+    await this.authenticateUser();
+    const details = await this.getUserDetails(asset);
+    if (details.chains?.includes(chainId)) {
+      return { applied: false };
+    }
+
+    const allProtocols = await this.httpClient.get<any[]>(
+      ENDPOINTS.PROTOCOLS(),
+    );
+    await this.updateUserProtocolsForAsset(
+      asset,
+      [chainId],
+      strategy,
+      allProtocols,
+    );
+
+    const afterSetup = await this.getUserDetails(asset);
+    if (!afterSetup.chains?.includes(chainId)) {
+      throw new Error(
+        `First-deposit setup did not persist ${asset} chain ${chainId} configuration.`,
+      );
+    }
+
+    return { applied: true };
+  }
+
+  /**
    * Prepare entering a position: persist first-deposit profile when needed and
    * return ERC-20 transfer calldata for the user to sign (does not broadcast).
    *
@@ -2352,7 +2447,11 @@ export class ZyfaiSDK {
     if (this.sessionEoa && getAddress(userAddress) !== this.sessionEoa) {
       throw new Error("userAddress does not match authenticated session EOA");
     }
-    const setup = await this.ensureFirstDepositSetup(strategy);
+    const setup = await this.ensureDepositProfileForPrepare({
+      strategy,
+      asset,
+      chainId,
+    });
     const transfer = await this.buildDepositTransfer({
       userAddress,
       chainId,
@@ -4213,49 +4312,13 @@ export class ZyfaiSDK {
    * ```
    */
   /**
-   * Get the user's agent management mandate (autonomy limits).
+   * Get persisted per-asset-type management settings (strategy, chains, protocols).
    *
    * @group Agent management
    */
-  async getAgentMandate(
-    oauthClientId?: string,
-  ): Promise<{ data: AgentMandate | null }> {
+  async getAssetTypeSettings(): Promise<unknown> {
     await this.authenticateUser();
-    const query = oauthClientId
-      ? `?oauthClientId=${encodeURIComponent(oauthClientId)}`
-      : "";
-    return this.httpClient.get<{ data: AgentMandate | null }>(
-      `${ENDPOINTS.USER_AGENT_MANDATE}${query}`,
-    );
-  }
-
-  /**
-   * Create or update the user's agent management mandate.
-   *
-   * @group Agent management
-   */
-  async setAgentMandate(
-    request: UpsertAgentMandateRequest,
-  ): Promise<{ data: AgentMandate }> {
-    await this.authenticateUser();
-    return this.httpClient.put<{ data: AgentMandate }>(
-      ENDPOINTS.USER_AGENT_MANDATE,
-      request,
-    );
-  }
-
-  /**
-   * Revoke the user's agent management mandate.
-   *
-   * @group Agent management
-   */
-  async revokeAgentMandate(
-    oauthClientId: string,
-  ): Promise<{ success: boolean }> {
-    await this.authenticateUser();
-    return this.httpClient.delete<{ success: boolean }>(
-      `${ENDPOINTS.USER_AGENT_MANDATE}?oauthClientId=${encodeURIComponent(oauthClientId)}`,
-    );
+    return this.httpClient.get(ENDPOINTS.USER_ASSET_TYPE_SETTINGS);
   }
 
   /**
@@ -4286,6 +4349,50 @@ export class ZyfaiSDK {
     await this.httpClient.post<void>(
       ENDPOINTS.USER_AGENT_ENTER_INTENT_CONSUME(actionId),
       request,
+    );
+  }
+
+  /**
+   * Poll MCP enter-intent status (agent delegated session).
+   *
+   * @group Agent management
+   */
+  async getAgentEnterIntentStatus(
+    actionId: string,
+  ): Promise<{ data: AgentEnterIntentStatus }> {
+    await this.authenticateUser();
+    return this.httpClient.get<{ data: AgentEnterIntentStatus }>(
+      ENDPOINTS.USER_AGENT_ENTER_INTENT(actionId),
+    );
+  }
+
+  /**
+   * Mark intent complete after the user signed on zyf.ai (SIWE session).
+   *
+   * @group Agent management
+   */
+  async completeAgentEnterIntent(
+    actionId: string,
+    request: CompleteAgentEnterIntentRequest,
+  ): Promise<{ data: AgentEnterIntentStatus }> {
+    await this.authenticateUser();
+    return this.httpClient.post<{ data: AgentEnterIntentStatus }>(
+      ENDPOINTS.USER_AGENT_ENTER_INTENT_COMPLETE(actionId),
+      request,
+    );
+  }
+
+  /**
+   * Resolve a signing ticket from prepare_deposit (no user auth).
+   *
+   * @group Agent management
+   */
+  async resolveAgentEnterIntentTicket(
+    ticket: string,
+  ): Promise<{ data: ResolvedAgentEnterIntent }> {
+    const query = `?ticket=${encodeURIComponent(ticket)}`;
+    return this.httpClient.get<{ data: ResolvedAgentEnterIntent }>(
+      `${ENDPOINTS.AGENT_ENTER_INTENT_RESOLVE}${query}`,
     );
   }
 

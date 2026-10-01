@@ -19,7 +19,9 @@ const INTEGRATION_ENV_PREFIX: Record<BackendEnvironment, string> = {
   production: "PRODUCTION",
 };
 
-function parseIntegrationEnvironment(raw: string | undefined): BackendEnvironment {
+function parseIntegrationEnvironment(
+  raw: string | undefined,
+): BackendEnvironment {
   const value = (raw ?? "local").trim().toLowerCase();
   switch (value) {
     case "local":
@@ -57,7 +59,9 @@ export function integrationApiKeyVarName(env?: BackendEnvironment): string {
   return `${INTEGRATION_ENV_PREFIX[target]}_ZYFAI_API_KEY`;
 }
 
-export function readIntegrationApiKey(env?: BackendEnvironment): string | undefined {
+export function readIntegrationApiKey(
+  env?: BackendEnvironment,
+): string | undefined {
   const target = env ?? integrationEnvironment();
   return process.env[integrationApiKeyVarName(target)]?.trim();
 }
@@ -89,7 +93,9 @@ export function integrationSdkConfig(): SDKConfig {
  * SDK config for a throwaway partner key from `createIntegrationSdkApiKey`.
  * Sets `bypassMinPortfolio` so 0.1 USDC smokes work on staging/prod (harness only).
  */
-export function integrationFreshUserSdkConfig(partnerApiKey: string): SDKConfig {
+export function integrationFreshUserSdkConfig(
+  partnerApiKey: string,
+): SDKConfig {
   const { executionApiUrl, dataApiUrl } = integrationApiUrls();
   return {
     apiKey: partnerApiKey,
@@ -177,17 +183,14 @@ export async function createIntegrationSdkApiKey(
         `(value must match SDK_API_KEYS_ADMIN_API_KEY on the api server — see README § Fresh-user tests)`,
     );
   }
-  const response = await fetch(
-    `${executionApiUrl}/api/v1/admin/sdk-api-keys`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": adminApiKey,
-      },
-      body: JSON.stringify({ clientName, walletAddress: ownerWalletAddress }),
+  const response = await fetch(`${executionApiUrl}/api/v1/admin/sdk-api-keys`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": adminApiKey,
     },
-  );
+    body: JSON.stringify({ clientName, walletAddress: ownerWalletAddress }),
+  });
 
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 300);
