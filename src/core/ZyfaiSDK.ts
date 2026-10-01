@@ -79,6 +79,9 @@ import type {
   BestOpportunityResponse,
   AgentTokenUriResponse,
   AgentMandate,
+  AgentEnterIntent,
+  ConsumeAgentEnterIntentRequest,
+  CreateAgentEnterIntentRequest,
   UpsertAgentMandateRequest,
   RegisterAgentResponse,
   CustomizationConfig,
@@ -4252,6 +4255,37 @@ export class ZyfaiSDK {
     await this.authenticateUser();
     return this.httpClient.delete<{ success: boolean }>(
       `${ENDPOINTS.USER_AGENT_MANDATE}?oauthClientId=${encodeURIComponent(oauthClientId)}`,
+    );
+  }
+
+  /**
+   * Reserve a one-time action id before the user signs an ERC-20 transfer.
+   *
+   * @group Agent management
+   */
+  async createAgentEnterIntent(
+    request: CreateAgentEnterIntentRequest,
+  ): Promise<{ data: AgentEnterIntent }> {
+    await this.authenticateUser();
+    return this.httpClient.post<{ data: AgentEnterIntent }>(
+      ENDPOINTS.USER_AGENT_ENTER_INTENTS,
+      request,
+    );
+  }
+
+  /**
+   * Consume a one-time action id when registering the signed deposit.
+   *
+   * @group Agent management
+   */
+  async consumeAgentEnterIntent(
+    actionId: string,
+    request: ConsumeAgentEnterIntentRequest,
+  ): Promise<void> {
+    await this.authenticateUser();
+    await this.httpClient.post<void>(
+      ENDPOINTS.USER_AGENT_ENTER_INTENT_CONSUME(actionId),
+      request,
     );
   }
 

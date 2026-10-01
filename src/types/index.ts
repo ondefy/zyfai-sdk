@@ -76,6 +76,25 @@ export interface UpsertAgentMandateRequest {
   expiresAt?: string | null;
 }
 
+/** One-time prepare → enter binding for MCP deposit flows (least-unit amount). */
+export interface CreateAgentEnterIntentRequest {
+  chainId: number;
+  amount: string;
+  asset: SupportedAsset;
+  strategy?: Strategy;
+}
+
+export interface AgentEnterIntent {
+  actionId: string;
+  expiresAt: string;
+}
+
+export interface ConsumeAgentEnterIntentRequest {
+  chainId: number;
+  amount: string;
+  asset: SupportedAsset;
+}
+
 export interface UserSessionAuth {
   /** Zyfai execution API JWT from SIWE login. */
   accessToken: string;

@@ -2,4 +2,4 @@
 "@zyfai/sdk": minor
 ---
 
-Add forUser sessions, prepareEnterPosition, and agent mandate helpers for MCP agents
+Add forUser sessions, prepareEnterPosition, agent mandate helpers, and agent enter-intent APIs for MCP agents
