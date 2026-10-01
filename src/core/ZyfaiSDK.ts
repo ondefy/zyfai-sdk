@@ -78,12 +78,12 @@ import type {
   SdkKeyTVLResponse,
   BestOpportunityResponse,
   AgentTokenUriResponse,
-  AgentEnterIntent,
-  AgentEnterIntentStatus,
-  CompleteAgentEnterIntentRequest,
-  ConsumeAgentEnterIntentRequest,
-  CreateAgentEnterIntentRequest,
-  ResolvedAgentEnterIntent,
+  AgentDepositIntent,
+  AgentDepositIntentStatus,
+  CompleteAgentDepositIntentRequest,
+  ConsumeAgentDepositIntentRequest,
+  CreateAgentDepositIntentRequest,
+  ResolvedAgentDepositIntent,
   RegisterAgentResponse,
   CustomizationConfig,
   CustomizeBatchResponse,
@@ -203,7 +203,7 @@ export class ZyfaiSDK {
   /** EOA of the active user session (bearer or SIWE). Cleared on disconnect. */
   private sessionEoa: Address | null = null;
   /** When set, profile writes use agent-accessible endpoints instead of PATCH /users/me. */
-  private sessionChannel: UserSessionAuth["channel"];
+  private sessionChannel?: UserSessionAuth["channel"];
 
   /**
    * Create an SDK instance with an existing Zyfai user JWT (no wallet connected).
@@ -311,6 +311,7 @@ export class ZyfaiSDK {
     this.connectedSmartWallet =
       (loginResponse.smartWallet as Address) || null;
     this.sessionEoa = getAddress(params.message.address);
+    this.sessionChannel = undefined;
 
     return loginResponse;
   }
@@ -928,6 +929,7 @@ export class ZyfaiSDK {
     this.connectedSmartWallet = null;
     this.currentChainId = null;
     this.sessionEoa = null;
+    this.sessionChannel = undefined;
     this.httpClient.clearAuthToken();
 
     // Remove existing event listeners if any
@@ -1058,6 +1060,7 @@ export class ZyfaiSDK {
     this.predeployedResolved = false;
     this.connectedSmartWallet = null;
     this.sessionEoa = null;
+    this.sessionChannel = undefined;
 
     // Clear JWT token
     this.httpClient.clearAuthToken();
@@ -1771,6 +1774,8 @@ export class ZyfaiSDK {
     }
 
     if (this.sessionChannel === "agent") {
+      // Agent channel uses deposit-setup (deposit scope) for first-chain defaults
+      // instead of configure-scoped PATCH /users/me.
       const chainId =
         agentDepositChainId ??
         effectiveChains[effectiveChains.length - 1] ??
@@ -2451,17 +2456,16 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Prepare entering a position: persist first-deposit profile when needed and
-   * return ERC-20 transfer calldata for the user to sign (does not broadcast).
+   * Prepare a deposit: persist first-deposit profile when needed and return
+   * ERC-20 transfer calldata for the user to sign (does not broadcast).
    *
    * @group Deposits and withdrawals
    */
-  async prepareEnterPosition(params: {
+  async prepareDeposit(params: {
     userAddress: string;
     chainId: SupportedChainId;
     amount: string;
     asset: SupportedAsset;
-    strategy?: Strategy;
   }): Promise<{
     phase: "prepare_transfer";
     setup: { applied: boolean };
@@ -2473,12 +2477,11 @@ export class ZyfaiSDK {
       value: "0";
     };
   }> {
-    const { userAddress, chainId, amount, asset, strategy } = params;
+    const { userAddress, chainId, amount, asset } = params;
     if (this.sessionEoa && getAddress(userAddress) !== this.sessionEoa) {
       throw new Error("userAddress does not match authenticated session EOA");
     }
     const setup = await this.ensureDepositProfileForPrepare({
-      strategy,
       asset,
       chainId,
     });
@@ -4356,12 +4359,12 @@ export class ZyfaiSDK {
    *
    * @group Agent management
    */
-  async createAgentEnterIntent(
-    request: CreateAgentEnterIntentRequest,
-  ): Promise<{ data: AgentEnterIntent }> {
+  async createAgentDepositIntent(
+    request: CreateAgentDepositIntentRequest,
+  ): Promise<{ data: AgentDepositIntent }> {
     await this.authenticateUser();
-    return this.httpClient.post<{ data: AgentEnterIntent }>(
-      ENDPOINTS.USER_AGENT_ENTER_INTENTS,
+    return this.httpClient.post<{ data: AgentDepositIntent }>(
+      ENDPOINTS.USER_AGENT_DEPOSIT_INTENTS,
       request,
     );
   }
@@ -4371,28 +4374,28 @@ export class ZyfaiSDK {
    *
    * @group Agent management
    */
-  async consumeAgentEnterIntent(
+  async consumeAgentDepositIntent(
     actionId: string,
-    request: ConsumeAgentEnterIntentRequest,
-  ): Promise<{ data: AgentEnterIntentStatus }> {
+    request: ConsumeAgentDepositIntentRequest,
+  ): Promise<{ data: AgentDepositIntentStatus }> {
     await this.authenticateUser();
-    return this.httpClient.post<{ data: AgentEnterIntentStatus }>(
-      ENDPOINTS.USER_AGENT_ENTER_INTENT_CONSUME(actionId),
+    return this.httpClient.post<{ data: AgentDepositIntentStatus }>(
+      ENDPOINTS.USER_AGENT_DEPOSIT_INTENT_CONSUME(actionId),
       request,
     );
   }
 
   /**
-   * Poll MCP enter-intent status (agent delegated session).
+   * Poll MCP deposit-intent status (agent delegated session).
    *
    * @group Agent management
    */
-  async getAgentEnterIntentStatus(
+  async getAgentDepositIntentStatus(
     actionId: string,
-  ): Promise<{ data: AgentEnterIntentStatus }> {
+  ): Promise<{ data: AgentDepositIntentStatus }> {
     await this.authenticateUser();
-    return this.httpClient.get<{ data: AgentEnterIntentStatus }>(
-      ENDPOINTS.USER_AGENT_ENTER_INTENT(actionId),
+    return this.httpClient.get<{ data: AgentDepositIntentStatus }>(
+      ENDPOINTS.USER_AGENT_DEPOSIT_INTENT(actionId),
     );
   }
 
@@ -4401,13 +4404,13 @@ export class ZyfaiSDK {
    *
    * @group Agent management
    */
-  async completeAgentEnterIntent(
+  async completeAgentDepositIntent(
     actionId: string,
-    request: CompleteAgentEnterIntentRequest,
-  ): Promise<{ data: AgentEnterIntentStatus }> {
+    request: CompleteAgentDepositIntentRequest,
+  ): Promise<{ data: AgentDepositIntentStatus }> {
     await this.authenticateUser();
-    return this.httpClient.post<{ data: AgentEnterIntentStatus }>(
-      ENDPOINTS.USER_AGENT_ENTER_INTENT_COMPLETE(actionId),
+    return this.httpClient.post<{ data: AgentDepositIntentStatus }>(
+      ENDPOINTS.USER_AGENT_DEPOSIT_INTENT_COMPLETE(actionId),
       request,
     );
   }
@@ -4417,12 +4420,12 @@ export class ZyfaiSDK {
    *
    * @group Agent management
    */
-  async resolveAgentEnterIntentTicket(
+  async resolveAgentDepositIntentTicket(
     ticket: string,
-  ): Promise<{ data: ResolvedAgentEnterIntent }> {
+  ): Promise<{ data: ResolvedAgentDepositIntent }> {
     const query = `?ticket=${encodeURIComponent(ticket)}`;
-    return this.httpClient.get<{ data: ResolvedAgentEnterIntent }>(
-      `${ENDPOINTS.AGENT_ENTER_INTENT_RESOLVE}${query}`,
+    return this.httpClient.get<{ data: ResolvedAgentDepositIntent }>(
+      `${ENDPOINTS.AGENT_DEPOSIT_INTENT_RESOLVE}${query}`,
     );
   }
 

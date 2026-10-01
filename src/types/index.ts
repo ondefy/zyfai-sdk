@@ -49,23 +49,22 @@ export interface SDKConfig {
 }
 
 /** One-time prepare → deposit binding for MCP flows (least-unit amount). */
-export interface CreateAgentEnterIntentRequest {
+export interface CreateAgentDepositIntentRequest {
   chainId: number;
   amount: string;
   asset: SupportedAsset;
-  strategy?: Strategy;
 }
 
-export interface AgentEnterIntent {
+export interface AgentDepositIntent {
   actionId: string;
   expiresAt: string;
   signingTicket: string;
 }
 
-export type AgentEnterIntentStatusValue = "pending" | "completed" | "expired";
+export type AgentDepositIntentStatusValue = "pending" | "completed" | "expired";
 
-export interface AgentEnterIntentStatus {
-  status: AgentEnterIntentStatusValue;
+export interface AgentDepositIntentStatus {
+  status: AgentDepositIntentStatusValue;
   actionId?: string;
   depositId?: string;
   txHash?: string;
@@ -74,18 +73,17 @@ export interface AgentEnterIntentStatus {
   amount?: string;
 }
 
-export interface ResolvedAgentEnterIntent {
+export interface ResolvedAgentDepositIntent {
   actionId: string;
   chainId: number;
   asset: string;
   amount: string;
-  strategy?: string | null;
-  status: AgentEnterIntentStatusValue;
+  status: AgentDepositIntentStatusValue;
   ownerAddress: string;
   expiresAt: string;
 }
 
-export interface ConsumeAgentEnterIntentRequest {
+export interface ConsumeAgentDepositIntentRequest {
   chainId: number;
   amount: string;
   asset: SupportedAsset;
@@ -93,7 +91,7 @@ export interface ConsumeAgentEnterIntentRequest {
   depositId: string;
 }
 
-export interface CompleteAgentEnterIntentRequest {
+export interface CompleteAgentDepositIntentRequest {
   txHash: string;
   depositId: string;
 }

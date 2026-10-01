@@ -133,7 +133,7 @@ describe("ZyfaiSDK user session", () => {
     });
   });
 
-  describe("prepareEnterPosition", () => {
+  describe("prepareDeposit", () => {
     it("rejects a userAddress that does not match the session EOA", async () => {
       const sdk = ZyfaiSDK.forUser("test-api-key", {
         accessToken: "jwt-abc",
@@ -141,13 +141,91 @@ describe("ZyfaiSDK user session", () => {
       });
 
       await expect(
-        sdk.prepareEnterPosition({
+        sdk.prepareDeposit({
           userAddress: OTHER_EOA,
           chainId: 8453,
           amount: "1000000",
           asset: "USDC",
         }),
       ).rejects.toThrow(/does not match authenticated session EOA/);
+    });
+  });
+
+  describe("agent channel vs SIWE", () => {
+    it("uses PATCH /users/me for first-chain setup after SIWE replaces agent session", async () => {
+      const sdk = ZyfaiSDK.forUser(
+        { apiKey: "test-api-key", bypassMinPortfolio: true },
+        {
+          accessToken: "jwt-agent",
+          channel: "agent",
+          eoa: SESSION_EOA,
+          userId: "user-1",
+        },
+      );
+      mockHttpClient.hasAuthToken.mockReturnValue(true);
+      mockHttpClient.post.mockResolvedValueOnce({
+        accessToken: "jwt-siwe",
+        userId: "user-1",
+        hasActiveSessionKey: true,
+        predeployed: true,
+        smartWallet: POOL_SAFE,
+      });
+
+      await sdk.authenticateWithSignature({
+        message: {
+          address: SESSION_EOA,
+          chainId: 8453,
+          domain: "zyf.ai",
+          nonce: "nonce-1",
+          uri: "https://zyf.ai",
+          version: "1",
+          issuedAt: new Date().toISOString(),
+        },
+        signature: `0x${"ab".repeat(32)}`,
+      });
+
+      let chains: number[] = [];
+      mockHttpClient.patch.mockImplementation(async () => {
+        chains = [8453];
+      });
+      mockHttpClient.get.mockImplementation(async (url: string) => {
+        if (url === ENDPOINTS.USER_ME) {
+          return {
+            strategy: "conservative",
+            smartWallet: POOL_SAFE,
+            predeployed: true,
+            assetTypeSettings: {
+              usdc: { chains },
+            },
+          };
+        }
+        if (url === ENDPOINTS.PROTOCOLS()) {
+          return [
+            {
+              id: "protocol-1",
+              strategies: ["safe_strategy"],
+              chains: [8453],
+            },
+          ];
+        }
+        if (url.includes("/data/by-eoa")) {
+          return { agent: POOL_SAFE, chains: [8453] };
+        }
+        throw new Error(`unexpected GET ${url}`);
+      });
+
+      await sdk.prepareDeposit({
+        userAddress: SESSION_EOA,
+        chainId: 8453,
+        amount: "1000000",
+        asset: "USDC",
+      });
+
+      expect(mockHttpClient.patch).toHaveBeenCalled();
+      expect(mockHttpClient.post).not.toHaveBeenCalledWith(
+        ENDPOINTS.AGENT_DEPOSIT_SETUP,
+        expect.anything(),
+      );
     });
   });
 
