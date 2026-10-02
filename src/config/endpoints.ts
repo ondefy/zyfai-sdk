@@ -87,10 +87,16 @@ export const ENDPOINTS = {
 
   // User
   USER_ME: "/users/me",
-  USER_AGENT_MANDATE: "/users/me/agent-mandate",
-  USER_AGENT_ENTER_INTENTS: "/users/me/agent-enter-intents",
-  USER_AGENT_ENTER_INTENT_CONSUME: (actionId: string) =>
-    `/users/me/agent-enter-intents/${encodeURIComponent(actionId)}/consume`,
+  USER_ASSET_TYPE_SETTINGS: "/users/asset-type-settings",
+  AGENT_DEPOSIT_SETUP: "/users/me/agent-deposit-setup",
+  USER_AGENT_DEPOSIT_INTENTS: "/users/me/agent-deposit-intents",
+  USER_AGENT_DEPOSIT_INTENT: (actionId: string) =>
+    `/users/me/agent-deposit-intents/${encodeURIComponent(actionId)}`,
+  USER_AGENT_DEPOSIT_INTENT_CONSUME: (actionId: string) =>
+    `/users/me/agent-deposit-intents/${encodeURIComponent(actionId)}/consume`,
+  USER_AGENT_DEPOSIT_INTENT_COMPLETE: (actionId: string) =>
+    `/users/me/agent-deposit-intents/${encodeURIComponent(actionId)}/complete`,
+  AGENT_DEPOSIT_INTENT_RESOLVE: "/agent-deposit-intents/resolve",
   USER_WITHDRAW: "/users/withdraw",
   PARTIAL_WITHDRAW: "/users/partial-withdraw",
   LOG_DEPOSIT: "/users/log_deposit/v2",

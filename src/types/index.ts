@@ -48,51 +48,52 @@ export interface SDKConfig {
   bypassMinPortfolio?: boolean;
 }
 
-/**
- * Pre-authenticated user session for server-side SDK clients (e.g. MCP).
- * Skips SIWE `connectAccount` when the Zyfai access token is already known.
- */
-/** Agent autonomy limits for MCP / delegated management. */
-export interface AgentMandate {
-  id: string;
-  oauthClientId: string;
-  /** Maximum USD of one deposit. Not total capital under management. */
-  maxDepositUsd?: string | null;
-  allowedChainIds: number[];
-  allowedAssets: string[];
-  allowRebalance: boolean;
-  allowWithdraw: boolean;
-  expiresAt?: string | null;
-}
-
-export interface UpsertAgentMandateRequest {
-  oauthClientId: string;
-  /** Maximum USD of one deposit. Not total capital under management. */
-  maxDepositUsd?: string | null;
-  allowedChainIds?: number[];
-  allowedAssets?: string[];
-  allowRebalance?: boolean;
-  allowWithdraw?: boolean;
-  expiresAt?: string | null;
-}
-
-/** One-time prepare → enter binding for MCP deposit flows (least-unit amount). */
-export interface CreateAgentEnterIntentRequest {
+/** One-time prepare → deposit binding for MCP flows (least-unit amount). */
+export interface CreateAgentDepositIntentRequest {
   chainId: number;
   amount: string;
   asset: SupportedAsset;
-  strategy?: Strategy;
 }
 
-export interface AgentEnterIntent {
+export interface AgentDepositIntent {
   actionId: string;
+  expiresAt: string;
+  signingTicket: string;
+}
+
+export type AgentDepositIntentStatusValue = "pending" | "completed" | "expired";
+
+export interface AgentDepositIntentStatus {
+  status: AgentDepositIntentStatusValue;
+  actionId?: string;
+  depositId?: string;
+  txHash?: string;
+  chainId?: number;
+  asset?: string;
+  amount?: string;
+}
+
+export interface ResolvedAgentDepositIntent {
+  actionId: string;
+  chainId: number;
+  asset: string;
+  amount: string;
+  status: AgentDepositIntentStatusValue;
+  ownerAddress: string;
   expiresAt: string;
 }
 
-export interface ConsumeAgentEnterIntentRequest {
+export interface ConsumeAgentDepositIntentRequest {
   chainId: number;
   amount: string;
   asset: SupportedAsset;
+  txHash: string;
+  depositId: string;
+}
+
+export interface CompleteAgentDepositIntentRequest {
+  txHash: string;
+  depositId: string;
 }
 
 export interface UserSessionAuth {
@@ -102,6 +103,8 @@ export interface UserSessionAuth {
   userId?: string;
   /** User EOA address (checksum) for address binding checks. */
   eoa?: Address;
+  /** Delegated MCP agent JWT (`channel=agent` on the execution API). */
+  channel?: "agent";
 }
 
 // Response Types
