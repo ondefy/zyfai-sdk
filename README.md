@@ -45,7 +45,7 @@ Commit the generated file in `.changeset/` with your PR.
 
 ### Publishing (maintainers)
 
-After changesets merge to `main`, a maintainer runs `npm run version-packages`, then `npm publish`. Details: [`docs/RELEASING.md`](docs/RELEASING.md).
+Merge a release PR into `release`; CI versions, runs `npm run check`, and publishes to npm. Details: [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## Prerequisites
 

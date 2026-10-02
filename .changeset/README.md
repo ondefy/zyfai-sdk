@@ -22,4 +22,4 @@ npm run changeset
 
 ## After merge
 
-A maintainer runs `npm run version-packages` on `main`, then publishes manually with `npm publish`. See [`docs/RELEASING.md`](../docs/RELEASING.md).
+Merge a release PR into `release`; GitHub Actions versions, runs `npm run check`, and publishes to npm (see [`.github/workflows/release.yml`](../.github/workflows/release.yml)). Full maintainer flow: [`docs/RELEASING.md`](../docs/RELEASING.md).
