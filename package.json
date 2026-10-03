@@ -1,7 +1,7 @@
 {
   "name": "@zyfai/sdk",
   "version": "0.4.0",
-  "description": "TypeScript SDK for Zyfai Yield Optimization Engine - Deploy Safe smart wallets, manage session keys, and interact with DeFi protocols",
+  "description": "TypeScript SDK for self-custodial Zyfai yield agents: discover DeFi opportunities and manage deposits, withdrawals, positions, and strategies across Ethereum, Base, and Arbitrum",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -44,6 +44,9 @@
     "defi",
     "yield",
     "yield-optimization",
+    "yield-agent",
+    "defi-agent",
+    "self-custodial",
     "web3",
     "ethereum",
     "smart-wallet",
