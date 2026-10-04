@@ -1,6 +1,6 @@
 {
   "name": "@zyfai/sdk",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "TypeScript SDK for self-custodial Zyfai yield agents: discover DeFi opportunities and manage deposits, withdrawals, positions, and strategies across Ethereum, Base, and Arbitrum",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
