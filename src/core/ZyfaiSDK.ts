@@ -28,6 +28,8 @@ import {
   formatMinPortfolioLabel,
   getDepositCreditIntervalMs,
   getDepositCreditTimeoutMs,
+  AGENT_DEPOSIT_INTENT_INTERVAL_MS,
+  AGENT_DEPOSIT_INTENT_TIMEOUT_MS,
   type DailyApyHistoryPeriod,
 } from "../config/constants";
 import { shouldBypassMinPortfolioCheck } from "../config/local-dev";
@@ -45,6 +47,8 @@ import type {
   LogDepositResponse,
   DepositLifecycleResponse,
   WaitForDepositCreditOptions,
+  WaitForAgentDepositIntentOptions,
+  WaitForAgentDepositHandoverOptions,
   WithdrawResponse,
   ProtocolsResponse,
   PortfolioResponse,
@@ -78,11 +82,12 @@ import type {
   SdkKeyTVLResponse,
   BestOpportunityResponse,
   AgentTokenUriResponse,
-  AgentMandate,
-  AgentEnterIntent,
-  ConsumeAgentEnterIntentRequest,
-  CreateAgentEnterIntentRequest,
-  UpsertAgentMandateRequest,
+  AgentDepositIntent,
+  AgentDepositIntentStatus,
+  CompleteAgentDepositIntentRequest,
+  ConsumeAgentDepositIntentRequest,
+  CreateAgentDepositIntentRequest,
+  ResolvedAgentDepositIntent,
   RegisterAgentResponse,
   CustomizationConfig,
   CustomizeBatchResponse,
@@ -164,6 +169,14 @@ class DepositCreditTimeoutError extends Error {
   }
 }
 
+/** Thrown when {@link ZyfaiSDK.waitForAgentDepositIntent} exceeds its polling timeout. */
+class AgentDepositIntentTimeoutError extends Error {
+  constructor(actionId: string) {
+    super(`Timed out waiting for agent deposit intent ${actionId} to complete`);
+    this.name = "AgentDepositIntentTimeoutError";
+  }
+}
+
 /**
  * Assets the agent manages on a user's behalf. Pausing, resuming and the
  * post-deploy protocol assignment all walk this list, so an asset added here
@@ -192,6 +205,8 @@ export class ZyfaiSDK {
   private authenticatedUserId: string | null = null;
   private hasActiveSessionKey: boolean = false;
   private isPredeployed: boolean = false;
+  /** False until SIWE login or GET /users/me has set `isPredeployed`. */
+  private predeployedResolved = false;
   private connectedSmartWallet: Address | null = null;
   private currentProvider: any = null;
   private currentChainId: SupportedChainId | null = null;
@@ -199,6 +214,8 @@ export class ZyfaiSDK {
   private referralSource?: string;
   /** EOA of the active user session (bearer or SIWE). Cleared on disconnect. */
   private sessionEoa: Address | null = null;
+  /** When set, profile writes use agent-accessible endpoints instead of PATCH /users/me. */
+  private sessionChannel?: UserSessionAuth["channel"];
 
   /**
    * Create an SDK instance with an existing Zyfai user JWT (no wallet connected).
@@ -234,6 +251,11 @@ export class ZyfaiSDK {
     this.httpClient.setAuthToken(session.accessToken);
     this.authenticatedUserId = session.userId ?? "bearer-session";
     this.sessionEoa = session.eoa ? getAddress(session.eoa) : null;
+    this.sessionChannel = session.channel;
+    // forUser has no SIWE login response. Re-read predeployed on the next deposit.
+    this.isPredeployed = false;
+    this.predeployedResolved = false;
+    this.connectedSmartWallet = null;
   }
 
   /**
@@ -297,9 +319,11 @@ export class ZyfaiSDK {
     this.authenticatedUserId = loginResponse.userId || null;
     this.hasActiveSessionKey = loginResponse.hasActiveSessionKey || false;
     this.isPredeployed = loginResponse.predeployed || false;
+    this.predeployedResolved = true;
     this.connectedSmartWallet =
       (loginResponse.smartWallet as Address) || null;
     this.sessionEoa = getAddress(params.message.address);
+    this.sessionChannel = undefined;
 
     return loginResponse;
   }
@@ -461,6 +485,7 @@ export class ZyfaiSDK {
       this.authenticatedUserId = loginResponse.userId || null;
       this.hasActiveSessionKey = loginResponse.hasActiveSessionKey || false;
       this.isPredeployed = loginResponse.predeployed || false;
+      this.predeployedResolved = true;
       this.connectedSmartWallet =
         (loginResponse.smartWallet as Address) || null;
       this.sessionEoa = userAddress;
@@ -912,9 +937,11 @@ export class ZyfaiSDK {
     // Reset authentication when connecting a new account
     this.authenticatedUserId = null;
     this.isPredeployed = false;
+    this.predeployedResolved = false;
     this.connectedSmartWallet = null;
     this.currentChainId = null;
     this.sessionEoa = null;
+    this.sessionChannel = undefined;
     this.httpClient.clearAuthToken();
 
     // Remove existing event listeners if any
@@ -1042,8 +1069,10 @@ export class ZyfaiSDK {
     this.authenticatedUserId = null;
     this.hasActiveSessionKey = false;
     this.isPredeployed = false;
+    this.predeployedResolved = false;
     this.connectedSmartWallet = null;
     this.sessionEoa = null;
+    this.sessionChannel = undefined;
 
     // Clear JWT token
     this.httpClient.clearAuthToken();
@@ -1075,13 +1104,31 @@ export class ZyfaiSDK {
   }
 
   /**
-   * True when userAddress is the currently connected/authenticated wallet.
+   * True when userAddress is the signer, wallet client, or agent session EOA.
    * @private
    */
   private isConnectedUser(userAddress: string): boolean {
     const connected =
-      this.signer?.address ?? this.walletClient?.account?.address;
+      this.signer?.address ??
+      this.walletClient?.account?.address ??
+      this.sessionEoa;
     return !!connected && connected.toLowerCase() === userAddress.toLowerCase();
+  }
+
+  /**
+   * SIWE login sets predeployed. Agent sessions (`forUser`) do not, so read it
+   * from the user record before allowing a transfer to an undeployed pool Safe.
+   * @private
+   */
+  private async hydrateSessionWallet(): Promise<void> {
+    if (this.predeployedResolved || !this.sessionEoa) return;
+    const me = await this.httpClient.get<{
+      predeployed?: boolean;
+      smartWallet?: string | null;
+    }>(ENDPOINTS.USER_ME);
+    this.isPredeployed = !!me?.predeployed;
+    this.connectedSmartWallet = (me?.smartWallet as Address) || null;
+    this.predeployedResolved = true;
   }
 
   /**
@@ -1706,9 +1753,59 @@ export class ZyfaiSDK {
       internalStrategy,
     );
 
-    // Persist the strategy alongside the protocols it produced. Without it the
-    // backend keeps its default `safe_strategy` and rebalances a whitelist that
-    // was selected for a wider tier.
+    const mandateChainId =
+      chains.find((c) => !existingChains.includes(c)) ?? chains[0];
+
+    return await this.persistDiscoveredAssetProfile(
+      asset,
+      effectiveChains as SupportedChainId[],
+      withPools,
+      strategy,
+      mandateChainId,
+    );
+  }
+
+  /**
+   * Persist protocol discovery for one asset (user PATCH or agent deposit-setup).
+   * @internal
+   */
+  private async persistDiscoveredAssetProfile(
+    asset: SupportedAsset,
+    effectiveChains: SupportedChainId[],
+    withPools: string[],
+    strategy?: Strategy,
+    agentDepositChainId?: SupportedChainId,
+  ): Promise<UpdateUserProfileResponse> {
+    const internalAsset = convertAssetInternally(asset);
+    const assetSettings: Record<string, unknown> = {
+      chains: effectiveChains,
+      protocols: withPools,
+    };
+    if (strategy !== undefined) {
+      assetSettings.rebalanceStrategy = toInternalStrategy(strategy);
+    }
+
+    if (this.sessionChannel === "agent") {
+      // Agent channel uses deposit-setup (deposit scope) for first-chain defaults
+      // instead of configure-scoped PATCH /users/me.
+      const chainId =
+        agentDepositChainId ??
+        effectiveChains[effectiveChains.length - 1] ??
+        effectiveChains[0];
+      await this.httpClient.post<{ data: { applied: boolean } }>(
+        ENDPOINTS.AGENT_DEPOSIT_SETUP,
+        {
+          asset,
+          chainId,
+          strategy,
+          assetTypeSettings: {
+            [internalAsset]: assetSettings,
+          },
+        },
+      );
+      return await this.getUserDetails(asset);
+    }
+
     return await this.updateUserProfile({
       asset,
       protocols: withPools,
@@ -2011,6 +2108,7 @@ export class ZyfaiSDK {
 
       // Get Safe address (predeployed wallets use the backend-assigned
       // address; they are never derived from the EOA).
+      await this.hydrateSessionWallet();
       const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
       if (!safeAddress) {
         throw new Error("Smart wallet address is not available");
@@ -2181,6 +2279,7 @@ export class ZyfaiSDK {
         )}.`,
       );
     }
+    await this.hydrateSessionWallet();
     const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
     if (!safeAddress) {
       throw new Error("Smart wallet address is not available");
@@ -2326,17 +2425,59 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Prepare entering a position: persist first-deposit profile when needed and
-   * return ERC-20 transfer calldata for the user to sign (does not broadcast).
+   * Idempotently configure the deposit asset for a single chain before MCP prepare.
+   *
+   * @internal
+   */
+  private async ensureDepositProfileForPrepare(params: {
+    strategy?: Strategy;
+    asset: SupportedAsset;
+    chainId: SupportedChainId;
+  }): Promise<{ applied: boolean }> {
+    const { strategy, asset, chainId } = params;
+    if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
+      throw new Error(
+        `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+      );
+    }
+
+    await this.authenticateUser();
+    const details = await this.getUserDetails(asset);
+    if (details.chains?.includes(chainId)) {
+      return { applied: false };
+    }
+
+    const allProtocols = await this.httpClient.get<any[]>(
+      ENDPOINTS.PROTOCOLS(),
+    );
+    await this.updateUserProtocolsForAsset(
+      asset,
+      [chainId],
+      strategy,
+      allProtocols,
+    );
+
+    const afterSetup = await this.getUserDetails(asset);
+    if (!afterSetup.chains?.includes(chainId)) {
+      throw new Error(
+        `First-deposit setup did not persist ${asset} chain ${chainId} configuration.`,
+      );
+    }
+
+    return { applied: true };
+  }
+
+  /**
+   * Prepare a deposit: persist first-deposit profile when needed and return
+   * ERC-20 transfer calldata for the user to sign (does not broadcast).
    *
    * @group Deposits and withdrawals
    */
-  async prepareEnterPosition(params: {
+  async prepareDeposit(params: {
     userAddress: string;
     chainId: SupportedChainId;
     amount: string;
     asset: SupportedAsset;
-    strategy?: Strategy;
   }): Promise<{
     phase: "prepare_transfer";
     setup: { applied: boolean };
@@ -2348,11 +2489,14 @@ export class ZyfaiSDK {
       value: "0";
     };
   }> {
-    const { userAddress, chainId, amount, asset, strategy } = params;
+    const { userAddress, chainId, amount, asset } = params;
     if (this.sessionEoa && getAddress(userAddress) !== this.sessionEoa) {
       throw new Error("userAddress does not match authenticated session EOA");
     }
-    const setup = await this.ensureFirstDepositSetup(strategy);
+    const setup = await this.ensureDepositProfileForPrepare({
+      asset,
+      chainId,
+    });
     const transfer = await this.buildDepositTransfer({
       userAddress,
       chainId,
@@ -4213,49 +4357,13 @@ export class ZyfaiSDK {
    * ```
    */
   /**
-   * Get the user's agent management mandate (autonomy limits).
+   * Get persisted per-asset-type management settings (strategy, chains, protocols).
    *
    * @group Agent management
    */
-  async getAgentMandate(
-    oauthClientId?: string,
-  ): Promise<{ data: AgentMandate | null }> {
+  async getAssetTypeSettings(): Promise<unknown> {
     await this.authenticateUser();
-    const query = oauthClientId
-      ? `?oauthClientId=${encodeURIComponent(oauthClientId)}`
-      : "";
-    return this.httpClient.get<{ data: AgentMandate | null }>(
-      `${ENDPOINTS.USER_AGENT_MANDATE}${query}`,
-    );
-  }
-
-  /**
-   * Create or update the user's agent management mandate.
-   *
-   * @group Agent management
-   */
-  async setAgentMandate(
-    request: UpsertAgentMandateRequest,
-  ): Promise<{ data: AgentMandate }> {
-    await this.authenticateUser();
-    return this.httpClient.put<{ data: AgentMandate }>(
-      ENDPOINTS.USER_AGENT_MANDATE,
-      request,
-    );
-  }
-
-  /**
-   * Revoke the user's agent management mandate.
-   *
-   * @group Agent management
-   */
-  async revokeAgentMandate(
-    oauthClientId: string,
-  ): Promise<{ success: boolean }> {
-    await this.authenticateUser();
-    return this.httpClient.delete<{ success: boolean }>(
-      `${ENDPOINTS.USER_AGENT_MANDATE}?oauthClientId=${encodeURIComponent(oauthClientId)}`,
-    );
+    return this.httpClient.get(ENDPOINTS.USER_ASSET_TYPE_SETTINGS);
   }
 
   /**
@@ -4263,12 +4371,12 @@ export class ZyfaiSDK {
    *
    * @group Agent management
    */
-  async createAgentEnterIntent(
-    request: CreateAgentEnterIntentRequest,
-  ): Promise<{ data: AgentEnterIntent }> {
+  async createAgentDepositIntent(
+    request: CreateAgentDepositIntentRequest,
+  ): Promise<{ data: AgentDepositIntent }> {
     await this.authenticateUser();
-    return this.httpClient.post<{ data: AgentEnterIntent }>(
-      ENDPOINTS.USER_AGENT_ENTER_INTENTS,
+    return this.httpClient.post<{ data: AgentDepositIntent }>(
+      ENDPOINTS.USER_AGENT_DEPOSIT_INTENTS,
       request,
     );
   }
@@ -4278,14 +4386,131 @@ export class ZyfaiSDK {
    *
    * @group Agent management
    */
-  async consumeAgentEnterIntent(
+  async consumeAgentDepositIntent(
     actionId: string,
-    request: ConsumeAgentEnterIntentRequest,
-  ): Promise<void> {
+    request: ConsumeAgentDepositIntentRequest,
+  ): Promise<{ data: AgentDepositIntentStatus }> {
     await this.authenticateUser();
-    await this.httpClient.post<void>(
-      ENDPOINTS.USER_AGENT_ENTER_INTENT_CONSUME(actionId),
+    return this.httpClient.post<{ data: AgentDepositIntentStatus }>(
+      ENDPOINTS.USER_AGENT_DEPOSIT_INTENT_CONSUME(actionId),
       request,
+    );
+  }
+
+  /**
+   * Poll MCP deposit-intent status (agent delegated session).
+   *
+   * @group Agent management
+   */
+  async getAgentDepositIntentStatus(
+    actionId: string,
+  ): Promise<{ data: AgentDepositIntentStatus }> {
+    await this.authenticateUser();
+    return this.httpClient.get<{ data: AgentDepositIntentStatus }>(
+      ENDPOINTS.USER_AGENT_DEPOSIT_INTENT(actionId),
+    );
+  }
+
+  /**
+   * Poll MCP deposit-intent status until the signing page registers the transfer.
+   *
+   * @group Agent management
+   *
+   * @throws `AgentDepositIntentTimeoutError` when the intent stays pending past `timeoutMs`
+   * @throws When the intent expires before completion
+   */
+  async waitForAgentDepositIntent(
+    actionId: string,
+    options?: WaitForAgentDepositIntentOptions,
+  ): Promise<AgentDepositIntentStatus> {
+    if (!actionId) {
+      throw new Error("actionId is required");
+    }
+
+    const intervalMs =
+      options?.intervalMs ?? AGENT_DEPOSIT_INTENT_INTERVAL_MS;
+    const timeoutMs =
+      options?.timeoutMs ?? AGENT_DEPOSIT_INTENT_TIMEOUT_MS;
+    const started = Date.now();
+
+    while (Date.now() - started < timeoutMs) {
+      const { data } = await this.getAgentDepositIntentStatus(actionId);
+
+      if (data.status === "completed") {
+        return data;
+      }
+
+      if (data.status === "expired") {
+        throw new Error(`Agent deposit intent ${actionId} expired`);
+      }
+
+      if (Date.now() - started >= timeoutMs) {
+        break;
+      }
+
+      await sleep(intervalMs);
+    }
+
+    throw new AgentDepositIntentTimeoutError(actionId);
+  }
+
+  /**
+   * Wait for MCP signing completion, then optionally through custody credit.
+   *
+   * Pair with {@link ZyfaiSDK.prepareDeposit} and a browser `signingUrl` from
+   * `createAgentDepositIntent`. Start this poll as soon as the user has the link.
+   *
+   * @group Agent management
+   */
+  async waitForAgentDepositHandover(
+    actionId: string,
+    chainId: SupportedChainId,
+    options?: WaitForAgentDepositHandoverOptions,
+  ): Promise<{
+    intent: AgentDepositIntentStatus;
+    credited?: DepositLifecycleResponse;
+  }> {
+    const intent = await this.waitForAgentDepositIntent(actionId, options);
+
+    if (options?.waitForCredit === false || !intent.depositId) {
+      return { intent };
+    }
+
+    const credited = await this.waitForDepositCredit(
+      intent.depositId,
+      chainId,
+      options?.credit,
+    );
+    return { intent, credited };
+  }
+
+  /**
+   * Mark intent complete after the user signed on zyf.ai (SIWE session).
+   *
+   * @group Agent management
+   */
+  async completeAgentDepositIntent(
+    actionId: string,
+    request: CompleteAgentDepositIntentRequest,
+  ): Promise<{ data: AgentDepositIntentStatus }> {
+    await this.authenticateUser();
+    return this.httpClient.post<{ data: AgentDepositIntentStatus }>(
+      ENDPOINTS.USER_AGENT_DEPOSIT_INTENT_COMPLETE(actionId),
+      request,
+    );
+  }
+
+  /**
+   * Resolve a signing ticket from prepare_deposit (no user auth).
+   *
+   * @group Agent management
+   */
+  async resolveAgentDepositIntentTicket(
+    ticket: string,
+  ): Promise<{ data: ResolvedAgentDepositIntent }> {
+    const query = `?ticket=${encodeURIComponent(ticket)}`;
+    return this.httpClient.get<{ data: ResolvedAgentDepositIntent }>(
+      `${ENDPOINTS.AGENT_DEPOSIT_INTENT_RESOLVE}${query}`,
     );
   }
 

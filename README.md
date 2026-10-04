@@ -3,13 +3,13 @@
 [![npm version](https://img.shields.io/npm/v/@zyfai/sdk.svg)](https://www.npmjs.com/package/@zyfai/sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-TypeScript SDK for interacting with the Zyfai Yield Optimization Engine. This SDK provides easy-to-use methods for deploying Safe smart wallets, managing DeFi positions, and optimizing yield across multiple protocols.
+TypeScript SDK for integrating self-custodial Zyfai yield agents. Discover DeFi opportunities and manage deposits, withdrawals, positions, and strategies across Ethereum Mainnet, Base, and Arbitrum.
 
-You can generate an api key from here: https://sdk.zyf.ai/
+Get an API key from [sma.zyf.ai](https://sma.zyf.ai/). For chat-based integrations, use the hosted MCP endpoint at [`https://mcp.zyf.ai/mcp`](https://mcp.zyf.ai/mcp) (registry ID: `io.github.ondefy/zyfai`).
 
 ## Features
 
-- **Safe Smart Wallet Deployment**: Deploy Safe wallets with deterministic addresses
+- **First-Deposit Onboarding**: The first deposit assigns a pre-deployed Safe and active session to the user's EOA
 - **Flexible Authentication**: Support for private keys and modern wallet providers
 - **Multi-Chain Support**: Works on Ethereum Mainnet, Base, and Arbitrum
 - **Yield Optimization**: Access to multiple DeFi protocols and strategies
@@ -51,7 +51,7 @@ Merge a release PR into `release`; CI versions, runs `npm run check`, and publis
 
 1. **API Key**: Single API key for both Execution API (Safe deployment, transactions, session keys) and Data API (earnings, opportunities, analytics)
 
-**Get your API key from [Zyfai Dashboard](https://sdk.zyf.ai)**
+**Get your API key from [Zyfai Dashboard](https://sma.zyf.ai)**
 
 ## Quick Start
 
@@ -426,9 +426,9 @@ Transfer tokens to your Safe smart wallet. Token address is automatically select
 **Minimum portfolio balance (enforced on Safe balance + deposit amount):**
 
 - Ethereum Mainnet (1) / USDC or EURC: 10,000 units
-- Base (8453) and Arbitrum (42161) / USDC or EURC: 100 units
-- WETH: about **$10,000** of ETH on Ethereum Mainnet, **$100** on Base and Arbitrum
-- NVDAc: about **$100** on Base
+- Base (8453) and Arbitrum (42161) / USDC or EURC: 10 units
+- WETH: about **$10,000** of ETH on Ethereum Mainnet, **$10** on Base and Arbitrum
+- NVDAc: about **$10** on Base
 
 Minimums for WETH and NVDAc are quoted in dollars and converted at deposit time from the live USD price (Data API `GET /api/v2/price?token=eth` and `?token=nvdac`, same API key as the SDK), so the on-chain threshold moves with the market.
 
@@ -1131,9 +1131,9 @@ resolves to zero protocols for NVDAc and the agent has nothing to deploy into.
 Every NVDAc withdrawal is therefore a delayed one — read
 [Total balance](#total-balance) before showing a balance.
 
-**The minimum deposit is $100 of NVDAc, not 100 NVDAc.** It is converted from
+**The minimum deposit is $10 of NVDAc, not 10 NVDAc.** It is converted from
 the live price at deposit time, so the threshold in token units moves daily
-(around `0.44` NVDAc at $225/share).
+(around `0.044` NVDAc at $225/share).
 
 **Deposits pause when the market is closed**, typically over the weekend. Funds
 stay idle in the Safe and are deployed at the next open; other assets are
@@ -1145,7 +1145,7 @@ unaffected. `getPortfolio` returns ready-to-display copy in
 // Chains default to Base, the only one NVDAc exists on.
 await sdk.setAssetStrategy({ asset: "NVDAc", strategy: "yieldmaxxing" });
 
-// 1 NVDAc = 100000000 (8 decimals). Must leave at least ~$100 in the Safe.
+// 1 NVDAc = 100000000 (8 decimals). Must leave at least ~$10 in the Safe.
 const sentNvda = await sdk.sendDeposit(userAddress, 8453, "100000000", "NVDAc");
 await sdk.waitForDepositCredit(sentNvda.registration.id, 8453);
 ```
@@ -1555,7 +1555,7 @@ npx vitest src/integration/get-protocols.integration.test.ts --fileParallelism=f
 
 Tests call `describe.skipIf(!integrationEnvReady())` and skip cleanly when `.env.test` is missing or invalid.
 
-When the execution API is **local** or **staging** and `NODE_ENV` is not `production`, the SDK skips client-side minimum portfolio checks so small test deposits (e.g. 0.1 USDC) work without topping up 100 USDC on Base. Production (`api.zyf.ai`) always enforces real minimums.
+When the execution API is **local** or **staging** and `NODE_ENV` is not `production`, the SDK skips client-side minimum portfolio checks so small test deposits (e.g. 0.1 USDC) work without topping up 10 USDC on Base. Production (`api.zyf.ai`) always enforces real minimums.
 
 **Release smoke (`deposit-withdraw`)** on Base USDC: **local and staging only** — **0.1 USDC** round-trip (fund the test EOA on Base with ~0.1 USDC plus gas). Staging api must have **`SMOKE_AMOUNTS_ENABLED=true`** in its `.env` (see `zyfai-api/docs/deployment.md`). One withdraw per run. Production does not run fund-spending integration tests.
 
