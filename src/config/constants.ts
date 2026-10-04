@@ -96,6 +96,12 @@ export const getDepositCreditTimeoutMs = (
   chainId: SupportedChainId,
 ): number => DEPOSIT_CREDIT_TIMEOUT_MS[chainId];
 
+/** Poll interval for `waitForAgentDepositIntent` (ms). */
+export const AGENT_DEPOSIT_INTENT_INTERVAL_MS = 1_500;
+
+/** Default wait for user signing + registration (matches intent TTL on the API). */
+export const AGENT_DEPOSIT_INTENT_TIMEOUT_MS = 30 * 60 * 1_000;
+
 export const formatMinPortfolioLabel = (
   raw: bigint,
   decimals: number,

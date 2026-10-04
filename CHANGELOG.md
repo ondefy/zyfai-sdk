@@ -1,5 +1,13 @@
 # @zyfai/sdk
 
+## 0.5.0
+
+### Minor Changes
+
+- [#67](https://github.com/ondefy/zyfai-sdk/pull/67) [`2d3c22a`](https://github.com/ondefy/zyfai-sdk/commit/2d3c22af135b8d3e87d94d0bbe2654b46aa48042) Thanks [@joepegler](https://github.com/joepegler)! - Add `waitForAgentDepositIntent` and `waitForAgentDepositHandover` so MCP agents can poll signing completion and custody credit during browser deposit handoff.
+
+- [#67](https://github.com/ondefy/zyfai-sdk/pull/67) [`2d3c22a`](https://github.com/ondefy/zyfai-sdk/commit/2d3c22af135b8d3e87d94d0bbe2654b46aa48042) Thanks [@joepegler](https://github.com/joepegler)! - Add agent deposit intent helpers for MCP prepare/enter flows, rename enter-intent APIs to deposit intents, and align consume with deposit proof fields.
+
 ## 0.4.1
 
 ### Patch Changes
