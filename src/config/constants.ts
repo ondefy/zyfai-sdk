@@ -30,7 +30,7 @@ export type DailyApyHistoryPeriod = `${AllowedHistoryDays}D`;
  * a minimum is configured AND the resulting total would be below it.
  *
  * Current configuration:
- * - Mainnet USDC/EURC: 10,000 units; Base/Arbitrum USDC/EURC: 100 units
+ * - Mainnet USDC/EURC: 10,000 units; Base/Arbitrum USDC/EURC: 10 units
  * - WETH and NVDAc: quoted in USD, see `MIN_PORTFOLIO_USD`
  */
 export const MIN_PORTFOLIO_BALANCE: Partial<
@@ -41,12 +41,12 @@ export const MIN_PORTFOLIO_BALANCE: Partial<
     EURC: 10000n * 10n ** 6n, // 10,000 EURC (6 decimals)
   },
   8453: {
-    USDC: 100n * 10n ** 6n, // 100 USDC (6 decimals)
-    EURC: 100n * 10n ** 6n, // 100 EURC (6 decimals)
+    USDC: 10n * 10n ** 6n, // 10 USDC (6 decimals)
+    EURC: 10n * 10n ** 6n, // 10 EURC (6 decimals)
   },
   42161: {
-    USDC: 100n * 10n ** 6n, // 100 USDC (6 decimals)
-    EURC: 100n * 10n ** 6n, // 100 EURC (6 decimals)
+    USDC: 10n * 10n ** 6n, // 10 USDC (6 decimals)
+    EURC: 10n * 10n ** 6n, // 10 EURC (6 decimals)
   },
 };
 
@@ -61,8 +61,8 @@ export const MIN_PORTFOLIO_USD: Partial<
   Record<SupportedChainId, Record<string, bigint>>
 > = {
   1: { WETH: 10000n },
-  8453: { WETH: 100n, NVDAc: 100n },
-  42161: { WETH: 100n },
+  8453: { WETH: 10n, NVDAc: 10n },
+  42161: { WETH: 10n },
 };
 
 /**
