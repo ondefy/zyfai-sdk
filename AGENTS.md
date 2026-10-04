@@ -91,7 +91,7 @@ These `.agents/review/` policies are for automated CI and its JSON result only. 
    (mirror `examples/`); run `npm run test:integration` against local `zyfai-api`.
    Cross-repo flows: follow
    [`functional-feature-verification`](../.cursor/skills/functional-feature-verification/SKILL.md).
-4. PRs with user-facing changes need a changeset (`npm run changeset`); see [`docs/RELEASING.md`](docs/RELEASING.md).
+4. User-facing changes need a changeset on the **feature branch** as soon as work starts (add `.changeset/*.md` with the first implementation commit, not at merge time). Run `npm run changeset` or author the file by hand; see [`docs/RELEASING.md`](docs/RELEASING.md) and [`.changeset/README.md`](.changeset/README.md).
 5. Run `npm run check` before finishing.
 6. Public API comments: follow [`docs/TSDOC.md`](docs/TSDOC.md); run `npm run lint:tsdoc` on files you change.
 7. Durable lessons → `.cursor/learnings/` or `docs/engineering-history.md`.
