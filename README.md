@@ -3,13 +3,13 @@
 [![npm version](https://img.shields.io/npm/v/@zyfai/sdk.svg)](https://www.npmjs.com/package/@zyfai/sdk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-TypeScript SDK for interacting with the Zyfai Yield Optimization Engine. This SDK provides easy-to-use methods for deploying Safe smart wallets, managing DeFi positions, and optimizing yield across multiple protocols.
+TypeScript SDK for integrating self-custodial Zyfai yield agents. Discover DeFi opportunities and manage deposits, withdrawals, positions, and strategies across Ethereum Mainnet, Base, and Arbitrum.
 
-You can generate an api key from here: https://sdk.zyf.ai/
+Get an API key from [sma.zyf.ai](https://sma.zyf.ai/). For chat-based integrations, use the hosted MCP endpoint at [`https://mcp.zyf.ai/mcp`](https://mcp.zyf.ai/mcp) (registry ID: `io.github.ondefy/zyfai`).
 
 ## Features
 
-- **Safe Smart Wallet Deployment**: Deploy Safe wallets with deterministic addresses
+- **First-Deposit Onboarding**: The first deposit assigns a pre-deployed Safe and active session to the user's EOA
 - **Flexible Authentication**: Support for private keys and modern wallet providers
 - **Multi-Chain Support**: Works on Ethereum Mainnet, Base, and Arbitrum
 - **Yield Optimization**: Access to multiple DeFi protocols and strategies
@@ -51,7 +51,7 @@ After changesets merge to `main`, a maintainer runs `npm run version-packages`, 
 
 1. **API Key**: Single API key for both Execution API (Safe deployment, transactions, session keys) and Data API (earnings, opportunities, analytics)
 
-**Get your API key from [Zyfai Dashboard](https://sdk.zyf.ai)**
+**Get your API key from [Zyfai Dashboard](https://sma.zyf.ai)**
 
 ## Quick Start
 
