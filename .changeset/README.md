@@ -4,7 +4,9 @@ We use [Changesets](https://github.com/changesets/changesets) to manage versions
 
 ## When to add a changeset
 
-Add a changeset in any PR that changes **user-facing SDK behaviour** (public API, types consumers rely on, bug fixes, deprecations). Skip for docs-only, examples-only, or internal refactors with no release impact.
+Add a changeset on the **feature branch** when work begins on **user-facing SDK behaviour** (public API, types consumers rely on, bug fixes, deprecations). Commit `.changeset/*.md` with the first implementation change, not only at PR review. Skip for docs-only, examples-only, or internal refactors with no release impact.
+
+Agents (Cursor harness): if you touch `src/` API surface in `zyfai-sdk`, create or update a changeset in the same branch before finishing the task.
 
 ## How
 
