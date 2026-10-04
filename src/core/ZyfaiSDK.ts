@@ -28,6 +28,8 @@ import {
   formatMinPortfolioLabel,
   getDepositCreditIntervalMs,
   getDepositCreditTimeoutMs,
+  AGENT_DEPOSIT_INTENT_INTERVAL_MS,
+  AGENT_DEPOSIT_INTENT_TIMEOUT_MS,
   type DailyApyHistoryPeriod,
 } from "../config/constants";
 import { shouldBypassMinPortfolioCheck } from "../config/local-dev";
@@ -45,6 +47,8 @@ import type {
   LogDepositResponse,
   DepositLifecycleResponse,
   WaitForDepositCreditOptions,
+  WaitForAgentDepositIntentOptions,
+  WaitForAgentDepositHandoverOptions,
   WithdrawResponse,
   ProtocolsResponse,
   PortfolioResponse,
@@ -162,6 +166,14 @@ class DepositCreditTimeoutError extends Error {
   constructor(depositId: string) {
     super(`Timed out waiting for deposit ${depositId} to be credited`);
     this.name = "DepositCreditTimeoutError";
+  }
+}
+
+/** Thrown when {@link ZyfaiSDK.waitForAgentDepositIntent} exceeds its polling timeout. */
+class AgentDepositIntentTimeoutError extends Error {
+  constructor(actionId: string) {
+    super(`Timed out waiting for agent deposit intent ${actionId} to complete`);
+    this.name = "AgentDepositIntentTimeoutError";
   }
 }
 
@@ -4397,6 +4409,79 @@ export class ZyfaiSDK {
     return this.httpClient.get<{ data: AgentDepositIntentStatus }>(
       ENDPOINTS.USER_AGENT_DEPOSIT_INTENT(actionId),
     );
+  }
+
+  /**
+   * Poll MCP deposit-intent status until the signing page registers the transfer.
+   *
+   * @group Agent management
+   *
+   * @throws `AgentDepositIntentTimeoutError` when the intent stays pending past `timeoutMs`
+   * @throws When the intent expires before completion
+   */
+  async waitForAgentDepositIntent(
+    actionId: string,
+    options?: WaitForAgentDepositIntentOptions,
+  ): Promise<AgentDepositIntentStatus> {
+    if (!actionId) {
+      throw new Error("actionId is required");
+    }
+
+    const intervalMs =
+      options?.intervalMs ?? AGENT_DEPOSIT_INTENT_INTERVAL_MS;
+    const timeoutMs =
+      options?.timeoutMs ?? AGENT_DEPOSIT_INTENT_TIMEOUT_MS;
+    const started = Date.now();
+
+    while (Date.now() - started < timeoutMs) {
+      const { data } = await this.getAgentDepositIntentStatus(actionId);
+
+      if (data.status === "completed") {
+        return data;
+      }
+
+      if (data.status === "expired") {
+        throw new Error(`Agent deposit intent ${actionId} expired`);
+      }
+
+      if (Date.now() - started >= timeoutMs) {
+        break;
+      }
+
+      await sleep(intervalMs);
+    }
+
+    throw new AgentDepositIntentTimeoutError(actionId);
+  }
+
+  /**
+   * Wait for MCP signing completion, then optionally through custody credit.
+   *
+   * Pair with {@link ZyfaiSDK.prepareDeposit} and a browser `signingUrl` from
+   * `createAgentDepositIntent`. Start this poll as soon as the user has the link.
+   *
+   * @group Agent management
+   */
+  async waitForAgentDepositHandover(
+    actionId: string,
+    chainId: SupportedChainId,
+    options?: WaitForAgentDepositHandoverOptions,
+  ): Promise<{
+    intent: AgentDepositIntentStatus;
+    credited?: DepositLifecycleResponse;
+  }> {
+    const intent = await this.waitForAgentDepositIntent(actionId, options);
+
+    if (options?.waitForCredit === false || !intent.depositId) {
+      return { intent };
+    }
+
+    const credited = await this.waitForDepositCredit(
+      intent.depositId,
+      chainId,
+      options?.credit,
+    );
+    return { intent, credited };
   }
 
   /**

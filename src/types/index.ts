@@ -812,6 +812,20 @@ export interface WaitForDepositCreditOptions {
   timeoutMs?: number;
 }
 
+/** Polling overrides for {@link ZyfaiSDK.waitForAgentDepositIntent}. */
+export interface WaitForAgentDepositIntentOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+}
+
+/** Options for {@link ZyfaiSDK.waitForAgentDepositHandover}. */
+export interface WaitForAgentDepositHandoverOptions
+  extends WaitForAgentDepositIntentOptions {
+  /** When true (default), poll through custody credit after intent completes. */
+  waitForCredit?: boolean;
+  credit?: WaitForDepositCreditOptions;
+}
+
 /** Result of {@link ZyfaiSDK.withdrawFunds}. */
 export interface WithdrawResponse {
   success: boolean;
