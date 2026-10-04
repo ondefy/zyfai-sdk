@@ -1,5 +1,13 @@
 # @zyfai/sdk
 
+## 0.4.1
+
+### Patch Changes
+
+- [#62](https://github.com/ondefy/zyfai-sdk/pull/62) [`7415c5a`](https://github.com/ondefy/zyfai-sdk/commit/7415c5aa06808be9073edf34044a3a4e22b5a790) Thanks [@joepegler](https://github.com/joepegler)! - Align the npm package description and discovery keywords with Zyfai's current self-custodial yield-agent positioning and supported execution chains.
+
+- [#63](https://github.com/ondefy/zyfai-sdk/pull/63) [`8a8d831`](https://github.com/ondefy/zyfai-sdk/commit/8a8d831ddb5ef55bd0c0de28b0658f3ef56bb7d7) Thanks [@joepegler](https://github.com/joepegler)! - Lower L2 minimum portfolio balances to 10 USDC/EURC and $10 of WETH or NVDAc so small deposits pass client-side checks. Mainnet floors stay at 10,000 units and $10,000 of WETH.
+
 ## 0.4.0
 
 ### Minor Changes
