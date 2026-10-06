@@ -1,6 +1,12 @@
 # @zyfai/sdk
 
-## 0.7.0
+## 0.6.0
+
+### Patch Changes
+
+- Pre-validate managed assets and chains in `setStrategyWithProtocols` before any profile writes.
+
+- Split validation in setStrategyWithProtocols
 
 ### Minor Changes
 
