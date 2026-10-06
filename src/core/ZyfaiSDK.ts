@@ -127,6 +127,7 @@ import {
   ASSET_CONFIGS,
   type SupportedChainId,
 } from "../config/chains";
+import { getManagedAssets } from "../config/managed-assets";
 import {
   deploySafeAccount,
   getDeterministicSafeAddress,
@@ -176,13 +177,6 @@ class AgentDepositIntentTimeoutError extends Error {
     this.name = "AgentDepositIntentTimeoutError";
   }
 }
-
-/**
- * Assets the agent manages on a user's behalf. Pausing, resuming and the
- * post-deploy protocol assignment all walk this list, so an asset added here
- * is picked up by every one of them.
- */
-const MANAGED_ASSETS: SupportedAsset[] = ["USDC", "WETH", "EURC", "NVDAc"];
 
 /**
  * Client for Zyfai execution (`api.zyf.ai`) and intelligence (`defiapi.zyf.ai`) APIs.
@@ -607,7 +601,7 @@ export class ZyfaiSDK {
     try {
       let latest: UpdateUserProfileResponse | undefined;
 
-      for (const asset of MANAGED_ASSETS) {
+      for (const asset of getManagedAssets()) {
         latest = await this.updateUserProfile({ asset, protocols: [] });
       }
 
@@ -652,7 +646,7 @@ export class ZyfaiSDK {
 
       let latest: UpdateUserProfileResponse | undefined;
 
-      for (const asset of MANAGED_ASSETS) {
+      for (const asset of getManagedAssets()) {
         // No strategy argument: each asset keeps the one already stored on its
         // profile, which is the whole point of resuming.
         latest = await this.updateUserProtocolsForAsset(
@@ -1675,7 +1669,7 @@ export class ZyfaiSDK {
         ENDPOINTS.PROTOCOLS(),
       );
 
-      for (const asset of MANAGED_ASSETS) {
+      for (const asset of getManagedAssets()) {
         try {
           // Each asset is only patched on the chains it actually exists on
           // (EURC skips Arbitrum, NVDAc is Base-only).
@@ -1893,6 +1887,79 @@ export class ZyfaiSDK {
         `Failed to set ${asset} strategy: ${(error as Error).message}`,
       );
     }
+  }
+
+  /**
+   * Apply a strategy and auto-select matching protocols for one or all managed
+   * assets ({@link getManagedAssets}). Prefer this over
+   * {@link updateUserProfile} when changing strategy so protocols stay aligned
+   * with the tier (including `yieldmaxxing` async venues).
+   *
+   * @group Portfolio and execution
+   */
+  async setStrategyWithProtocols(params: {
+    strategy: Strategy;
+    asset?: SupportedAsset;
+    chains?: SupportedChainId[];
+  }): Promise<UpdateUserProfileResponse[]> {
+    const { strategy, asset, chains } = params;
+
+    if (!isValidPublicStrategy(strategy)) {
+      throw new Error(
+        `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+      );
+    }
+
+    const assets = asset ? [asset] : getManagedAssets();
+    if (assets.length === 0) {
+      throw new Error("No managed assets available to configure.");
+    }
+
+    const allProtocols = await this.httpClient.get<any[]>(
+      ENDPOINTS.PROTOCOLS(),
+    );
+
+    const results: UpdateUserProfileResponse[] = [];
+    const errors: string[] = [];
+
+    for (const targetAsset of assets) {
+      try {
+        const supported = getAssetChainIds(targetAsset);
+        if (supported.length === 0) {
+          throw new Error(`Unsupported asset: ${targetAsset}.`);
+        }
+
+        const targetChains = chains ?? supported;
+        const unsupported = targetChains.filter((c) => !supported.includes(c));
+        if (unsupported.length > 0) {
+          throw new Error(
+            `${targetAsset} is not available on chain ${unsupported.join(
+              ", ",
+            )}. Supported chains: ${supported.join(", ")}.`,
+          );
+        }
+
+        const profile = await this.updateUserProtocolsForAsset(
+          targetAsset,
+          targetChains,
+          strategy,
+          allProtocols,
+        );
+        results.push(profile);
+      } catch (error) {
+        errors.push(
+          `${targetAsset}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(
+        `Failed to set strategy with protocols: ${errors.join("; ")}`,
+      );
+    }
+
+    return results;
   }
 
   /**

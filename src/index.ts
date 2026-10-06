@@ -44,6 +44,8 @@ export {
   type ChainConfig,
 } from "./config/chains";
 
+export { getManagedAssets } from "./config/managed-assets";
+
 /** Shared constants (history windows, deposit polling defaults). */
 export {
   ALLOWED_HISTORY_DAYS,
