@@ -20,18 +20,18 @@ See also [`.changeset/README.md`](../.changeset/README.md).
 
 ## Publishing (maintainers)
 
-After merged changesets are on `main`:
+After merged changesets are on `release`:
 
 ```bash
-git checkout main
+git checkout release
 git pull
 npm ci
-npm run version-packages   # bumps package.json, updates CHANGELOG.md, consumes .changeset/*.md
+npm run version-packages   # changeset version: bumps package.json, updates CHANGELOG.md, consumes .changeset/*.md
 npm run check
-git add package.json CHANGELOG.md
+git add package.json CHANGELOG.md .changeset
 git commit -m "chore: release"
 npm publish
-git push origin main
+git push origin release
 ```
 
 Requirements:

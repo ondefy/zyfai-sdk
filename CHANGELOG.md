@@ -1,5 +1,11 @@
 # @zyfai/sdk
 
+## 0.7.0
+
+### Minor Changes
+
+- [#70](https://github.com/ondefy/zyfai-sdk/pull/70) [`445067a`](https://github.com/ondefy/zyfai-sdk/commit/445067aa423092794c8c9184a787856cc6587c1c) Thanks [@joepegler](https://github.com/joepegler)! - Add `getManagedAssets()` and `ZyfaiSDK.setStrategyWithProtocols()` for bulk strategy changes with auto-selected protocols.
+
 ## 0.5.0
 
 ### Minor Changes
