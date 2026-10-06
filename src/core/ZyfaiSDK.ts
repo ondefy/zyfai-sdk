@@ -1915,6 +1915,39 @@ export class ZyfaiSDK {
       throw new Error("No managed assets available to configure.");
     }
 
+    const plannedUpdates: {
+      targetAsset: SupportedAsset;
+      targetChains: SupportedChainId[];
+    }[] = [];
+    const validationErrors: string[] = [];
+
+    for (const targetAsset of assets) {
+      const supported = getAssetChainIds(targetAsset);
+      if (supported.length === 0) {
+        validationErrors.push(`${targetAsset}: Unsupported asset: ${targetAsset}.`);
+        continue;
+      }
+
+      const targetChains = chains ?? supported;
+      const unsupported = targetChains.filter((c) => !supported.includes(c));
+      if (unsupported.length > 0) {
+        validationErrors.push(
+          `${targetAsset}: ${targetAsset} is not available on chain ${unsupported.join(
+            ", ",
+          )}. Supported chains: ${supported.join(", ")}.`,
+        );
+        continue;
+      }
+
+      plannedUpdates.push({ targetAsset, targetChains });
+    }
+
+    if (validationErrors.length > 0) {
+      throw new Error(
+        `Failed to set strategy with protocols: ${validationErrors.join("; ")}`,
+      );
+    }
+
     const allProtocols = await this.httpClient.get<any[]>(
       ENDPOINTS.PROTOCOLS(),
     );
@@ -1922,23 +1955,8 @@ export class ZyfaiSDK {
     const results: UpdateUserProfileResponse[] = [];
     const errors: string[] = [];
 
-    for (const targetAsset of assets) {
+    for (const { targetAsset, targetChains } of plannedUpdates) {
       try {
-        const supported = getAssetChainIds(targetAsset);
-        if (supported.length === 0) {
-          throw new Error(`Unsupported asset: ${targetAsset}.`);
-        }
-
-        const targetChains = chains ?? supported;
-        const unsupported = targetChains.filter((c) => !supported.includes(c));
-        if (unsupported.length > 0) {
-          throw new Error(
-            `${targetAsset} is not available on chain ${unsupported.join(
-              ", ",
-            )}. Supported chains: ${supported.join(", ")}.`,
-          );
-        }
-
         const profile = await this.updateUserProtocolsForAsset(
           targetAsset,
           targetChains,
