@@ -90,6 +90,40 @@ export const ERC20_ABI = [
   },
 ] as const;
 
+/** Mainnet USDT `transfer` returns no data; viem simulation fails with a bool output. */
+export const ERC20_TRANSFER_LEGACY_ABI = [
+  {
+    name: "transfer",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+export const ERC20_TRANSFER_WITH_BOOL_ABI = [
+  {
+    name: "transfer",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
+
+/** ABI for `writeContract` / simulation of ERC-20 `transfer` by deposit asset. */
+export function erc20TransferWriteAbi(assetSymbol: string) {
+  return assetSymbol === "USDT"
+    ? ERC20_TRANSFER_LEGACY_ABI
+    : ERC20_TRANSFER_WITH_BOOL_ABI;
+}
+
 /**
  * Identity Registry ABI (ERC-8004)
  * Contract: 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432

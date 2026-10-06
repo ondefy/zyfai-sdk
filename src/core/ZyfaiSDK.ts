@@ -17,6 +17,7 @@ import {
 } from "../config/endpoints";
 import {
   ERC20_ABI,
+  erc20TransferWriteAbi,
   IDENTITY_REGISTRY_ABI,
   IDENTITY_REGISTRY_ADDRESS,
   VAULT_ABI,
@@ -2254,7 +2255,7 @@ export class ZyfaiSDK {
 
       const txHash = await walletClient.writeContract({
         address: token as Address,
-        abi: ERC20_ABI,
+        abi: erc20TransferWriteAbi(assetSymbol),
         functionName: "transfer",
         args: [safeAddress, amountBigInt],
         chain: chainConfig.chain,
