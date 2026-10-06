@@ -24,4 +24,4 @@ npm run changeset
 
 ## After merge
 
-Merge a release PR into `release`; GitHub Actions versions, runs `npm run check`, and publishes to npm (see [`.github/workflows/release.yml`](../.github/workflows/release.yml)). Full maintainer flow: [`docs/RELEASING.md`](../docs/RELEASING.md).
+Merge a release PR into `release`; GitHub Actions versions, runs `npm run check`, and publishes to npm (see [`.github/workflows/release.yml`](../.github/workflows/release.yml)). Publishing only runs on the `release` branch. Full maintainer flow (including `NPM_TOKEN` and workflow permissions): [`docs/RELEASING.md`](../docs/RELEASING.md).

@@ -34,15 +34,18 @@ Merge `release` back into `main` after a successful publish so version and chang
 
 ### GitHub setup
 
-Repository secret:
+Create these before the first automated release:
 
-| Secret | Purpose |
+| Item | Purpose |
 | --- | --- |
-| `NPM_TOKEN` | npm automation token with publish access to `@zyfai/sdk` (scoped to the `@zyfai` org/package) |
+| `NPM_TOKEN` (Actions secret) | npm automation token with publish access to `@zyfai/sdk` (scoped to the `@zyfai` org/package) |
+| Workflow permissions | **Settings → Actions → General → Workflow permissions**: allow **Read and write** for `GITHUB_TOKEN` so the release job can push the `chore: release` commit to `release` |
 
-Create under **Settings → Secrets and variables → Actions**. Use an [npm granular access token](https://docs.npmjs.com/creating-and-viewing-access-tokens) or classic automation token; do not commit it.
+Add `NPM_TOKEN` under **Settings → Secrets and variables → Actions**. Use an [npm granular access token](https://docs.npmjs.com/creating-and-viewing-access-tokens) or classic automation token; do not commit it.
 
-You can also trigger a release manually: **Actions → Release → Run workflow** (branch `release`).
+Manual release: **Actions → Release → Run workflow** and select branch **`release`**. The job only runs on `release`; runs started from other branches are skipped.
+
+The release workflow only publishes from `release` (push or manual dispatch on that branch).
 
 ### Manual fallback
 
