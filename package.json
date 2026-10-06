@@ -34,6 +34,7 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "prepublishOnly": "npm run build",
+    "prepare": "npm run build",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch",
     "docs:json": "typedoc --json docs/api.json",
