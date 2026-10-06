@@ -2144,7 +2144,9 @@ export class ZyfaiSDK {
       }
 
       if (!asset) {
-        throw new Error("Asset is required (USDC, WETH, or EURC)");
+        throw new Error(
+          "Asset is required (USDC, WETH, EURC, USDT, PYUSD, or NVDAc)",
+        );
       }
 
       if (strategy !== undefined && !isValidPublicStrategy(strategy)) {

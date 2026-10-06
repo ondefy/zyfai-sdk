@@ -33,7 +33,7 @@ export const ASSET_CONFIGS: Readonly<Record<string, any>> = {
     displayName: 'USDC',
     icon: '/ai-dashboard/usdc-token.png',
     decimals: 6,
-    tokenSymbols: ['USDC', 'USDC.e', 'USDT', 'USDT0'],
+    tokenSymbols: ['USDC', 'USDC.e', 'USDT0'],
     tokenSymbolsByChainId: {
       1: 'USDC',
       8453: 'USDC',
@@ -89,6 +89,36 @@ export const ASSET_CONFIGS: Readonly<Record<string, any>> = {
     addresses: {
       1: '0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c', // Ethereum
       8453: '0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42', // Base
+    },
+    enabled: true,
+  },
+  USDT: {
+    symbol: 'USDT',
+    assetType: 'usdt',
+    displayName: 'USDT',
+    icon: 'https://etherscan.io/token/images/tethernew_32.svg',
+    decimals: 6,
+    tokenSymbols: ['USDT'],
+    tokenSymbolsByChainId: {
+      1: 'USDT',
+    },
+    addresses: {
+      1: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+    },
+    enabled: true,
+  },
+  PYUSD: {
+    symbol: 'PYUSD',
+    assetType: 'pyusd',
+    displayName: 'PYUSD',
+    icon: 'https://etherscan.io/token/images/PYUSD_32.png',
+    decimals: 6,
+    tokenSymbols: ['PYUSD'],
+    tokenSymbolsByChainId: {
+      1: 'PYUSD',
+    },
+    addresses: {
+      1: '0x6c3ea9036406852006290770BEdFcAbA0e23A0e8',
     },
     enabled: true,
   },
