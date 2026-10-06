@@ -33,6 +33,7 @@
     "check": "npm run typecheck && npm run test:unit && npm run build",
     "changeset": "changeset",
     "version-packages": "changeset version",
+    "release": "npm run check && npm publish",
     "prepublishOnly": "npm run build",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch",
