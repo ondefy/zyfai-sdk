@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
 
 concurrency:
@@ -25,5 +23,5 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
       - run: npm run build
-      - if: github.event_name == 'pull_request'
+      - if: github.event_name == 'pull_request' && github.base_ref == 'main'
         run: bash .github/scripts/require-changeset.sh

@@ -16,6 +16,8 @@ npm run changeset
 
 Commit the generated file in `.changeset/` with your PR.
 
+CI runs `.github/scripts/require-changeset.sh` only on pull requests **targeting `main`**. Promotion PRs (`main` → `release`) skip that check after `version-packages` has consumed pending changesets.
+
 See also [`.changeset/README.md`](../.changeset/README.md).
 
 ## Publishing (maintainers)
