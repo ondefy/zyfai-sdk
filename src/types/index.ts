@@ -15,7 +15,13 @@ export type Hex = `0x${string}`;
 export type Strategy = "conservative" | "aggressive" | "yieldmaxxing";
 
 /** Public asset symbols supported by the SDK */
-export type SupportedAsset = "USDC" | "WETH" | "EURC" | "NVDAc";
+export type SupportedAsset =
+  | "USDC"
+  | "WETH"
+  | "EURC"
+  | "USDT"
+  | "PYUSD"
+  | "NVDAc";
 
 /** Optional per-chain RPC URLs for on-chain reads and writes. */
 export interface RpcUrlsConfig {

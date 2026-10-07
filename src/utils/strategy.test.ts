@@ -1,11 +1,30 @@
 import { describe, expect, it } from "vitest";
+import { getManagedAssets } from "../config/managed-assets";
 import {
+  convertAssetInternally,
   convertStrategyToPublic,
   isValidPublicStrategy,
   toInternalStrategy,
   toPublicStrategy,
   toPublicStrategyOrUndefined,
 } from "./strategy";
+
+describe("convertAssetInternally", () => {
+  it("maps every managed asset to its backend assetType key", () => {
+    expect(convertAssetInternally("USDC")).toBe("usdc");
+    expect(convertAssetInternally("WETH")).toBe("eth");
+    expect(convertAssetInternally("EURC")).toBe("eurc");
+    expect(convertAssetInternally("USDT")).toBe("usdt");
+    expect(convertAssetInternally("PYUSD")).toBe("pyusd");
+    expect(convertAssetInternally("NVDAc")).toBe("nvdac");
+  });
+
+  it("does not throw for any symbol returned by getManagedAssets", () => {
+    for (const asset of getManagedAssets()) {
+      expect(() => convertAssetInternally(asset)).not.toThrow();
+    }
+  });
+});
 
 describe("toInternalStrategy", () => {
   it("maps every public strategy to its backend value", () => {

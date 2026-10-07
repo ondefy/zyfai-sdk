@@ -1,3 +1,4 @@
+import { ASSET_CONFIGS } from "../config/chains";
 import { staleBalances, type SupportedAsset } from "../types";
 
 export type PublicStrategy = "conservative" | "aggressive" | "yieldmaxxing";
@@ -9,7 +10,10 @@ export type InternalStrategy =
 const PUBLIC_STRATEGIES = `"conservative", "aggressive" or "yieldmaxxing"`;
 
 /** Shared in error messages so the supported list is stated in one place. */
-export const SUPPORTED_ASSETS = `"USDC", "WETH", "EURC" or "NVDAc"`;
+export const SUPPORTED_ASSETS = Object.entries(ASSET_CONFIGS)
+  .filter(([, config]) => config?.enabled === true)
+  .map(([symbol]) => `"${symbol}"`)
+  .join(", ");
 
 export function toInternalStrategy(
   publicStrategy: PublicStrategy
@@ -121,23 +125,30 @@ export function removeUnusedFields(obj: any): any {
   return result;
 }
 
+export type InternalAssetType =
+  | "usdc"
+  | "eth"
+  | "eurc"
+  | "usdt"
+  | "pyusd"
+  | "nvdac";
+
 export function convertAssetInternally(
-  asset: SupportedAsset
-): "usdc" | "eth" | "eurc" | "nvdac" {
-  if (asset === "USDC") {
-    return "usdc";
-  }
-  if (asset === "WETH") {
-    return "eth";
-  }
-  if (asset === "EURC") {
-    return "eurc";
-  }
-  if (asset === "NVDAc") {
-    return "nvdac";
+  asset: SupportedAsset,
+): InternalAssetType {
+  const assetType = ASSET_CONFIGS[asset]?.assetType;
+  if (
+    assetType === "usdc" ||
+    assetType === "eth" ||
+    assetType === "eurc" ||
+    assetType === "usdt" ||
+    assetType === "pyusd" ||
+    assetType === "nvdac"
+  ) {
+    return assetType;
   }
   throw new Error(
-    `Invalid asset: ${asset}. Must be ${SUPPORTED_ASSETS}.`
+    `Invalid asset: ${asset}. Must be one of: ${SUPPORTED_ASSETS}.`,
   );
 }
 

@@ -24,4 +24,4 @@ npm run changeset
 
 ## After merge
 
-A maintainer runs `npm run version-packages` on `main`, then publishes manually with `npm publish`. See [`docs/RELEASING.md`](../docs/RELEASING.md).
+A maintainer runs `npm run version-packages` (`changeset version`) on `release`, then publishes manually with `npm publish`. See [`docs/RELEASING.md`](../docs/RELEASING.md).

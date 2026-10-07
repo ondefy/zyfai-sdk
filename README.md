@@ -45,7 +45,7 @@ Commit the generated file in `.changeset/` with your PR.
 
 ### Publishing (maintainers)
 
-After changesets merge to `main`, a maintainer runs `npm run version-packages`, then `npm publish`. Details: [`docs/RELEASING.md`](docs/RELEASING.md).
+After changesets merge to `release`, a maintainer runs `npm run version-packages` (`changeset version`), then `npm publish`. Details: [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## Prerequisites
 
@@ -472,10 +472,10 @@ if (credited.status === "credited") {
 - `depositFunds()` remains a compatibility wrapper that calls both steps and waits through the normal completion window; it **rejects** if credit is not confirmed in that window (track in-flight deposits with `getDepositStatus()` or call `waitForDepositCredit()` with a longer `timeoutMs`).
 - If first-deposit protocol patching fails, the transfer still runs. `sendDeposit()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
 - **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
-- **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"yieldmaxxing"` to an account that has already deposited leaves it on its current strategy. To change an existing account, call `updateUserProfile({ asset, strategy })` for each asset concerned:
+- **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"yieldmaxxing"` to an account that has already deposited leaves it on its current strategy. To change an existing account, use `setStrategyWithProtocols` or `setAssetStrategy` (not `updateUserProfile` alone):
 
   ```typescript
-  await sdk.updateUserProfile({ asset: "USDC", strategy: "yieldmaxxing" });
+  await sdk.setStrategyWithProtocols({ strategy: "yieldmaxxing" });
   ```
 
 #### Deposit With an External Wallet (Sponsored Transactions)
@@ -1098,9 +1098,15 @@ but the funds are in flight in between. See
 
 `updateUserProfile({ asset, strategy })` stores a strategy but does **not**
 compute the protocol list that goes with it, so on its own it leaves the asset
-with nothing to deploy into. `setAssetStrategy` does both in one call:
+with nothing to deploy into. `setAssetStrategy` does both in one call for one
+asset. `setStrategyWithProtocols` does the same for one asset or for every
+entry in `getManagedAssets()` when `asset` is omitted:
 
 ```typescript
+const profiles = await sdk.setStrategyWithProtocols({
+  strategy: "yieldmaxxing",
+});
+// Or a single asset:
 const profile = await sdk.setAssetStrategy({
   asset: "NVDAc",
   strategy: "yieldmaxxing",
