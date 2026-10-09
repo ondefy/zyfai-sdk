@@ -4,6 +4,7 @@
 
 import { HttpClient } from "../utils/http-client";
 import { sleep } from "../utils/poll";
+import { isWithdrawSettlementTerminal } from "../utils/withdraw-lifecycle-polling";
 import {
   parseTokenUsdPrice,
   usdToTokenUnits,
@@ -2860,6 +2861,8 @@ export class ZyfaiSDK {
 
   /**
    * Poll deposit status until funds are allocated to a protocol position, skipped, or failed.
+   * Crosschain deposits resolve once the bridge tx is recorded (`crosschain: true`, `executionTxHash` set);
+   * the destination-chain allocation is not tracked on this lifecycle.
    */
   async waitForDepositPosition(
     depositId: string,
@@ -2882,16 +2885,19 @@ export class ZyfaiSDK {
     while (Date.now() - started < timeoutMs) {
       const status = await this.getDepositStatus(depositId);
 
+      if (status.positionOutcome === "failed") {
+        throw new Error(
+          `Deposit ${depositId} position allocation failed (status=${status.status})`,
+        );
+      }
       if (status.status === "positioned") {
         return status;
       }
       if (status.positionOutcome === "skipped") {
         return status;
       }
-      if (status.positionOutcome === "failed") {
-        throw new Error(
-          `Deposit ${depositId} position allocation failed (status=${status.status})`,
-        );
+      if (status.crosschain && status.executionTxHash) {
+        return status;
       }
       if (status.status === "recovered_to_eoa") {
         throw new Error(
@@ -2918,7 +2924,7 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Short poll: completes when sync slice settles or async request enters cooldown.
+   * Short poll: completes when sync slice settles, async enters cooldown, or claim is already in flight (resume/retry).
    */
   async waitForWithdrawSettlement(
     withdrawalId: string,
@@ -2941,10 +2947,7 @@ export class ZyfaiSDK {
     while (Date.now() - started < timeoutMs) {
       const status = await this.getWithdrawStatus(withdrawalId);
 
-      if (status.status === "completed") {
-        return status;
-      }
-      if (status.status === "async_cooldown") {
+      if (isWithdrawSettlementTerminal(status.status)) {
         return status;
       }
       if (status.status === "failed") {

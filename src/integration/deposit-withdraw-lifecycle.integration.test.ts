@@ -67,7 +67,10 @@ describeIntegrationSuite(
       );
       const depositCreditMs = Date.now() - creditStart;
 
-      expect(credited.status).toBe("credited");
+      // Allocation can start right after credit, so the first credited poll may already be past "credited".
+      expect(["credited", "position_pending", "positioned"]).toContain(
+        credited.status,
+      );
       expect(credited.balanceCredited).toBe(true);
 
       const positionStart = Date.now();
@@ -105,13 +108,18 @@ describeIntegrationSuite(
       const withdrawSettlementMs = Date.now() - withdrawSettleStart;
 
       expect(
-        settled.status === "completed" || settled.status === "async_cooldown",
+        settled.status === "completed" ||
+          settled.status === "async_cooldown" ||
+          settled.status === "async_claiming",
       ).toBe(true);
 
       let withdrawTerminalStatus = settled.status;
       let withdrawCompleteMs = 0;
 
-      if (settled.status === "async_cooldown") {
+      if (
+        settled.status === "async_cooldown" ||
+        settled.status === "async_claiming"
+      ) {
         const completeStart = Date.now();
         const completed = await sdk.waitForWithdrawComplete(
           withdrawalId,
