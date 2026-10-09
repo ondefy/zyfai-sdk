@@ -33,6 +33,7 @@ import {
   getUserOpLifecycleTimeoutMs,
   ASYNC_WITHDRAW_COOLDOWN_POLL_INTERVAL_MS,
   ASYNC_WITHDRAW_CLAIM_GRACE_MS,
+  nextWithdrawCompleteDeadline,
   AGENT_DEPOSIT_INTENT_INTERVAL_MS,
   AGENT_DEPOSIT_INTENT_TIMEOUT_MS,
   type DailyApyHistoryPeriod,
@@ -2834,7 +2835,10 @@ export class ZyfaiSDK {
     while (Date.now() - started < timeoutMs) {
       const status = await this.getDepositStatus(depositId);
 
-      if (status.status === "credited" && status.balanceCredited) {
+      if (
+        status.balanceCredited &&
+        status.status !== "recovered_to_eoa"
+      ) {
         return status;
       }
 
@@ -2975,7 +2979,18 @@ export class ZyfaiSDK {
     const cooldownIntervalMs =
       options?.cooldownIntervalMs ?? ASYNC_WITHDRAW_COOLDOWN_POLL_INTERVAL_MS;
     const started = Date.now();
-    let timeoutMs = options?.timeoutMs;
+    const fallbackMs =
+      getUserOpLifecycleTimeoutMs(chainId) + ASYNC_WITHDRAW_CLAIM_GRACE_MS;
+    let deadlineMs = nextWithdrawCompleteDeadline(
+      started,
+      undefined,
+      undefined,
+      {
+        explicitTimeoutMs: options?.timeoutMs,
+        graceMs: ASYNC_WITHDRAW_CLAIM_GRACE_MS,
+        fallbackMs,
+      },
+    );
 
     while (true) {
       const status = await this.getWithdrawStatus(withdrawalId);
@@ -2989,19 +3004,17 @@ export class ZyfaiSDK {
         );
       }
 
-      if (!timeoutMs && status.estimatedClaimAt) {
-        const claimAt = Date.parse(status.estimatedClaimAt);
-        if (!Number.isNaN(claimAt)) {
-          timeoutMs = Math.max(
-            claimAt + ASYNC_WITHDRAW_CLAIM_GRACE_MS - Date.now(),
-            getUserOpLifecycleTimeoutMs(chainId),
-          );
-        }
-      }
-      if (!timeoutMs) {
-        timeoutMs = getUserOpLifecycleTimeoutMs(chainId) + ASYNC_WITHDRAW_CLAIM_GRACE_MS;
-      }
-      if (Date.now() - started >= timeoutMs) {
+      deadlineMs = nextWithdrawCompleteDeadline(
+        started,
+        deadlineMs,
+        status.estimatedClaimAt,
+        {
+          explicitTimeoutMs: options?.timeoutMs,
+          graceMs: ASYNC_WITHDRAW_CLAIM_GRACE_MS,
+          fallbackMs,
+        },
+      );
+      if (Date.now() >= deadlineMs) {
         break;
       }
 
