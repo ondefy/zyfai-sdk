@@ -98,6 +98,58 @@ export const getDepositCreditTimeoutMs = (
   chainId: SupportedChainId,
 ): number => DEPOSIT_CREDIT_TIMEOUT_MS[chainId];
 
+/** Poll interval for deposit position and short withdraw settlement (ms). */
+export const USER_OP_LIFECYCLE_INTERVAL_MS: Record<SupportedChainId, number> = {
+  1: 4_000,
+  8453: 1_000,
+  42161: 1_000,
+};
+
+/** Timeout for deposit position and short withdraw settlement (ms). */
+export const USER_OP_LIFECYCLE_TIMEOUT_MS: Record<SupportedChainId, number> = {
+  1: 180_000,
+  8453: 90_000,
+  42161: 90_000,
+};
+
+export const ASYNC_WITHDRAW_COOLDOWN_POLL_INTERVAL_MS = 60_000;
+
+export const ASYNC_WITHDRAW_CLAIM_GRACE_MS = 6 * 60 * 60 * 1_000;
+
+export const getUserOpLifecycleIntervalMs = (
+  chainId: SupportedChainId,
+): number => USER_OP_LIFECYCLE_INTERVAL_MS[chainId];
+
+export const getUserOpLifecycleTimeoutMs = (
+  chainId: SupportedChainId,
+): number => USER_OP_LIFECYCLE_TIMEOUT_MS[chainId];
+
+export type WithdrawCompleteDeadlineOptions = {
+  explicitTimeoutMs?: number;
+  graceMs: number;
+  fallbackMs: number;
+};
+
+/** Absolute poll deadline for long async withdraw completion (ms since epoch). */
+export function nextWithdrawCompleteDeadline(
+  startedAt: number,
+  previousDeadline: number | undefined,
+  estimatedClaimAt: string | null | undefined,
+  options: WithdrawCompleteDeadlineOptions,
+): number {
+  if (options.explicitTimeoutMs != null) {
+    return startedAt + options.explicitTimeoutMs;
+  }
+  let deadline = previousDeadline ?? startedAt + options.fallbackMs;
+  if (estimatedClaimAt) {
+    const claimAt = Date.parse(estimatedClaimAt);
+    if (!Number.isNaN(claimAt)) {
+      deadline = Math.max(deadline, claimAt + options.graceMs);
+    }
+  }
+  return deadline;
+}
+
 /** Poll interval for `waitForAgentDepositIntent` (ms). */
 export const AGENT_DEPOSIT_INTENT_INTERVAL_MS = 1_500;
 
