@@ -791,7 +791,15 @@ export interface DepositResponse {
 export type DepositLifecycleStatus =
   | "handover_pending"
   | "credited"
-  | "recovered_to_eoa";
+  | "recovered_to_eoa"
+  | "position_pending"
+  | "positioned";
+
+export type DepositPositionOutcome =
+  | "pending"
+  | "positioned"
+  | "skipped"
+  | "failed";
 
 /** Deposit registration and credit lifecycle (execution API). */
 export interface DepositLifecycleResponse {
@@ -802,6 +810,43 @@ export interface DepositLifecycleResponse {
   balanceCredited: boolean;
   /** Backend URL for status polling (informational). */
   statusUrl: string;
+  positionOutcome?: DepositPositionOutcome | null;
+  crosschain?: boolean;
+  executionTxHash?: string | null;
+}
+
+export type WithdrawLifecycleStatus =
+  | "accepted"
+  | "redeeming"
+  | "transferring"
+  | "async_requesting"
+  | "async_cooldown"
+  | "async_claiming"
+  | "completed"
+  | "failed";
+
+export interface WithdrawAsyncLeg {
+  id: string;
+  protocol: string;
+  pool: string;
+  status: string;
+  estimatedClaimAt?: string | null;
+  requestTxHash?: string | null;
+  claimTxHash?: string | null;
+}
+
+export interface WithdrawLifecycleResponse {
+  id: string;
+  status: WithdrawLifecycleStatus;
+  chainId: number;
+  tokenSymbol?: string | null;
+  syncSettled: boolean;
+  syncTxHash?: string | null;
+  asyncLegs: WithdrawAsyncLeg[];
+  failedAsyncIds: string[];
+  lastError?: string | null;
+  statusUrl: string;
+  estimatedClaimAt?: string | null;
 }
 
 export interface LogDepositResponse {
@@ -816,6 +861,25 @@ export interface WaitForDepositCreditOptions {
   intervalMs?: number;
   /** Maximum wait before throwing `DepositCreditTimeoutError`. */
   timeoutMs?: number;
+}
+
+/** Polling overrides for {@link ZyfaiSDK.waitForDepositPosition}. */
+export interface WaitForDepositPositionOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+}
+
+/** Polling overrides for {@link ZyfaiSDK.waitForWithdrawSettlement}. */
+export interface WaitForWithdrawSettlementOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+}
+
+/** Polling overrides for {@link ZyfaiSDK.waitForWithdrawComplete}. */
+export interface WaitForWithdrawCompleteOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+  cooldownIntervalMs?: number;
 }
 
 /** Polling overrides for {@link ZyfaiSDK.waitForAgentDepositIntent}. */
@@ -841,6 +905,8 @@ export interface WithdrawResponse {
   type: "full" | "partial";
   /** Withdrawn amount in least units (decimal string). */
   amount: string;
+  /** Lifecycle id for {@link ZyfaiSDK.getWithdrawStatus} / withdraw poll helpers. */
+  lifecycle?: WithdrawLifecycleResponse;
 }
 
 export interface AddWalletToSdkResponse {

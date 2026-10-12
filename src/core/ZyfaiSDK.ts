@@ -4,6 +4,7 @@
 
 import { HttpClient } from "../utils/http-client";
 import { sleep } from "../utils/poll";
+import { isWithdrawSettlementTerminal } from "../utils/withdraw-lifecycle-polling";
 import {
   parseTokenUsdPrice,
   usdToTokenUnits,
@@ -29,11 +30,17 @@ import {
   formatMinPortfolioLabel,
   getDepositCreditIntervalMs,
   getDepositCreditTimeoutMs,
+  getUserOpLifecycleIntervalMs,
+  getUserOpLifecycleTimeoutMs,
+  ASYNC_WITHDRAW_COOLDOWN_POLL_INTERVAL_MS,
+  ASYNC_WITHDRAW_CLAIM_GRACE_MS,
+  nextWithdrawCompleteDeadline,
   AGENT_DEPOSIT_INTENT_INTERVAL_MS,
   AGENT_DEPOSIT_INTENT_TIMEOUT_MS,
   type DailyApyHistoryPeriod,
 } from "../config/constants";
 import { shouldBypassMinPortfolioCheck } from "../config/local-dev";
+import { isMainnetMinPortfolioExempt } from "../config/min-portfolio-exempt";
 
 import type {
   SDKConfig,
@@ -48,6 +55,10 @@ import type {
   LogDepositResponse,
   DepositLifecycleResponse,
   WaitForDepositCreditOptions,
+  WaitForDepositPositionOptions,
+  WaitForWithdrawSettlementOptions,
+  WaitForWithdrawCompleteOptions,
+  WithdrawLifecycleResponse,
   WaitForAgentDepositIntentOptions,
   WaitForAgentDepositHandoverOptions,
   WithdrawResponse,
@@ -168,6 +179,31 @@ class DepositCreditTimeoutError extends Error {
   constructor(depositId: string) {
     super(`Timed out waiting for deposit ${depositId} to be credited`);
     this.name = "DepositCreditTimeoutError";
+  }
+}
+
+class DepositPositionTimeoutError extends Error {
+  constructor(depositId: string) {
+    super(`Timed out waiting for deposit ${depositId} to reach a position`);
+    this.name = "DepositPositionTimeoutError";
+  }
+}
+
+class WithdrawSettlementTimeoutError extends Error {
+  constructor(withdrawalId: string) {
+    super(
+      `Timed out waiting for withdraw lifecycle ${withdrawalId} to settle`,
+    );
+    this.name = "WithdrawSettlementTimeoutError";
+  }
+}
+
+class WithdrawCompleteTimeoutError extends Error {
+  constructor(withdrawalId: string) {
+    super(
+      `Timed out waiting for withdraw lifecycle ${withdrawalId} to complete`,
+    );
+    this.name = "WithdrawCompleteTimeoutError";
   }
 }
 
@@ -2168,10 +2204,13 @@ export class ZyfaiSDK {
         );
       }
 
-      let minRequired = this.bypassMinPortfolio
+      const skipMinPortfolio =
+        this.bypassMinPortfolio ||
+        isMainnetMinPortfolioExempt(chainId, userAddress);
+      let minRequired = skipMinPortfolio
         ? undefined
         : MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
-      const minUsd = this.bypassMinPortfolio
+      const minUsd = skipMinPortfolio
         ? undefined
         : MIN_PORTFOLIO_USD[chainId]?.[assetSymbol];
       const token = getDefaultTokenAddress(chainId, assetSymbol);
@@ -2233,6 +2272,12 @@ export class ZyfaiSDK {
 
       // Enforce minimum total portfolio balance only when a threshold is
       // configured for this (chainId, asset) pair. No config = no check.
+      if (
+        minRequired !== undefined &&
+        isMainnetMinPortfolioExempt(chainId, userAddress, safeAddress)
+      ) {
+        minRequired = undefined;
+      }
       if (minRequired !== undefined) {
         const safeBalance = currentSafeBalance!;
         const totalAfterDeposit = safeBalance + amountBigInt;
@@ -2392,6 +2437,7 @@ export class ZyfaiSDK {
       asset,
       amountBigInt,
       safeAddress,
+      userAddress,
     );
 
     const tokenAddress = getDefaultTokenAddress(
@@ -2417,8 +2463,12 @@ export class ZyfaiSDK {
     asset: SupportedAsset,
     amount: bigint,
     safeAddress: Address,
+    userAddress?: string,
   ): Promise<void> {
-    if (this.bypassMinPortfolio) {
+    if (
+      this.bypassMinPortfolio ||
+      isMainnetMinPortfolioExempt(chainId, userAddress, safeAddress)
+    ) {
       return;
     }
 
@@ -2801,7 +2851,10 @@ export class ZyfaiSDK {
     while (Date.now() - started < timeoutMs) {
       const status = await this.getDepositStatus(depositId);
 
-      if (status.status === "credited" && status.balanceCredited) {
+      if (
+        status.balanceCredited &&
+        status.status !== "recovered_to_eoa"
+      ) {
         return status;
       }
 
@@ -2819,6 +2872,178 @@ export class ZyfaiSDK {
     }
 
     throw new DepositCreditTimeoutError(depositId);
+  }
+
+  /**
+   * Poll deposit status until funds are allocated to a protocol position, skipped, or failed.
+   * Crosschain deposits resolve once the bridge tx is recorded (`crosschain: true`, `executionTxHash` set);
+   * the destination-chain allocation is not tracked on this lifecycle.
+   */
+  async waitForDepositPosition(
+    depositId: string,
+    chainId: SupportedChainId,
+    options?: WaitForDepositPositionOptions,
+  ): Promise<DepositLifecycleResponse> {
+    if (!depositId) {
+      throw new Error("Deposit ID is required");
+    }
+    if (!isSupportedChain(chainId)) {
+      throw new Error(`Unsupported chain ID: ${chainId}`);
+    }
+
+    const intervalMs =
+      options?.intervalMs ?? getUserOpLifecycleIntervalMs(chainId);
+    const timeoutMs =
+      options?.timeoutMs ?? getUserOpLifecycleTimeoutMs(chainId);
+    const started = Date.now();
+
+    while (Date.now() - started < timeoutMs) {
+      const status = await this.getDepositStatus(depositId);
+
+      if (status.positionOutcome === "failed") {
+        throw new Error(
+          `Deposit ${depositId} position allocation failed (status=${status.status})`,
+        );
+      }
+      if (status.status === "positioned") {
+        return status;
+      }
+      if (status.positionOutcome === "skipped") {
+        return status;
+      }
+      if (status.crosschain && status.executionTxHash) {
+        return status;
+      }
+      if (status.status === "recovered_to_eoa") {
+        throw new Error(
+          `Deposit ${depositId} recovered to EOA; position was not opened`,
+        );
+      }
+
+      await sleep(intervalMs);
+    }
+
+    throw new DepositPositionTimeoutError(depositId);
+  }
+
+  async getWithdrawStatus(
+    withdrawalId: string,
+  ): Promise<WithdrawLifecycleResponse> {
+    if (!withdrawalId) {
+      throw new Error("Withdrawal lifecycle ID is required");
+    }
+    await this.authenticateUser();
+    return this.httpClient.get<WithdrawLifecycleResponse>(
+      ENDPOINTS.WITHDRAW_STATUS(withdrawalId),
+    );
+  }
+
+  /**
+   * Short poll: completes when sync slice settles, async enters cooldown, or claim is already in flight (resume/retry).
+   */
+  async waitForWithdrawSettlement(
+    withdrawalId: string,
+    chainId: SupportedChainId,
+    options?: WaitForWithdrawSettlementOptions,
+  ): Promise<WithdrawLifecycleResponse> {
+    if (!withdrawalId) {
+      throw new Error("Withdrawal lifecycle ID is required");
+    }
+    if (!isSupportedChain(chainId)) {
+      throw new Error(`Unsupported chain ID: ${chainId}`);
+    }
+
+    const intervalMs =
+      options?.intervalMs ?? getUserOpLifecycleIntervalMs(chainId);
+    const timeoutMs =
+      options?.timeoutMs ?? getUserOpLifecycleTimeoutMs(chainId);
+    const started = Date.now();
+
+    while (Date.now() - started < timeoutMs) {
+      const status = await this.getWithdrawStatus(withdrawalId);
+
+      if (isWithdrawSettlementTerminal(status.status)) {
+        return status;
+      }
+      if (status.status === "failed") {
+        throw new Error(
+          `Withdraw ${withdrawalId} failed: ${status.lastError ?? "unknown"}`,
+        );
+      }
+
+      await sleep(intervalMs);
+    }
+
+    throw new WithdrawSettlementTimeoutError(withdrawalId);
+  }
+
+  /**
+   * Long poll through async cooldown and claim until lifecycle is completed.
+   */
+  async waitForWithdrawComplete(
+    withdrawalId: string,
+    chainId: SupportedChainId,
+    options?: WaitForWithdrawCompleteOptions,
+  ): Promise<WithdrawLifecycleResponse> {
+    if (!withdrawalId) {
+      throw new Error("Withdrawal lifecycle ID is required");
+    }
+    if (!isSupportedChain(chainId)) {
+      throw new Error(`Unsupported chain ID: ${chainId}`);
+    }
+
+    const fastIntervalMs =
+      options?.intervalMs ?? getUserOpLifecycleIntervalMs(chainId);
+    const cooldownIntervalMs =
+      options?.cooldownIntervalMs ?? ASYNC_WITHDRAW_COOLDOWN_POLL_INTERVAL_MS;
+    const started = Date.now();
+    const fallbackMs =
+      getUserOpLifecycleTimeoutMs(chainId) + ASYNC_WITHDRAW_CLAIM_GRACE_MS;
+    let deadlineMs = nextWithdrawCompleteDeadline(
+      started,
+      undefined,
+      undefined,
+      {
+        explicitTimeoutMs: options?.timeoutMs,
+        graceMs: ASYNC_WITHDRAW_CLAIM_GRACE_MS,
+        fallbackMs,
+      },
+    );
+
+    while (true) {
+      const status = await this.getWithdrawStatus(withdrawalId);
+
+      if (status.status === "completed") {
+        return status;
+      }
+      if (status.status === "failed") {
+        throw new Error(
+          `Withdraw ${withdrawalId} failed: ${status.lastError ?? "unknown"}`,
+        );
+      }
+
+      deadlineMs = nextWithdrawCompleteDeadline(
+        started,
+        deadlineMs,
+        status.estimatedClaimAt,
+        {
+          explicitTimeoutMs: options?.timeoutMs,
+          graceMs: ASYNC_WITHDRAW_CLAIM_GRACE_MS,
+          fallbackMs,
+        },
+      );
+      if (Date.now() >= deadlineMs) {
+        break;
+      }
+
+      const intervalMs =
+        status.status === "async_cooldown"
+          ? cooldownIntervalMs
+          : fastIntervalMs;
+      await sleep(intervalMs);
+    }
+
+    throw new WithdrawCompleteTimeoutError(withdrawalId);
   }
 
   /**
@@ -2927,6 +3152,8 @@ export class ZyfaiSDK {
         message?: string;
         txHash?: string;
         transactionHash?: string;
+        id?: string;
+        statusUrl?: string;
       };
 
       let response: WithdrawApiResponse = {};
@@ -2943,12 +3170,25 @@ export class ZyfaiSDK {
         response = await this.httpClient.get(ENDPOINTS.USER_WITHDRAW, {
           params: { chainId, tokenSymbol },
         });
-        console.log(JSON.stringify(response, null, 2));
       }
 
       const success = response?.success ?? true;
       const message = response?.message || "Withdrawal request sent";
       const txHash = response?.txHash || response?.transactionHash;
+      const lifecycleId = response?.id;
+      const lifecycle =
+        lifecycleId && response?.statusUrl
+          ? {
+              id: lifecycleId,
+              status: "accepted" as const,
+              chainId,
+              tokenSymbol: tokenSymbol ?? null,
+              syncSettled: false,
+              asyncLegs: [],
+              failedAsyncIds: [],
+              statusUrl: response.statusUrl,
+            }
+          : undefined;
 
       return {
         success,
@@ -2956,6 +3196,7 @@ export class ZyfaiSDK {
         txHash,
         type: amount ? "partial" : "full",
         amount: amount || "all",
+        lifecycle,
       };
     } catch (error) {
       throw new Error(`Withdrawal failed: ${(error as Error).message}`);
