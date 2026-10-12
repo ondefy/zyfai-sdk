@@ -1793,6 +1793,7 @@ export class ZyfaiSDK {
       withPools,
       strategy,
       mandateChainId,
+      existingChains,
     );
   }
 
@@ -1806,6 +1807,7 @@ export class ZyfaiSDK {
     withPools: string[],
     strategy?: Strategy,
     agentDepositChainId?: SupportedChainId,
+    existingChains: number[] = [],
   ): Promise<UpdateUserProfileResponse> {
     const internalAsset = convertAssetInternally(asset);
     const assetSettings: Record<string, unknown> = {
@@ -1816,14 +1818,25 @@ export class ZyfaiSDK {
       assetSettings.rebalanceStrategy = toInternalStrategy(strategy);
     }
 
+    const configureProfile = () =>
+      this.updateUserProfile({
+        asset,
+        protocols: withPools,
+        chains: effectiveChains,
+        ...(strategy !== undefined && { strategy }),
+      });
+
     if (this.sessionChannel === "agent") {
-      // Agent channel uses deposit-setup (deposit scope) for first-chain defaults
-      // instead of configure-scoped PATCH /users/me.
       const chainId =
         agentDepositChainId ??
         effectiveChains[effectiveChains.length - 1] ??
         effectiveChains[0];
-      await this.httpClient.post<{ data: { applied: boolean } }>(
+
+      if (existingChains.includes(chainId)) {
+        return await configureProfile();
+      }
+
+      const setupResult = await this.httpClient.post<{ applied: boolean }>(
         ENDPOINTS.AGENT_DEPOSIT_SETUP,
         {
           asset,
@@ -1834,15 +1847,15 @@ export class ZyfaiSDK {
           },
         },
       );
+      if (!setupResult.applied) {
+        throw new Error(
+          `Agent deposit setup did not apply for ${asset} on chain ${chainId}.`,
+        );
+      }
       return await this.getUserDetails(asset);
     }
 
-    return await this.updateUserProfile({
-      asset,
-      protocols: withPools,
-      chains: effectiveChains,
-      ...(strategy !== undefined && { strategy }),
-    });
+    return await configureProfile();
   }
 
   /**
