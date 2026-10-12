@@ -1,5 +1,13 @@
 # @zyfai/sdk
 
+## 0.10.0
+
+### Minor Changes
+
+- [#74](https://github.com/ondefy/zyfai-sdk/pull/74) [`d4891e1`](https://github.com/ondefy/zyfai-sdk/commit/d4891e1c89b8fe03622ffda3e8366f35ce958e4c) Thanks [@joepegler](https://github.com/joepegler)! - Add deposit position and withdraw lifecycle polling helpers (`waitForDepositPosition`, `getWithdrawStatus`, `waitForWithdrawSettlement`, `waitForWithdrawComplete`) with chain-specific intervals. Treat `async_claiming` as a terminal short-poll state so resume/retry does not spuriously time out.
+
+- [#75](https://github.com/ondefy/zyfai-sdk/pull/75) [`0dadf89`](https://github.com/ondefy/zyfai-sdk/commit/0dadf8912031193224a8eccf4360ad33fbdf099a) Thanks [@PaulDeFi](https://github.com/PaulDeFi)! - Waive the Ethereum mainnet minimum portfolio balance for one POC wallet (EOA `0x2db791F63C8b12BDe9A3fe31aFA8ad491F47d60F` and Safe `0xAe72CB0F7d604a8FF742D96031104506186638E3`). `prepareDeposit` and `sendDeposit` still enforce the 10,000 unit and $10,000 floors for every other address.
+
 ## 0.8.0
 
 ### Minor Changes
