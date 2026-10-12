@@ -40,6 +40,7 @@ import {
   type DailyApyHistoryPeriod,
 } from "../config/constants";
 import { shouldBypassMinPortfolioCheck } from "../config/local-dev";
+import { isMainnetMinPortfolioExempt } from "../config/min-portfolio-exempt";
 
 import type {
   SDKConfig,
@@ -2203,10 +2204,13 @@ export class ZyfaiSDK {
         );
       }
 
-      let minRequired = this.bypassMinPortfolio
+      const skipMinPortfolio =
+        this.bypassMinPortfolio ||
+        isMainnetMinPortfolioExempt(chainId, userAddress);
+      let minRequired = skipMinPortfolio
         ? undefined
         : MIN_PORTFOLIO_BALANCE[chainId]?.[assetSymbol];
-      const minUsd = this.bypassMinPortfolio
+      const minUsd = skipMinPortfolio
         ? undefined
         : MIN_PORTFOLIO_USD[chainId]?.[assetSymbol];
       const token = getDefaultTokenAddress(chainId, assetSymbol);
@@ -2268,6 +2272,12 @@ export class ZyfaiSDK {
 
       // Enforce minimum total portfolio balance only when a threshold is
       // configured for this (chainId, asset) pair. No config = no check.
+      if (
+        minRequired !== undefined &&
+        isMainnetMinPortfolioExempt(chainId, userAddress, safeAddress)
+      ) {
+        minRequired = undefined;
+      }
       if (minRequired !== undefined) {
         const safeBalance = currentSafeBalance!;
         const totalAfterDeposit = safeBalance + amountBigInt;
@@ -2427,6 +2437,7 @@ export class ZyfaiSDK {
       asset,
       amountBigInt,
       safeAddress,
+      userAddress,
     );
 
     const tokenAddress = getDefaultTokenAddress(
@@ -2452,8 +2463,12 @@ export class ZyfaiSDK {
     asset: SupportedAsset,
     amount: bigint,
     safeAddress: Address,
+    userAddress?: string,
   ): Promise<void> {
-    if (this.bypassMinPortfolio) {
+    if (
+      this.bypassMinPortfolio ||
+      isMainnetMinPortfolioExempt(chainId, userAddress, safeAddress)
+    ) {
       return;
     }
 
