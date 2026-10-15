@@ -185,8 +185,10 @@ describe("ZyfaiSDK user session", () => {
       });
 
       let chains: number[] = [];
+      let protocols: string[] = [];
       mockHttpClient.patch.mockImplementation(async () => {
         chains = [8453];
+        protocols = ["protocol-1"];
       });
       mockHttpClient.get.mockImplementation(async (url: string) => {
         if (url === ENDPOINTS.USER_ME) {
@@ -195,7 +197,7 @@ describe("ZyfaiSDK user session", () => {
             smartWallet: POOL_SAFE,
             predeployed: true,
             assetTypeSettings: {
-              usdc: { chains },
+              usdc: { chains, protocols },
             },
           };
         }
@@ -207,6 +209,11 @@ describe("ZyfaiSDK user session", () => {
               chains: [8453],
             },
           ];
+        }
+        if (url.includes("/customization/pools")) {
+          return {
+            "8453": { USDC: { pools: [{ id: "pool-1" }] } },
+          };
         }
         if (url.includes("/data/by-eoa")) {
           return { agent: POOL_SAFE, chains: [8453] };
