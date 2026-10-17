@@ -105,6 +105,9 @@ import type {
   CustomizeBatchResponse,
   GetPoolsResponse,
   GetSelectedPoolsResponse,
+  AssetTypeSettingsRow,
+  SetManualAllocationRequest,
+  ResumeOpportunityRebalanceRequest,
   SimulateBestPositionsParams,
   SimulateBestPositionsResponse,
   ZyfaiEventHandlers,
@@ -4690,9 +4693,54 @@ export class ZyfaiSDK {
    *
    * @group Agent management
    */
-  async getAssetTypeSettings(): Promise<unknown> {
+  async getAssetTypeSettings(): Promise<AssetTypeSettingsRow[]> {
     await this.authenticateUser();
     return this.httpClient.get(ENDPOINTS.USER_ASSET_TYPE_SETTINGS);
+  }
+
+  /**
+   * Point one asset at chosen vaults and percentages, per chain, and turn
+   * opportunity rebalancing off for that asset's whole balance.
+   *
+   * Percentages are basis points and sum to 10000 on each chain. A suspended
+   * vault stays idle until the next save. There is no amount field: the switch
+   * covers the asset.
+   *
+   * @group Agent management
+   *
+   * @remarks Execution API. Requires {@link ZyfaiSDK.connectAccount} (SIWE).
+   */
+  async setManualAllocation(
+    request: SetManualAllocationRequest,
+  ): Promise<{ success: true }> {
+    await this.authenticateUser();
+    const targets = request.targets.map((target) => ({
+      chainId: target.chainId,
+      protocolId: target.protocolId,
+      pool: target.pool,
+      weightBps: target.weightBps,
+    }));
+    assertManualAllocationTargets(targets);
+    return this.httpClient.post(ENDPOINTS.USER_MANUAL_ALLOCATION, {
+      assetType: request.assetType,
+      targets,
+    });
+  }
+
+  /**
+   * Turn opportunity rebalancing back on for one asset and drop its manual targets.
+   *
+   * @group Agent management
+   *
+   * @remarks Execution API. Requires {@link ZyfaiSDK.connectAccount} (SIWE).
+   */
+  async resumeOpportunityRebalance(
+    request: ResumeOpportunityRebalanceRequest,
+  ): Promise<{ success: true }> {
+    await this.authenticateUser();
+    return this.httpClient.post(ENDPOINTS.USER_MANUAL_ALLOCATION_RESUME, {
+      assetType: request.assetType,
+    });
   }
 
   /**
@@ -5652,5 +5700,33 @@ export class ZyfaiSDK {
       closed = true;
       ws?.close();
     };
+  }
+}
+
+const MANUAL_ALLOCATION_CHAIN_IDS = [1, 8453, 42161];
+
+function assertManualAllocationTargets(
+  targets: { chainId: number; weightBps: number }[],
+): void {
+  if (targets.length === 0) {
+    throw new Error("at least one target is required");
+  }
+  const byChain = new Map<number, number>();
+  for (const target of targets) {
+    if (!MANUAL_ALLOCATION_CHAIN_IDS.includes(target.chainId)) {
+      throw new Error(`chain ${target.chainId} is not an execution chain`);
+    }
+    if (!Number.isInteger(target.weightBps) || target.weightBps <= 0) {
+      throw new Error("weightBps must be a positive integer");
+    }
+    byChain.set(
+      target.chainId,
+      (byChain.get(target.chainId) ?? 0) + target.weightBps,
+    );
+  }
+  for (const [chainId, sum] of byChain) {
+    if (sum !== 10_000) {
+      throw new Error(`chain ${chainId} weights sum to ${sum}`);
+    }
   }
 }
