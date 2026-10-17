@@ -265,4 +265,80 @@ describe("ZyfaiSDK user session", () => {
       );
     });
   });
+
+  describe("setManualAllocation", () => {
+    beforeEach(() => {
+      mockHttpClient.hasAuthToken.mockReturnValue(true);
+    });
+
+    it("posts weights per chain and drops an amount field", async () => {
+      mockHttpClient.post.mockResolvedValue({ success: true });
+      const sdk = ZyfaiSDK.forUser("test-api-key", {
+        accessToken: "jwt-abc",
+        userId: "user-1",
+      });
+      const targets = [
+        {
+          chainId: 8453,
+          protocolId: "11111111-1111-4111-8111-111111111111",
+          pool: "vault",
+          weightBps: 10000,
+        },
+      ];
+
+      await sdk.setManualAllocation({
+        assetType: "usdc",
+        amount: "1",
+        targets,
+      } as never);
+
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        ENDPOINTS.USER_MANUAL_ALLOCATION,
+        { assetType: "usdc", targets },
+      );
+    });
+
+    it("rejects weights that do not sum to 10000", async () => {
+      const sdk = ZyfaiSDK.forUser("test-api-key", {
+        accessToken: "jwt-abc",
+        userId: "user-1",
+      });
+
+      await expect(
+        sdk.setManualAllocation({
+          assetType: "usdc",
+          targets: [
+            {
+              chainId: 8453,
+              protocolId: "11111111-1111-4111-8111-111111111111",
+              pool: "vault",
+              weightBps: 5000,
+            },
+          ],
+        }),
+      ).rejects.toThrow(/weights sum to 5000/);
+      expect(mockHttpClient.post).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("resumeOpportunityRebalance", () => {
+    beforeEach(() => {
+      mockHttpClient.hasAuthToken.mockReturnValue(true);
+    });
+
+    it("posts the asset type only", async () => {
+      mockHttpClient.post.mockResolvedValue({ success: true });
+      const sdk = ZyfaiSDK.forUser("test-api-key", {
+        accessToken: "jwt-abc",
+        userId: "user-1",
+      });
+
+      await sdk.resumeOpportunityRebalance({ assetType: "usdc" });
+
+      expect(mockHttpClient.post).toHaveBeenCalledWith(
+        ENDPOINTS.USER_MANUAL_ALLOCATION_RESUME,
+        { assetType: "usdc" },
+      );
+    });
+  });
 });

@@ -412,6 +412,46 @@ export interface AssetTypeSettings {
   };
 }
 
+export type ManualAllocationSuspendedReason = "depeg" | "not_live";
+
+export interface ManualAllocationTarget {
+  chainId: number;
+  protocolId: string;
+  pool: string;
+  weightBps: number;
+}
+
+export interface ManualAllocationTargetView extends ManualAllocationTarget {
+  protocol: string;
+  suspendedReason?: ManualAllocationSuspendedReason | null;
+}
+
+/** One row from `GET /users/asset-type-settings`. */
+export interface AssetTypeSettingsRow {
+  id?: string;
+  assetType: string;
+  rebalanceStrategy?: string | null;
+  autocompounding?: boolean | null;
+  crosschainStrategy?: boolean | null;
+  splitting?: boolean | null;
+  minSplits?: number | null;
+  chains?: number[] | null;
+  autoSelectProtocols?: boolean | null;
+  opportunityRebalanceEnabled?: boolean;
+  targets?: ManualAllocationTargetView[];
+  unconfiguredChains?: number[];
+  protocols?: unknown[];
+}
+
+export interface SetManualAllocationRequest {
+  assetType: string;
+  targets: ManualAllocationTarget[];
+}
+
+export interface ResumeOpportunityRebalanceRequest {
+  assetType: string;
+}
+
 export interface PositionSlot {
   chain?: string;
   protocol_id?: string;
