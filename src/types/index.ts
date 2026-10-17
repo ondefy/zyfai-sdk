@@ -2,6 +2,8 @@
  * Public TypeScript types for `@zyfai/sdk` request/response shapes and events.
  */
 
+import type { SupportedChainId } from "../config/chains";
+
 /** Checksummed Ethereum address. */
 export type Address = `0x${string}`;
 /** Hex-encoded byte string (e.g. signatures, calldata). */
@@ -776,10 +778,108 @@ export interface DepositResponse {
   /** Deposited amount in least units (decimal string). */
   amount: string;
   /**
+   * How the collateral reached the Safe.
+   * `direct` transfers the collateral itself. `swap` converts another token
+   * through Relay. `wrap` turns same-chain native ETH into WETH, then transfers it.
+   */
+  route?: "direct" | "swap" | "wrap";
+  /** Relay funding order id when `route` is `swap`. */
+  orderId?: string;
+  /**
    * Deposit lifecycle record. After `sendDeposit`, status is usually
    * `handover_pending` until {@link ZyfaiSDK.waitForDepositCredit} completes.
    */
   registration: DepositLifecycleResponse;
+}
+
+/**
+ * Spend a token that is not already the destination collateral.
+ * The execution API quotes Relay; the connected wallet signs the steps.
+ */
+export interface SwapDepositParams {
+  /** Funding wallet EOA. */
+  userAddress: string;
+  /** Chain the spent token is on. May differ from the deposit chain. */
+  originChainId: number;
+  /** Spent token contract. The zero address is native ETH. */
+  originCurrency: string;
+  /** Spend amount in the origin token's least units. */
+  originAmount: string;
+  /** Chain the collateral should arrive on. */
+  destinationChainId: SupportedChainId;
+  /**
+   * Collateral Relay should deliver (`USDC`, `WETH`, `EURC`, `cbBTC`, …).
+   * The server resolves the contract.
+   */
+  destinationAsset: string;
+  /** Optional first-deposit {@link Strategy}. */
+  strategy?: Strategy;
+  /**
+   * Existing review quote to sign. Origin chain, origin token, destination
+   * chain, and destination asset must match that order. Omit to create a new
+   * funding order.
+   */
+  orderId?: string;
+}
+
+/** Review quote for a Relay swap deposit. The wallet has not signed yet. */
+export interface SwapDepositQuote {
+  orderId: string;
+  status: string;
+  spend: string;
+  expectedOutput: string;
+  minimumOutput: string;
+  destinationChainId: number;
+  destinationCurrency: string;
+  destinationAsset: string;
+  fees: { name?: string; amount?: string; amountUsd?: string }[];
+  investEligible: boolean;
+  expiresAt: string | null;
+  timeEstimate?: number | null;
+}
+
+/** Stored Relay funding order, including any linked deposit lifecycle. */
+export interface SwapDepositOrder {
+  id: string;
+  status: string;
+  depositId: string | null;
+  sourceTxHashes: string[];
+  destinationTxHashes: string[];
+  /** Chain the spent token is on. */
+  originChainId: number;
+  /** Spent token contract stored with the order. */
+  originCurrency: string;
+  destinationChainId: number;
+  destinationCurrency: string;
+  destinationAsset: string;
+  minimumOutput: string | null;
+  providerStatus?: string | null;
+  lastError?: string | null;
+}
+
+/**
+ * `sendDeposit` input. Omit `spendToken` to transfer `asset` on `chainId`.
+ * Set `spendToken` when the wallet holds a different token or chain.
+ */
+export interface SendDepositParams {
+  userAddress: string;
+  /** Chain the collateral should arrive on. */
+  chainId: SupportedChainId;
+  /** Collateral that should land in the Safe. */
+  asset: string;
+  /**
+   * Least units of the token being spent.
+   * For a direct deposit this is the collateral amount.
+   */
+  amount: string;
+  strategy?: Strategy;
+  /**
+   * Token the wallet spends. A collateral symbol or its contract on `chainId`
+   * stays a direct deposit. Anything else is swapped into `asset`.
+   */
+  spendToken?: string;
+  /** Chain the spend token is on. Defaults to `chainId`. */
+  spendChainId?: number;
 }
 
 /**
