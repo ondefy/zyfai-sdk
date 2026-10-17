@@ -91,6 +91,17 @@ export const ERC20_ABI = [
 ] as const;
 
 /** Mainnet USDT `transfer` returns no data; viem simulation fails with a bool output. */
+/** WETH `deposit()` — wrap native ETH in the funding wallet. */
+export const WETH_DEPOSIT_ABI = [
+  {
+    name: "deposit",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [],
+    outputs: [],
+  },
+] as const;
+
 export const ERC20_TRANSFER_LEGACY_ABI = [
   {
     name: "transfer",

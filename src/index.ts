@@ -9,7 +9,8 @@
  * Integration checklist:
  * 1. Construct {@link ZyfaiSDK} with your partner API key.
  * 2. {@link ZyfaiSDK.connectAccount} (SIWE) for user-scoped execution calls.
- * 3. {@link ZyfaiSDK.sendDeposit} then {@link ZyfaiSDK.waitForDepositCredit} for funding.
+ * 3. {@link ZyfaiSDK.sendDeposit} then {@link ZyfaiSDK.waitForDepositPosition} for funding.
+ *    A collateral the wallet already holds is transferred. Any other token is swapped in.
  *
  * Pass the user's **EOA** as `userAddress` on execution methods, never the Safe.
  * Deposit amounts use **least units** (USDC/EURC: 6 decimals, WETH: 18).
@@ -45,6 +46,13 @@ export {
 } from "./config/chains";
 
 export { getManagedAssets } from "./config/managed-assets";
+
+/** Direct transfer, same-chain ETH wrap, or Relay swap. */
+export {
+  resolveDepositRoute,
+  type DepositRoute,
+  type DepositRouteInput,
+} from "./deposits/deposit-route";
 
 /** Shared constants (history windows, deposit polling defaults). */
 export {
@@ -92,6 +100,10 @@ export type {
   ProtocolsResponse,
   PortfolioResponse,
   DepositResponse,
+  SendDepositParams,
+  SwapDepositParams,
+  SwapDepositQuote,
+  SwapDepositOrder,
   LogDepositResponse,
   DepositLifecycleResponse,
   DepositLifecycleStatus,

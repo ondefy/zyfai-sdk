@@ -484,4 +484,127 @@ export function logIntegrationEvidence(
   console.log(`[integration] ${suiteId} links\n${linkLines}`);
 }
 
+const RELAY_NATIVE_CURRENCY = "0x0000000000000000000000000000000000000000";
+
+export type RelayQuoteDestination = {
+  destinationAsset: string;
+  destinationChainId: number;
+};
+
+export type RelayFundingBalanceToken = {
+  chainId: number;
+  symbol: string;
+  contractAddress: string | null;
+  balance: { raw: string; decimals: number };
+};
+
+export type RelayQuoteSpend = {
+  originChainId: number;
+  originCurrency: string;
+  originAmount: string;
+  symbol: string;
+  destinationAsset: string;
+  destinationChainId: number;
+};
+
+/**
+ * Session client after `connectAccount`.
+ * Relay funding routes are dashboard calls, not public SDK methods.
+ * This reuses the SIWE session and does not read the bearer token.
+ */
+export function integrationExecutionClient(sdk: object): {
+  get<T>(
+    url: string,
+    config?: { params?: Record<string, string>; timeout?: number },
+  ): Promise<T>;
+  post<T>(
+    url: string,
+    data?: unknown,
+    config?: { timeout?: number },
+  ): Promise<T>;
+} {
+  const client = (
+    sdk as {
+      httpClient?: {
+        hasAuthToken?: () => boolean;
+        get<T>(
+          url: string,
+          config?: { params?: Record<string, string>; timeout?: number },
+        ): Promise<T>;
+        post<T>(
+          url: string,
+          data?: unknown,
+          config?: { timeout?: number },
+        ): Promise<T>;
+      };
+    }
+  ).httpClient;
+  if (!client?.hasAuthToken?.()) {
+    throw new Error(
+      "connectAccount() did not establish a user session for execution API calls",
+    );
+  }
+  return client;
+}
+
+function cappedRelayOriginAmount(raw: string, decimals: number): string | null {
+  let balance: bigint;
+  try {
+    balance = BigInt(raw);
+  } catch {
+    return null;
+  }
+  if (balance <= 0n || decimals < 0 || decimals > 36) {
+    return null;
+  }
+  const unit = 10n ** BigInt(decimals);
+  const target =
+    decimals <= 6 ? unit : decimals <= 8 ? unit / 100_000n : unit / 1_000n;
+  if (target <= 0n || balance < target) {
+    return null;
+  }
+  return target.toString();
+}
+
+/**
+ * Pick a Zerion position that is not already the buy asset on the deposit chain.
+ * Prefers USDC. Spend is capped at 1 stable, 0.00001 of an 8-decimal asset, or 0.001 of an 18-decimal asset.
+ */
+export function selectRelayQuoteSpend(
+  tokens: readonly RelayFundingBalanceToken[],
+  destinations: readonly RelayQuoteDestination[],
+): RelayQuoteSpend | null {
+  const ranked = [...tokens].sort((a, b) => {
+    const rank = (symbol: string) => (symbol.toUpperCase() === "USDC" ? 0 : 1);
+    return rank(a.symbol) - rank(b.symbol);
+  });
+
+  for (const destination of destinations) {
+    for (const token of ranked) {
+      const sameAsset =
+        token.symbol.toUpperCase() ===
+        destination.destinationAsset.toUpperCase();
+      if (sameAsset && token.chainId === destination.destinationChainId) {
+        continue;
+      }
+      const originAmount = cappedRelayOriginAmount(
+        token.balance.raw,
+        token.balance.decimals,
+      );
+      if (!originAmount) {
+        continue;
+      }
+      return {
+        originChainId: token.chainId,
+        originCurrency: token.contractAddress ?? RELAY_NATIVE_CURRENCY,
+        originAmount,
+        symbol: token.symbol,
+        destinationAsset: destination.destinationAsset,
+        destinationChainId: destination.destinationChainId,
+      };
+    }
+  }
+  return null;
+}
+
 export { pollUntil } from "../utils/poll";
