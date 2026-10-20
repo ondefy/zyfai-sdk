@@ -654,6 +654,31 @@ const redeeming = (portfolio.pendingAsyncWithdrawals ?? []).some(
 );
 ```
 
+### Claim rZFI Rewards
+
+rZFI accrues to the user's Safe on Base and is claimed by the owner EOA. The
+claim is gas-sponsored and the SDK never signs: you sign one hash in your own
+pipeline.
+
+```typescript
+// 1. Prepare (throws if there is nothing to claim)
+const prepared = await sdk.prepareRzfiClaim(userAddress);
+// prepared.claimableAmount (wei), prepared.userOpHashToSign
+
+// 2. Sign the raw 32-byte hash with the owner EOA (personal_sign)
+const signature = await walletClient.signMessage({
+  account: userAddress,
+  message: { raw: prepared.userOpHashToSign! },
+});
+
+// 3. Submit within 5 minutes
+const { txHash } = await sdk.submitRzfiClaim(userAddress, signature);
+```
+
+`prepared.userOperation` is the full userOp behind the hash if you want to
+verify it before signing. A retryable error means the Merkl reward tree is
+being updated on-chain; call `prepareRzfiClaim` again in a few minutes.
+
 ### 6. Get Available Protocols
 
 Retrieve all available DeFi protocols and pools for a specific chain:
@@ -1184,6 +1209,17 @@ nothing to deploy into. See [Set an asset's strategy](#set-an-assets-strategy).
 const apyPerStrategy = await sdk.getAPYPerStrategy(false, 7, "conservative", 8453, "USDC");
 console.log("APY per strategy:", apyPerStrategy.data);
 // Each item includes average_apy_withFee and average_apy_with_rzfi_withFee
+```
+
+### Base Merkl Campaign APR
+
+Current APR of Zyfai's Merkl incentive campaigns on Base (paid on top of
+strategy yield). APR is a decimal: `0.011` = 1.1%.
+
+```typescript
+const campaigns = await sdk.getBaseMerklCampaigns();
+// [{ id: "base/rzfi", name, apr, tvlUsd, activeWallets, rewardToken,
+//    totalRewards, dailyRewardAmount, startDate, endDate, isActive }, ...]
 ```
 
 ### 12. SDK API Key Management
