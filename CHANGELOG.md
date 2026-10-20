@@ -1,5 +1,31 @@
 # @zyfai/sdk
 
+## 0.11.1
+
+### Patch Changes
+
+- [#81](https://github.com/ondefy/zyfai-sdk/pull/81) [`b4caaac`](https://github.com/ondefy/zyfai-sdk/commit/b4caaaca12446e7c222f4495b48c9d8b3646b359) Thanks [@joepegler](https://github.com/joepegler)! - Accept optional slippageBps on swap deposits. The default stays 200 basis points, with a maximum of 500, and the value is fixed when the funding order is created.
+
+## 0.11.0
+
+### Minor Changes
+
+- [#81](https://github.com/ondefy/zyfai-sdk/pull/81) [`3174262`](https://github.com/ondefy/zyfai-sdk/commit/3174262be97868161fc9251dc490755a9a7e7a3a) Thanks [@joepegler](https://github.com/joepegler)! - Add sendDirectDeposit and sendSwapDeposit. sendDeposit still transfers a collateral the wallet already holds, and swaps any other spend token into that collateral through Relay.
+
+### Patch Changes
+
+- [#81](https://github.com/ondefy/zyfai-sdk/pull/81) [`3174262`](https://github.com/ondefy/zyfai-sdk/commit/3174262be97868161fc9251dc490755a9a7e7a3a) Thanks [@joepegler](https://github.com/joepegler)! - sendSwapDeposit rejects a reused orderId when the caller origin or destination does not match the stored funding order.
+
+- [#81](https://github.com/ondefy/zyfai-sdk/pull/81) [`3174262`](https://github.com/ondefy/zyfai-sdk/commit/3174262be97868161fc9251dc490755a9a7e7a3a) Thanks [@joepegler](https://github.com/joepegler)! - Use the refreshed Relay quote's destination minimum for the portfolio floor when a funding order has no stored minimum.
+
+## 0.10.0
+
+### Minor Changes
+
+- [#74](https://github.com/ondefy/zyfai-sdk/pull/74) [`d4891e1`](https://github.com/ondefy/zyfai-sdk/commit/d4891e1c89b8fe03622ffda3e8366f35ce958e4c) Thanks [@joepegler](https://github.com/joepegler)! - Add deposit position and withdraw lifecycle polling helpers (`waitForDepositPosition`, `getWithdrawStatus`, `waitForWithdrawSettlement`, `waitForWithdrawComplete`) with chain-specific intervals. Treat `async_claiming` as a terminal short-poll state so resume/retry does not spuriously time out.
+
+- [#75](https://github.com/ondefy/zyfai-sdk/pull/75) [`0dadf89`](https://github.com/ondefy/zyfai-sdk/commit/0dadf8912031193224a8eccf4360ad33fbdf099a) Thanks [@PaulDeFi](https://github.com/PaulDeFi)! - Waive the Ethereum mainnet minimum portfolio balance for one POC wallet (EOA `0x2db791F63C8b12BDe9A3fe31aFA8ad491F47d60F` and Safe `0xAe72CB0F7d604a8FF742D96031104506186638E3`). `prepareDeposit` and `sendDeposit` still enforce the 10,000 unit and $10,000 floors for every other address.
+
 ## 0.8.0
 
 ### Minor Changes

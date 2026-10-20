@@ -97,10 +97,19 @@ export const ENDPOINTS = {
   USER_AGENT_DEPOSIT_INTENT_COMPLETE: (actionId: string) =>
     `/users/me/agent-deposit-intents/${encodeURIComponent(actionId)}/complete`,
   AGENT_DEPOSIT_INTENT_RESOLVE: "/agent-deposit-intents/resolve",
-  USER_WITHDRAW: "/users/withdraw",
-  PARTIAL_WITHDRAW: "/users/partial-withdraw",
+  USER_WITHDRAW: "/users/withdraw/v2",
+  PARTIAL_WITHDRAW: "/users/partial-withdraw/v2",
   LOG_DEPOSIT: "/users/log_deposit/v2",
-  DEPOSIT_STATUS: (depositId: string) => `/users/deposits/${depositId}`,
+  FUNDING_ORDERS: "/users/me/funding-orders",
+  FUNDING_ORDER: (orderId: string) =>
+    `/users/me/funding-orders/${encodeURIComponent(orderId)}`,
+  FUNDING_ORDER_QUOTE: (orderId: string) =>
+    `/users/me/funding-orders/${encodeURIComponent(orderId)}/quote`,
+  FUNDING_ORDER_EXECUTION: (orderId: string) =>
+    `/users/me/funding-orders/${encodeURIComponent(orderId)}/execution`,
+  DEPOSIT_STATUS: (depositId: string) => `/users/deposits/${depositId}/v2`,
+  WITHDRAW_STATUS: (withdrawalId: string) =>
+    `/users/withdrawals/${withdrawalId}`,
 
   // Safe Deployment (single endpoint)
   SAFE_DEPLOY: "/users/safe-deploy",

@@ -421,12 +421,13 @@ Transfer tokens to your Safe smart wallet. Token address is automatically select
 
 - **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC (default) or WETH
 - **Ethereum Mainnet (1), Base (8453)**: EURC (6 decimals; not available on Arbitrum)
+- **Ethereum Mainnet (1) only**: USDT and PYUSD (6 decimals)
 - **Base (8453) only**: NVDAc (8 decimals) — tokenized NVIDIA equity, see [Tokenized equities](#tokenized-equities-nvdac)
 
 **Minimum portfolio balance (enforced on Safe balance + deposit amount):**
 
-- Ethereum Mainnet (1) / USDC or EURC: 10,000 units
-- Base (8453) and Arbitrum (42161) / USDC or EURC: 10 units
+- Ethereum Mainnet (1) / USDC, EURC, USDT, or PYUSD: 10,000 units
+- Base (8453) and Arbitrum (42161) / USDC or EURC: 10 units (EURC is not on Arbitrum)
 - WETH: about **$10,000** of ETH on Ethereum Mainnet, **$10** on Base and Arbitrum
 - NVDAc: about **$10** on Base
 
@@ -465,13 +466,27 @@ if (credited.status === "credited") {
 **Note:**
 
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
-- `asset` is required (`"USDC"`, `"WETH"`, `"EURC"`, or `"NVDAc"` — EURC on Mainnet/Base only, NVDAc on Base only); token address is selected from that for the chain. Depositing an asset on a chain where it does not exist throws before any transfer.
+- `asset` is required (`"USDC"`, `"WETH"`, `"EURC"`, `"USDT"`, `"PYUSD"`, or `"NVDAc"` — EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base); token address is selected from that for the chain. Depositing an asset on a chain where it does not exist throws before any transfer.
 - The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
 - Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `sendDeposit()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
-- `sendDeposit()` confirms the ERC-20 transaction and registers its lifecycle, then returns its ID. Call `waitForDepositCredit()` only when the UI needs to wait for custody credit; otherwise track it later with `getDepositStatus()`.
+- `sendDeposit(userAddress, chainId, amount, asset)` still transfers that collateral when the wallet already holds it. Pass an object with `spendToken` when the wallet holds a different token or the same token on another chain: the execution API quotes Relay, the wallet signs, and the Safe receives `asset`. Same-chain ETH into WETH wraps in the wallet (`spendToken: "ETH"`). `sendDirectDeposit` and `sendSwapDeposit` are the two steps `sendDeposit` chooses between. Optional `slippageBps` on a swap defaults to 200 (max 500) and is fixed when the funding order is created. Omit it to use the server default. A later `sendSwapDeposit({ orderId })` ignores a new `slippageBps` and signs the stored order.
+
+  ```typescript
+  const swapped = await sdk.sendDeposit({
+    userAddress,
+    chainId: 8453,
+    asset: "WETH",
+    amount: "10000000",
+    spendToken: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    spendChainId: 42161,
+    slippageBps: 200,
+  });
+  ```
+
+- `sendDeposit()` confirms the transfer (or the Relay fill) and registers its lifecycle, then returns its ID. Call `waitForDepositPosition()` when the UI should wait until allocation finishes. `waitForDepositCredit()` is the shorter wait for credited balance only.
 - `depositFunds()` remains a compatibility wrapper that calls both steps and waits through the normal completion window; it **rejects** if credit is not confirmed in that window (track in-flight deposits with `getDepositStatus()` or call `waitForDepositCredit()` with a longer `timeoutMs`).
 - If first-deposit protocol patching fails, the transfer still runs. `sendDeposit()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
-- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
+- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, USDT, PYUSD, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|usdt|pyusd|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 - **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"yieldmaxxing"` to an account that has already deposited leaves it on its current strategy. To change an existing account, use `setStrategyWithProtocols` or `setAssetStrategy` (not `updateUserProfile` alone):
 
   ```typescript
@@ -843,7 +858,7 @@ console.log("Active protocols:", userDetails.user.protocols.length); // Should b
 
 **Note**:
 - User must be authenticated (automatically done via `connectAccount()`)
-- Clears protocols for USDC, WETH, EURC, and NVDAc
+- Clears protocols for USDC, WETH, EURC, USDT, PYUSD, and NVDAc
 - To resume operations, call `resumeAgent()` or `updateUserProfile()` with the desired protocols
 
 #### Splitting Management
@@ -1298,11 +1313,18 @@ main();
 
 ### Example 2: Browser Integration with React
 
+Demo only. Constructing the SDK in the page ships the API key in the bundle, so it is public. A native app binary can be unpacked the same way. In production, keep the key on your backend and proxy calls to Zyfai. The user still signs SIWE on the device.
+
+The key alone cannot move funds: deposits and withdrawals need that user's SIWE session and their signature. It can call the data APIs on your quota, list the wallets onboarded under the key (and their TVL), and register extra wallets onto the key.
+
+CORS applies only when a **browser** calls Zyfai directly. Send us the page origin to whitelist. An iOS or Android app, and a server-side proxy, do not send a browser `Origin` and do not need one.
+
 ```typescript
 import { ZyfaiSDK } from "@zyfai/sdk";
 import { useState } from "react";
 
 function SafeDeployment() {
+  // Demo only — this value ends up in the client bundle.
   const [sdk] = useState(() => new ZyfaiSDK(process.env.ZYFAI_API_KEY!));
 
   const [userAddress, setUserAddress] = useState<string>("");
@@ -1401,8 +1423,8 @@ try {
 
 ## Best Practices
 
-1. **Store API Keys Securely**: Never commit API keys to version control
-2. **Use Environment Variables**: Store keys in `.env` files
+1. **Store API Keys Securely**: Never commit API keys to version control. Do not ship the key in a frontend bundle or a mobile binary; proxy from your backend. See the note on the React example above.
+2. **Use Environment Variables**: Store keys in `.env` files on the server, not in a `NEXT_PUBLIC_` / client env var
 3. **Check Deployment Status**: Always check if Safe is already deployed before deploying
 4. **Handle Errors Gracefully**: Implement proper error handling for all SDK methods
 5. **Validate Chain IDs**: Ensure you're using supported chains (Ethereum Mainnet, Base, Arbitrum)
@@ -1461,7 +1483,7 @@ If `withdrawFunds` returns without a `txHash`, the withdrawal is being processed
 
 ### Data API CORS Errors
 
-Some Data API endpoints may require server-side CORS configuration. If you see CORS errors for endpoints like `onchain-earnings`, `calculate-onchain-earnings`, or `opportunities`, contact Zyfai support to ensure your origin is whitelisted.
+CORS is enforced by the browser. A native app or a server-side proxy does not need an origin on the whitelist, and the proxy's own URL is not one. If a web page calls `api.zyf.ai` or `defiapi.zyf.ai` directly and you see CORS errors (for example on `onchain-earnings`, `calculate-onchain-earnings`, or `opportunities`), contact Zyfai support with the **page** origin, such as `https://app.example.com`.
 
 ## Integration testing
 
