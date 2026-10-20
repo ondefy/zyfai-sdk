@@ -1831,6 +1831,7 @@ export class ZyfaiSDK {
       withPools,
       strategy,
       mandateChainId,
+      existingChains,
     );
   }
 
@@ -1844,6 +1845,7 @@ export class ZyfaiSDK {
     withPools: string[],
     strategy?: Strategy,
     agentDepositChainId?: SupportedChainId,
+    existingChains: number[] = [],
   ): Promise<UpdateUserProfileResponse> {
     const internalAsset = convertAssetInternally(asset);
     const assetSettings: Record<string, unknown> = {
@@ -1854,14 +1856,25 @@ export class ZyfaiSDK {
       assetSettings.rebalanceStrategy = toInternalStrategy(strategy);
     }
 
+    const configureProfile = () =>
+      this.updateUserProfile({
+        asset,
+        protocols: withPools,
+        chains: effectiveChains,
+        ...(strategy !== undefined && { strategy }),
+      });
+
     if (this.sessionChannel === "agent") {
-      // Agent channel uses deposit-setup (deposit scope) for first-chain defaults
-      // instead of configure-scoped PATCH /users/me.
       const chainId =
         agentDepositChainId ??
         effectiveChains[effectiveChains.length - 1] ??
         effectiveChains[0];
-      await this.httpClient.post<{ data: { applied: boolean } }>(
+
+      if (existingChains.includes(chainId)) {
+        return await configureProfile();
+      }
+
+      const setupResult = await this.httpClient.post<{ applied: boolean }>(
         ENDPOINTS.AGENT_DEPOSIT_SETUP,
         {
           asset,
@@ -1872,15 +1885,15 @@ export class ZyfaiSDK {
           },
         },
       );
+      if (!setupResult.applied) {
+        throw new Error(
+          `Agent deposit setup did not apply for ${asset} on chain ${chainId}.`,
+        );
+      }
       return await this.getUserDetails(asset);
     }
 
-    return await this.updateUserProfile({
-      asset,
-      protocols: withPools,
-      chains: effectiveChains,
-      ...(strategy !== undefined && { strategy }),
-    });
+    return await configureProfile();
   }
 
   /**
@@ -3201,7 +3214,9 @@ export class ZyfaiSDK {
 
     await this.authenticateUser();
     const usdcDetails = await this.getUserDetails("USDC");
-    if ((usdcDetails.chains?.length ?? 0) > 0) {
+    const usdcChainsConfigured = (usdcDetails.chains?.length ?? 0) > 0;
+    const usdcProtocolsConfigured = (usdcDetails.protocols?.length ?? 0) > 0;
+    if (usdcChainsConfigured && usdcProtocolsConfigured) {
       return { applied: false };
     }
     await this.updateUserProtocols(strategy, { strict: true });
@@ -3210,6 +3225,11 @@ export class ZyfaiSDK {
     if ((usdcAfterSetup.chains?.length ?? 0) === 0) {
       throw new Error(
         "First-deposit setup did not persist USDC chain configuration.",
+      );
+    }
+    if ((usdcAfterSetup.protocols?.length ?? 0) === 0) {
+      throw new Error(
+        "First-deposit setup did not persist USDC protocol configuration.",
       );
     }
 
@@ -3235,7 +3255,9 @@ export class ZyfaiSDK {
 
     await this.authenticateUser();
     const details = await this.getUserDetails(asset);
-    if (details.chains?.includes(chainId)) {
+    const chainConfigured = details.chains?.includes(chainId) ?? false;
+    const protocolsConfigured = (details.protocols?.length ?? 0) > 0;
+    if (chainConfigured && protocolsConfigured) {
       return { applied: false };
     }
 
@@ -3253,6 +3275,11 @@ export class ZyfaiSDK {
     if (!afterSetup.chains?.includes(chainId)) {
       throw new Error(
         `First-deposit setup did not persist ${asset} chain ${chainId} configuration.`,
+      );
+    }
+    if ((afterSetup.protocols?.length ?? 0) === 0) {
+      throw new Error(
+        `First-deposit setup did not persist ${asset} protocol configuration.`,
       );
     }
 
