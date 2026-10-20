@@ -1,5 +1,23 @@
 # @zyfai/sdk
 
+## 0.11.1
+
+### Patch Changes
+
+- [#81](https://github.com/ondefy/zyfai-sdk/pull/81) [`b4caaac`](https://github.com/ondefy/zyfai-sdk/commit/b4caaaca12446e7c222f4495b48c9d8b3646b359) Thanks [@joepegler](https://github.com/joepegler)! - Accept optional slippageBps on swap deposits. The default stays 200 basis points, with a maximum of 500, and the value is fixed when the funding order is created.
+
+## 0.11.0
+
+### Minor Changes
+
+- [#81](https://github.com/ondefy/zyfai-sdk/pull/81) [`3174262`](https://github.com/ondefy/zyfai-sdk/commit/3174262be97868161fc9251dc490755a9a7e7a3a) Thanks [@joepegler](https://github.com/joepegler)! - Add sendDirectDeposit and sendSwapDeposit. sendDeposit still transfers a collateral the wallet already holds, and swaps any other spend token into that collateral through Relay.
+
+### Patch Changes
+
+- [#81](https://github.com/ondefy/zyfai-sdk/pull/81) [`3174262`](https://github.com/ondefy/zyfai-sdk/commit/3174262be97868161fc9251dc490755a9a7e7a3a) Thanks [@joepegler](https://github.com/joepegler)! - sendSwapDeposit rejects a reused orderId when the caller origin or destination does not match the stored funding order.
+
+- [#81](https://github.com/ondefy/zyfai-sdk/pull/81) [`3174262`](https://github.com/ondefy/zyfai-sdk/commit/3174262be97868161fc9251dc490755a9a7e7a3a) Thanks [@joepegler](https://github.com/joepegler)! - Use the refreshed Relay quote's destination minimum for the portfolio floor when a funding order has no stored minimum.
+
 ## 0.10.0
 
 ### Minor Changes

@@ -469,7 +469,21 @@ if (credited.status === "credited") {
 - `asset` is required (`"USDC"`, `"WETH"`, `"EURC"`, `"USDT"`, `"PYUSD"`, or `"NVDAc"` — EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base); token address is selected from that for the chain. Depositing an asset on a chain where it does not exist throws before any transfer.
 - The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
 - Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `sendDeposit()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
-- `sendDeposit()` confirms the ERC-20 transaction and registers its lifecycle, then returns its ID. Call `waitForDepositCredit()` only when the UI needs to wait for custody credit; otherwise track it later with `getDepositStatus()`.
+- `sendDeposit(userAddress, chainId, amount, asset)` still transfers that collateral when the wallet already holds it. Pass an object with `spendToken` when the wallet holds a different token or the same token on another chain: the execution API quotes Relay, the wallet signs, and the Safe receives `asset`. Same-chain ETH into WETH wraps in the wallet (`spendToken: "ETH"`). `sendDirectDeposit` and `sendSwapDeposit` are the two steps `sendDeposit` chooses between. Optional `slippageBps` on a swap defaults to 200 (max 500) and is fixed when the funding order is created. Omit it to use the server default. A later `sendSwapDeposit({ orderId })` ignores a new `slippageBps` and signs the stored order.
+
+  ```typescript
+  const swapped = await sdk.sendDeposit({
+    userAddress,
+    chainId: 8453,
+    asset: "WETH",
+    amount: "10000000",
+    spendToken: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    spendChainId: 42161,
+    slippageBps: 200,
+  });
+  ```
+
+- `sendDeposit()` confirms the transfer (or the Relay fill) and registers its lifecycle, then returns its ID. Call `waitForDepositPosition()` when the UI should wait until allocation finishes. `waitForDepositCredit()` is the shorter wait for credited balance only.
 - `depositFunds()` remains a compatibility wrapper that calls both steps and waits through the normal completion window; it **rejects** if credit is not confirmed in that window (track in-flight deposits with `getDepositStatus()` or call `waitForDepositCredit()` with a longer `timeoutMs`).
 - If first-deposit protocol patching fails, the transfer still runs. `sendDeposit()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
 - **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, USDT, PYUSD, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|usdt|pyusd|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.

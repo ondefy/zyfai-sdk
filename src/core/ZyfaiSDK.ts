@@ -18,6 +18,7 @@ import {
 } from "../config/endpoints";
 import {
   ERC20_ABI,
+  WETH_DEPOSIT_ABI,
   erc20TransferWriteAbi,
   IDENTITY_REGISTRY_ABI,
   IDENTITY_REGISTRY_ADDRESS,
@@ -119,6 +120,10 @@ import type {
   VaultSharesResponse,
   VaultAsset,
   SupportedAsset,
+  SendDepositParams,
+  SwapDepositParams,
+  SwapDepositQuote,
+  SwapDepositOrder,
 } from "../types";
 import { PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import {
@@ -127,9 +132,29 @@ import {
   http,
   getAddress,
   encodeFunctionData,
+  defineChain,
   type WalletClient,
   type PublicClient,
 } from "viem";
+import { execute, type Execute } from "@relayprotocol/relay-sdk";
+import {
+  isNativeSpendToken,
+  resolveDepositRoute,
+} from "../deposits/deposit-route";
+import { assertStoredFundingOrderRoute } from "../deposits/funding-order-route";
+import { resolveCollateralMinimum } from "../deposits/collateral-minimum";
+import {
+  MAX_RELAY_SLIPPAGE_BPS,
+  resolveRelaySlippageBps,
+} from "../deposits/relay-slippage";
+import { ensureRelaySdkClient } from "../deposits/relay-client";
+import {
+  collectRelayDestinationTxHashes,
+  collectRelaySourceTxHashes,
+  selectRelayCreditTxHash,
+  transferAmountTo,
+  type RelayCreditReceipt,
+} from "../deposits/relay-fill";
 import {
   getChainConfig,
   isSupportedChain,
@@ -229,6 +254,19 @@ class AgentDepositIntentTimeoutError extends Error {
  *
  * @see {@link https://docs.zyf.ai/docs/sdk/agent-quickstart | Agent quickstart}
  */
+const thrownMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+  return String(error);
+};
+
 export class ZyfaiSDK {
   private httpClient: HttpClient;
   private signer: PrivateKeyAccount | null = null;
@@ -2132,14 +2170,14 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Transfer funds from the connected EOA to the user's Safe and register the deposit.
+   * Transfer a collateral token the wallet already holds into the Safe.
    *
    * @remarks
-   * Execution API + on-chain ERC-20 `transfer`. Confirms the transaction, then calls
-   * {@link ZyfaiSDK.logDeposit}. Pair with {@link ZyfaiSDK.waitForDepositCredit} for
-   * investable balance. Custom-wallet flows: {@link ZyfaiSDK.buildDepositTransfer},
-   * {@link ZyfaiSDK.logDeposit}, {@link ZyfaiSDK.getDepositStatus}.
+   * Use this when the connected wallet holds the strategy collateral on the
+   * deposit chain. {@link ZyfaiSDK.sendDeposit} calls this automatically in
+   * that case. A different token uses {@link ZyfaiSDK.sendSwapDeposit}.
    *
+   * Confirms the ERC-20 `transfer`, then calls {@link ZyfaiSDK.logDeposit}.
    * Requires {@link ZyfaiSDK.connectAccount}. Pass the **EOA** as `userAddress`.
    *
    * @group Deposits and withdrawals
@@ -2147,20 +2185,22 @@ export class ZyfaiSDK {
    * @param userAddress - Owner EOA (not the Safe)
    * @param chainId - Chain for the transfer
    * @param amount - Amount in least units (string integer)
-   * @param asset - Asset symbol (`USDC`, `WETH`, `EURC`, `NVDAc`)
+   * @param asset - Collateral symbol (`USDC`, `WETH`, `EURC`, `NVDAc`)
    * @param strategy - Optional first-deposit {@link Strategy}
-   * @returns Transfer receipt and deposit registration (not yet credited until polled)
+   * @returns Transfer receipt and deposit registration
    *
-   * @throws If validation fails, minimum portfolio is not met, Safe is unavailable, or transfer/register fails
+   * @throws If validation fails, the minimum portfolio is not met, the Safe is unavailable, or transfer/register fails
+   *
+   * @see {@link ZyfaiSDK.sendDeposit}
    *
    * @example
    * ```typescript
    * await sdk.connectAccount(provider);
-   * const sent = await sdk.sendDeposit(eoa, 8453, "10000000", "USDC", "conservative");
-   * await sdk.waitForDepositCredit(sent.registration.id, 8453);
+   * const sent = await sdk.sendDirectDeposit(eoa, 8453, "10000000", "USDC", "conservative");
+   * await sdk.waitForDepositPosition(sent.registration.id, 8453);
    * ```
    */
-  async sendDeposit(
+  async sendDirectDeposit(
     userAddress: string,
     chainId: SupportedChainId,
     amount: string,
@@ -2328,11 +2368,625 @@ export class ZyfaiSDK {
         txHash,
         smartWallet: safeAddress,
         amount: amountBigInt.toString(),
+        route: "direct",
         registration,
       };
     } catch (error) {
       throw new Error(`Deposit failed: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * Fund the Safe with a collateral the wallet already holds, or swap another token into it.
+   *
+   * @remarks
+   * The positional call is unchanged: `asset` must be a collateral symbol, and
+   * the wallet transfers that token on `chainId`.
+   *
+   * The object form spends `spendToken`. When that token is the destination
+   * collateral on `chainId`, this is a direct deposit. Any other token is
+   * quoted through Relay and delivered as `asset`. Same-chain native ETH into
+   * WETH is wrapped in the wallet, because Relay rejects that pair.
+   * Optional `slippageBps` on a swap defaults to 200 (max 500) and is fixed
+   * when the funding order is created.
+   *
+   * Requires {@link ZyfaiSDK.connectAccount}. Pass the **EOA** as `userAddress`.
+   * Follow with {@link ZyfaiSDK.waitForDepositPosition} when the caller should
+   * wait until the deposit is allocated.
+   *
+   * @group Deposits and withdrawals
+   *
+   * @param userAddress - Owner EOA, or a {@link SendDepositParams} object
+   * @param chainId - Deposit chain when using the positional form
+   * @param amount - Least units of the token being spent
+   * @param asset - Collateral that should land in the Safe
+   * @param strategy - Optional first-deposit {@link Strategy}
+   * @returns Transfer receipt and deposit registration
+   *
+   * @throws If the route cannot be quoted, the transfer fails, or registration fails
+   *
+   * @example
+   * ```typescript
+   * await sdk.connectAccount(provider);
+   * // Wallet already holds USDC on Base.
+   * const direct = await sdk.sendDeposit(eoa, 8453, "10000000", "USDC");
+   *
+   * // Wallet holds a different token. Relay delivers USDC to the Safe.
+   * const swapped = await sdk.sendDeposit({
+   *   userAddress: eoa,
+   *   chainId: 8453,
+   *   asset: "USDC",
+   *   amount: "1000000000000000000",
+   *   spendToken: "0xTokenOnBase",
+   * });
+   * await sdk.waitForDepositPosition(swapped.registration.id, 8453);
+   * ```
+   */
+  async sendDeposit(
+    userAddress: string,
+    chainId: SupportedChainId,
+    amount: string,
+    asset: string,
+    strategy?: Strategy,
+  ): Promise<DepositResponse>;
+  async sendDeposit(params: SendDepositParams): Promise<DepositResponse>;
+  async sendDeposit(
+    userAddressOrParams: string | SendDepositParams,
+    chainId?: SupportedChainId,
+    amount?: string,
+    asset?: string,
+    strategy?: Strategy,
+  ): Promise<DepositResponse> {
+    if (typeof userAddressOrParams !== "string") {
+      return this.sendRoutedDeposit(userAddressOrParams);
+    }
+    if (chainId === undefined || amount === undefined || asset === undefined) {
+      throw new Error(
+        "Deposit failed: chainId, amount, and asset are required",
+      );
+    }
+    return this.sendDirectDeposit(
+      userAddressOrParams,
+      chainId,
+      amount,
+      asset,
+      strategy,
+    );
+  }
+
+  /**
+   * Resolve a deposit without signing.
+   *
+   * @remarks
+   * A collateral the wallet already holds on `chainId` returns `route: "direct"`.
+   * Same-chain native ETH into WETH returns `route: "wrap"`. Any other spend
+   * token returns a Relay review quote (`route: "swap"`). Nothing is signed.
+   * Optional `slippageBps` (default 200, max 500) is stored on that funding
+   * order and reused when the quote is refreshed for signing.
+   *
+   * @group Deposits and withdrawals
+   *
+   * @param params - Destination collateral and optional spend token
+   * @returns The route, and a review quote when a swap is required
+   *
+   * @throws If the spend token or destination collateral is not supported
+   */
+  async quoteDeposit(params: SendDepositParams): Promise<
+    | {
+        route: "direct" | "wrap";
+        asset: string;
+        chainId: SupportedChainId;
+        amount: string;
+      }
+    | ({ route: "swap" } & SwapDepositQuote)
+  > {
+    if (!params.userAddress) throw new Error("User address is required");
+    if (!isSupportedChain(params.chainId)) {
+      throw new Error(`Unsupported chain ID: ${params.chainId}`);
+    }
+    if (!params.amount || BigInt(params.amount) <= 0n) {
+      throw new Error("Valid amount is required");
+    }
+    const route = resolveDepositRoute(params);
+    if (route.kind === "direct" || route.kind === "wrap") {
+      return {
+        route: route.kind,
+        asset: route.asset,
+        chainId: params.chainId,
+        amount: params.amount,
+      };
+    }
+    const quote = await this.quoteSwapDeposit({
+      userAddress: params.userAddress,
+      originChainId: route.originChainId,
+      originCurrency: route.originCurrency,
+      originAmount: params.amount,
+      destinationChainId: params.chainId,
+      destinationAsset: route.destinationAsset,
+      strategy: params.strategy,
+      slippageBps: params.slippageBps,
+    });
+    return { route: "swap", ...quote };
+  }
+
+  /**
+   * Quote a Relay swap that delivers a collateral token to the Safe.
+   *
+   * @remarks
+   * Creates a funding order on the execution API. The connected wallet does
+   * not sign. Pass `orderId` to {@link ZyfaiSDK.sendSwapDeposit} to sign the
+   * refreshed quote, or call {@link ZyfaiSDK.sendDeposit} to quote and sign
+   * in one step.
+   *
+   * Same-chain native ETH into WETH is rejected here. Use {@link ZyfaiSDK.sendDeposit}
+   * with `spendToken: "ETH"`, which wraps in the wallet.
+   *
+   * Optional `slippageBps` defaults to 200 (max 500) and is fixed when this
+   * funding order is created. Sign-time refresh reuses the stored value.
+   *
+   * @group Deposits and withdrawals
+   *
+   * @param params - Origin token, destination collateral, and funding wallet
+   * @returns Review quote. Not yet signed.
+   *
+   * @throws If the server rejects the pair, the amount, or the quote
+   */
+  async quoteSwapDeposit(
+    params: SwapDepositParams,
+  ): Promise<SwapDepositQuote> {
+    this.assertSwapDepositParams(params);
+    await this.authenticateUser();
+    const created = await this.httpClient.post<SwapDepositQuote & { quote?: unknown }>(
+      ENDPOINTS.FUNDING_ORDERS,
+      {
+        originChainId: params.originChainId,
+        destinationChainId: params.destinationChainId,
+        originCurrency: params.originCurrency,
+        originAmount: params.originAmount,
+        destinationAsset: params.destinationAsset.toUpperCase(),
+        fundingWallet: params.userAddress,
+        ...(params.slippageBps != null
+          ? { slippageBps: resolveRelaySlippageBps(params.slippageBps) }
+          : {}),
+      },
+    );
+    return {
+      orderId: created.orderId,
+      status: created.status,
+      spend: created.spend,
+      expectedOutput: created.expectedOutput,
+      minimumOutput: created.minimumOutput,
+      destinationChainId: created.destinationChainId,
+      destinationCurrency: created.destinationCurrency,
+      destinationAsset: params.destinationAsset.toUpperCase(),
+      fees: created.fees ?? [],
+      investEligible: created.investEligible,
+      expiresAt: created.expiresAt ?? null,
+      timeEstimate: created.timeEstimate ?? null,
+    };
+  }
+
+  /**
+   * Read a Relay funding order, including a linked deposit once credit starts.
+   *
+   * @group Deposits and withdrawals
+   *
+   * @param orderId - Id from {@link ZyfaiSDK.quoteSwapDeposit}
+   * @returns Stored order
+   *
+   * @throws If `orderId` is missing
+   */
+  async getSwapDeposit(orderId: string): Promise<SwapDepositOrder> {
+    if (!orderId) throw new Error("Funding order id is required");
+    await this.authenticateUser();
+    return this.httpClient.get<SwapDepositOrder>(ENDPOINTS.FUNDING_ORDER(orderId));
+  }
+
+  /**
+   * Swap or bridge a token into a Zyfai collateral, then register the deposit.
+   *
+   * @remarks
+   * The execution API quotes Relay with the Safe as recipient. This method
+   * refreshes that quote, signs the steps with the connected wallet, waits
+   * for the collateral transfer into the Safe, and calls {@link ZyfaiSDK.logDeposit}.
+   * Credit still requires that verified transfer. A refund or failed fill does
+   * not register a deposit.
+   *
+   * Requires {@link ZyfaiSDK.connectAccount}. Origin chains other than
+   * Ethereum, Base, and Arbitrum need an EIP-1193 wallet that can sign there.
+   *
+   * Optional `slippageBps` defaults to 200 (max 500) and is fixed when the
+   * funding order is created. A later call that passes `orderId` ignores
+   * `slippageBps` and signs the stored order.
+   *
+   * @group Deposits and withdrawals
+   *
+   * @param params - Origin token and destination collateral
+   * @returns Destination transfer and deposit registration
+   *
+   * @throws If the quote, signature, fill, or registration fails, or if
+   * `orderId` names a funding order whose origin or destination differs from
+   * this call
+   *
+   * @see {@link ZyfaiSDK.sendDeposit}
+   *
+   * @example
+   * ```typescript
+   * await sdk.connectAccount(provider);
+   * const sent = await sdk.sendSwapDeposit({
+   *   userAddress: eoa,
+   *   originChainId: 42161,
+   *   originCurrency: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+   *   originAmount: "10000000",
+   *   destinationChainId: 8453,
+   *   destinationAsset: "WETH",
+   * });
+   * ```
+   */
+  async sendSwapDeposit(params: SwapDepositParams): Promise<DepositResponse> {
+    try {
+      this.assertSwapDepositParams(params);
+      await this.authenticateUser();
+      await this.prepareFirstDeposit(params.strategy);
+
+      let orderId: string;
+      let destinationCurrency: string;
+      let storedMinimum: string | null;
+      if (params.orderId) {
+        const existing = await this.getSwapDeposit(params.orderId);
+        assertStoredFundingOrderRoute(existing, params);
+        orderId = existing.id;
+        destinationCurrency = existing.destinationCurrency;
+        storedMinimum = existing.minimumOutput;
+      } else {
+        const created = await this.quoteSwapDeposit(params);
+        orderId = created.orderId;
+        destinationCurrency = created.destinationCurrency;
+        storedMinimum = created.minimumOutput;
+      }
+
+      const signQuote = await this.httpClient.post<{
+        orderId: string;
+        quote: Execute;
+      }>(ENDPOINTS.FUNDING_ORDER_QUOTE(orderId));
+      if (!signQuote.quote) {
+        throw new Error("Relay funding quote is missing from the server response");
+      }
+
+      const minimumOutput = resolveCollateralMinimum(
+        storedMinimum,
+        signQuote.quote,
+      );
+      await this.assertCollateralMinimum(
+        params.userAddress,
+        params.destinationChainId,
+        params.destinationAsset,
+        BigInt(minimumOutput),
+      );
+
+      ensureRelaySdkClient();
+      const walletClient = await this.walletClientForOrigin(params.originChainId);
+      const { data: execution } = await execute({
+        quote: signQuote.quote,
+        wallet: walletClient,
+      });
+
+      const sourceTxHashes = collectRelaySourceTxHashes(
+        execution,
+        params.originChainId,
+      );
+      const destinationFromExecution = collectRelayDestinationTxHashes(
+        execution,
+        params.destinationChainId,
+      );
+      await this.httpClient.post(ENDPOINTS.FUNDING_ORDER_EXECUTION(orderId), {
+        sourceTxHashes: sourceTxHashes.length ? sourceTxHashes : undefined,
+        stepStatus: "submitted",
+      });
+
+      await this.hydrateSessionWallet();
+      const safeAddress = await this.getSafeAddressFor(
+        params.userAddress,
+        params.destinationChainId,
+      );
+      if (!safeAddress) {
+        throw new Error("Smart wallet address is not available");
+      }
+
+      const filled = await this.waitForRelayCreditTx({
+        orderId,
+        destinationChainId: params.destinationChainId,
+        destinationToken: destinationCurrency,
+        recipientSafe: safeAddress,
+        initialCandidates: destinationFromExecution,
+      });
+      const creditAmount = filled.amount.toString();
+
+      const registration = await this.registerDeposit(
+        params.destinationChainId,
+        filled.hash,
+        creditAmount,
+        destinationCurrency,
+      );
+
+      return {
+        success: true,
+        txHash: filled.hash,
+        smartWallet: safeAddress,
+        amount: creditAmount,
+        route: "swap",
+        orderId,
+        registration,
+      };
+    } catch (error) {
+      const message = thrownMessage(error);
+      throw new Error(
+        message.startsWith("Deposit failed:") ? message : `Deposit failed: ${message}`,
+      );
+    }
+  }
+
+  private async sendRoutedDeposit(
+    params: SendDepositParams,
+  ): Promise<DepositResponse> {
+    try {
+      if (!params.userAddress) throw new Error("User address is required");
+      if (!isSupportedChain(params.chainId)) {
+        throw new Error(`Unsupported chain ID: ${params.chainId}`);
+      }
+      if (!params.amount || BigInt(params.amount) <= 0n) {
+        throw new Error("Valid amount is required");
+      }
+      const route = resolveDepositRoute(params);
+      if (route.kind === "direct") {
+        return this.sendDirectDeposit(
+          params.userAddress,
+          params.chainId,
+          params.amount,
+          route.asset,
+          params.strategy,
+        );
+      }
+      if (route.kind === "wrap") {
+        await this.assertCollateralMinimum(
+          params.userAddress,
+          params.chainId,
+          "WETH",
+          BigInt(params.amount),
+        );
+        await this.wrapNativeEth(params.chainId, params.amount);
+        const sent = await this.sendDirectDeposit(
+          params.userAddress,
+          params.chainId,
+          params.amount,
+          "WETH",
+          params.strategy,
+        );
+        return { ...sent, route: "wrap" };
+      }
+      return this.sendSwapDeposit({
+        userAddress: params.userAddress,
+        originChainId: route.originChainId,
+        originCurrency: route.originCurrency,
+        originAmount: params.amount,
+        destinationChainId: params.chainId,
+        destinationAsset: route.destinationAsset,
+        strategy: params.strategy,
+        slippageBps: params.slippageBps,
+      });
+    } catch (error) {
+      const message = thrownMessage(error);
+      throw new Error(
+        message.startsWith("Deposit failed:")
+          ? message
+          : `Deposit failed: ${message}`,
+      );
+    }
+  }
+
+  /** Portfolio floor used by a direct deposit, applied before a wrap or swap spends. */
+  private async assertCollateralMinimum(
+    userAddress: string,
+    chainId: SupportedChainId,
+    asset: string,
+    amount: bigint,
+  ): Promise<void> {
+    const symbol = Object.keys(ASSET_CONFIGS).find(
+      (key) => key.toLowerCase() === asset.toLowerCase(),
+    );
+    if (!symbol || !getAssetChainIds(symbol).includes(chainId)) return;
+    await this.hydrateSessionWallet();
+    const safeAddress = await this.getSafeAddressFor(userAddress, chainId);
+    if (!safeAddress) {
+      throw new Error("Smart wallet address is not available");
+    }
+    await this.enforceMinimumPortfolioBalance(
+      chainId,
+      symbol as SupportedAsset,
+      amount,
+      safeAddress,
+      userAddress,
+    );
+  }
+
+  private assertSwapDepositParams(params: SwapDepositParams): void {
+    if (!params.userAddress) throw new Error("User address is required");
+    if (!params.originAmount || BigInt(params.originAmount) <= 0n) {
+      throw new Error("Valid origin amount is required");
+    }
+    if (!Number.isInteger(params.originChainId) || params.originChainId <= 0) {
+      throw new Error("Valid origin chain is required");
+    }
+    if (!isSupportedChain(params.destinationChainId)) {
+      throw new Error(`Unsupported chain ID: ${params.destinationChainId}`);
+    }
+    if (!params.originCurrency) throw new Error("Origin token is required");
+    if (!params.destinationAsset) throw new Error("Destination asset is required");
+    if (params.slippageBps != null) {
+      if (
+        !Number.isInteger(params.slippageBps) ||
+        params.slippageBps < 1 ||
+        params.slippageBps > MAX_RELAY_SLIPPAGE_BPS
+      ) {
+        throw new Error(
+          `slippageBps must be an integer from 1 to ${MAX_RELAY_SLIPPAGE_BPS}. Received ${params.slippageBps}.`,
+        );
+      }
+    }
+    if (
+      params.destinationAsset.toUpperCase() === "WETH" &&
+      params.originChainId === params.destinationChainId &&
+      isNativeSpendToken(params.originCurrency)
+    ) {
+      throw new Error(
+        'Same-chain ETH to WETH is a wrap, not a Relay swap. Call sendDeposit with spendToken "ETH".',
+      );
+    }
+  }
+
+  private async walletClientForOrigin(
+    originChainId: number,
+  ): Promise<WalletClient> {
+    if (this.signer) {
+      if (!isSupportedChain(originChainId)) {
+        throw new Error(
+          `Cannot sign a swap from chain ${originChainId} with a private key. Connect an EIP-1193 wallet, or spend from Ethereum, Base, or Arbitrum.`,
+        );
+      }
+      return this.getWalletClient(originChainId);
+    }
+    if (!this.walletClient?.account) {
+      throw new Error("No account connected. Call connectAccount() first");
+    }
+    if (!this.currentProvider?.request) {
+      if (this.walletClient.chain?.id === originChainId) return this.walletClient;
+      throw new Error(
+        `Wallet is on chain ${this.walletClient.chain?.id ?? "unknown"}. Switch it to chain ${originChainId} before this swap.`,
+      );
+    }
+
+    await this.currentProvider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: `0x${originChainId.toString(16)}` }],
+    });
+
+    const chain = isSupportedChain(originChainId)
+      ? getChainConfig(originChainId, this.rpcUrls).chain
+      : defineChain({
+          id: originChainId,
+          name: `Chain ${originChainId}`,
+          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+          rpcUrls: { default: { http: ["http://127.0.0.1"] } },
+        });
+    this.walletClient = createWalletClient({
+      account: this.walletClient.account,
+      chain,
+      transport: custom(this.currentProvider),
+    });
+    if (isSupportedChain(originChainId)) {
+      this.currentChainId = originChainId;
+    }
+    return this.walletClient;
+  }
+
+  private async wrapNativeEth(
+    chainId: SupportedChainId,
+    amount: string,
+  ): Promise<void> {
+    const token = getDefaultTokenAddress(chainId, "WETH");
+    const walletClient = this.getWalletClient(chainId);
+    const chainConfig = getChainConfig(chainId, this.rpcUrls);
+    const hash = await walletClient.writeContract({
+      address: token as Address,
+      abi: WETH_DEPOSIT_ABI,
+      functionName: "deposit",
+      value: BigInt(amount),
+      chain: chainConfig.chain,
+      account: walletClient.account!,
+    });
+    const receipt = await chainConfig.publicClient.waitForTransactionReceipt({
+      hash,
+    });
+    if (receipt.status !== "success") {
+      throw new Error("ETH wrap failed");
+    }
+  }
+
+  private async waitForRelayCreditTx(params: {
+    orderId: string;
+    destinationChainId: SupportedChainId;
+    destinationToken: string;
+    recipientSafe: string;
+    initialCandidates: string[];
+  }): Promise<{ hash: string; amount: bigint }> {
+    const chainConfig = getChainConfig(params.destinationChainId, this.rpcUrls);
+    const receipts = new Map<string, RelayCreditReceipt>();
+    const maxAttempts = 120;
+    const intervalMs = 5_000;
+
+    const loadReceipt = async (hash: string): Promise<void> => {
+      const key = hash.toLowerCase();
+      if (receipts.has(key)) return;
+      try {
+        const receipt = await chainConfig.publicClient.getTransactionReceipt({
+          hash: hash as `0x${string}`,
+        });
+        receipts.set(key, {
+          status: receipt.status,
+          logs: receipt.logs.map((log) => ({
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+          })),
+        });
+      } catch {
+        // The fill may not be indexed yet.
+      }
+    };
+
+    const pick = async (
+      candidates: string[],
+    ): Promise<{ hash: string; amount: bigint } | null> => {
+      for (const hash of candidates) {
+        if (hash) await loadReceipt(hash);
+      }
+      const hash = selectRelayCreditTxHash({
+        candidates,
+        receipts,
+        token: params.destinationToken,
+        recipient: params.recipientSafe,
+      });
+      if (!hash) return null;
+      const receipt = receipts.get(hash.toLowerCase());
+      return {
+        hash,
+        amount: receipt
+          ? transferAmountTo(
+              receipt.logs,
+              params.destinationToken,
+              params.recipientSafe,
+            )
+          : 0n,
+      };
+    };
+
+    const immediate = await pick(params.initialCandidates);
+    if (immediate) return immediate;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const order = await this.getSwapDeposit(params.orderId);
+      if (order.status === "refunded" || order.status === "failed") {
+        throw new Error(`Relay funding ${order.status}`);
+      }
+      const match = await pick([
+        ...params.initialCandidates,
+        ...(order.destinationTxHashes ?? []),
+      ]);
+      if (match) return match;
+      await sleep(intervalMs);
+    }
+
+    throw new Error("Relay funding is still converting");
   }
 
   /**
@@ -2603,6 +3257,17 @@ export class ZyfaiSDK {
     }
 
     return { applied: true };
+  }
+
+  /**
+   * Persist the deposit asset on one chain before a signing page runs the transfer or swap.
+   * Does not build calldata and does not check the portfolio minimum.
+   */
+  async ensureDepositAssetOnChain(params: {
+    asset: SupportedAsset;
+    chainId: SupportedChainId;
+  }): Promise<{ applied: boolean }> {
+    return this.ensureDepositProfileForPrepare(params);
   }
 
   /**
