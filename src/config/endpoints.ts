@@ -113,6 +113,7 @@ export const ENDPOINTS = {
 
   // Safe Deployment (single endpoint)
   SAFE_DEPLOY: "/users/safe-deploy",
+  RZFI_CLAIM: "/users/rzfi-claim",
 
   // Multichain deploy for predeployed (pool) wallets — deploys + rotates the
   // same address on the requested chains (sponsored, no user signature).
@@ -202,6 +203,9 @@ export const ENDPOINTS = {
 
 // Data API Endpoints (v2)
 export const DATA_ENDPOINTS = {
+  // Merkl incentive campaigns
+  MERKL_CAMPAIGN_INFO: (campaign: string) => `/merkl/${campaign}/campaign-info`,
+
   // User Initialization
   USER_INITIALIZE: "/api/earnings/initialize",
 
