@@ -114,6 +114,8 @@ export type {
   SwapDepositOrder,
   LogDepositResponse,
   RzfiClaimResponse,
+  BaseMerklCampaignId,
+  MerklCampaign,
   DepositLifecycleResponse,
   DepositLifecycleStatus,
   DepositPositionOutcome,

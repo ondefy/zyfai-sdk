@@ -55,6 +55,8 @@ import type {
   DepositResponse,
   LogDepositResponse,
   RzfiClaimResponse,
+  BaseMerklCampaignId,
+  MerklCampaign,
   DepositLifecycleResponse,
   WaitForDepositCreditOptions,
   WaitForDepositPositionOptions,
@@ -4289,6 +4291,68 @@ export class ZyfaiSDK {
   // ============================================================================
   // TVL & Volume Methods
   // ============================================================================
+
+  /**
+   * Get Zyfai's Merkl incentive campaigns on Base with their current APR.
+   *
+   * @group Analytics and opportunities
+   *
+   * @remarks Data API. Partner API key only; SIWE not required.
+   *
+   * @returns One entry per campaign slot (rZFI, new TVL, season campaign)
+   *
+   * @example
+   * ```typescript
+   * const campaigns = await sdk.getBaseMerklCampaigns();
+   * for (const c of campaigns.filter((c) => c.isActive)) {
+   *   console.log(c.name, `${(c.apr * 100).toFixed(2)}%`);
+   * }
+   * ```
+   */
+  async getBaseMerklCampaigns(): Promise<MerklCampaign[]> {
+    const ids: BaseMerklCampaignId[] = ["base/rzfi", "base-new-tvl", "base"];
+    try {
+      const now = Date.now();
+      return await Promise.all(
+        ids.map(async (id) => {
+          const { campaign, currentStats } = await this.httpClient.dataGet<{
+            campaign: {
+              name: string;
+              startDate: string;
+              endDate: string;
+              totalRewards: number;
+              rewardToken: Address;
+              dailyRewardAmount: number;
+            };
+            currentStats: {
+              totalTVL: number;
+              currentAPR: string;
+              activeWallets: number;
+            };
+          }>(DATA_ENDPOINTS.MERKL_CAMPAIGN_INFO(id));
+          return {
+            id,
+            name: campaign.name,
+            apr: Number(currentStats.currentAPR),
+            tvlUsd: currentStats.totalTVL,
+            activeWallets: currentStats.activeWallets,
+            rewardToken: campaign.rewardToken,
+            totalRewards: campaign.totalRewards,
+            dailyRewardAmount: campaign.dailyRewardAmount,
+            startDate: campaign.startDate,
+            endDate: campaign.endDate,
+            isActive:
+              now >= Date.parse(campaign.startDate) &&
+              now < Date.parse(campaign.endDate),
+          };
+        }),
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to get Base Merkl campaigns: ${(error as Error).message}`,
+      );
+    }
+  }
 
   /**
    * Get total value locked (TVL) across all Zyfai accounts.

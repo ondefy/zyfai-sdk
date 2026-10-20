@@ -961,6 +961,26 @@ export interface WithdrawLifecycleResponse {
   estimatedClaimAt?: string | null;
 }
 
+/** Base Merkl campaign slots served by the data API. */
+export type BaseMerklCampaignId = "base" | "base-new-tvl" | "base/rzfi";
+
+/** A Zyfai Merkl incentive campaign on Base, from {@link ZyfaiSDK.getBaseMerklCampaigns}. */
+export interface MerklCampaign {
+  id: BaseMerklCampaignId;
+  name: string;
+  /** Current campaign APR as a decimal (0.011 = 1.1%), on top of strategy yield. */
+  apr: number;
+  tvlUsd: number;
+  activeWallets: number;
+  rewardToken: Address;
+  totalRewards: number;
+  dailyRewardAmount: number;
+  startDate: string;
+  endDate: string;
+  /** True while now is between startDate and endDate. */
+  isActive: boolean;
+}
+
 /**
  * Two-step rZFI claim state from {@link ZyfaiSDK.prepareRzfiClaim} and
  * {@link ZyfaiSDK.submitRzfiClaim}.

@@ -203,6 +203,9 @@ export const ENDPOINTS = {
 
 // Data API Endpoints (v2)
 export const DATA_ENDPOINTS = {
+  // Merkl incentive campaigns
+  MERKL_CAMPAIGN_INFO: (campaign: string) => `/merkl/${campaign}/campaign-info`,
+
   // User Initialization
   USER_INITIALIZE: "/api/earnings/initialize",
 
