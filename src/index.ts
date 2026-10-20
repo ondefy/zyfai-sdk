@@ -54,6 +54,14 @@ export {
   type DepositRouteInput,
 } from "./deposits/deposit-route";
 
+/** Relay funding-order slippage (basis points). */
+export {
+  DEFAULT_RELAY_SLIPPAGE_BPS,
+  MAX_RELAY_SLIPPAGE_BPS,
+  RELAY_SLIPPAGE_PRESETS_BPS,
+  resolveRelaySlippageBps,
+} from "./deposits/relay-slippage";
+
 /** Shared constants (history windows, deposit polling defaults). */
 export {
   ALLOWED_HISTORY_DAYS,

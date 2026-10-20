@@ -143,6 +143,10 @@ import {
 } from "../deposits/deposit-route";
 import { assertStoredFundingOrderRoute } from "../deposits/funding-order-route";
 import { resolveCollateralMinimum } from "../deposits/collateral-minimum";
+import {
+  MAX_RELAY_SLIPPAGE_BPS,
+  resolveRelaySlippageBps,
+} from "../deposits/relay-slippage";
 import { ensureRelaySdkClient } from "../deposits/relay-client";
 import {
   collectRelayDestinationTxHashes,
@@ -2383,6 +2387,8 @@ export class ZyfaiSDK {
    * collateral on `chainId`, this is a direct deposit. Any other token is
    * quoted through Relay and delivered as `asset`. Same-chain native ETH into
    * WETH is wrapped in the wallet, because Relay rejects that pair.
+   * Optional `slippageBps` on a swap defaults to 200 (max 500) and is fixed
+   * when the funding order is created.
    *
    * Requires {@link ZyfaiSDK.connectAccount}. Pass the **EOA** as `userAddress`.
    * Follow with {@link ZyfaiSDK.waitForDepositPosition} when the caller should
@@ -2455,6 +2461,8 @@ export class ZyfaiSDK {
    * A collateral the wallet already holds on `chainId` returns `route: "direct"`.
    * Same-chain native ETH into WETH returns `route: "wrap"`. Any other spend
    * token returns a Relay review quote (`route: "swap"`). Nothing is signed.
+   * Optional `slippageBps` (default 200, max 500) is stored on that funding
+   * order and reused when the quote is refreshed for signing.
    *
    * @group Deposits and withdrawals
    *
@@ -2496,6 +2504,7 @@ export class ZyfaiSDK {
       destinationChainId: params.chainId,
       destinationAsset: route.destinationAsset,
       strategy: params.strategy,
+      slippageBps: params.slippageBps,
     });
     return { route: "swap", ...quote };
   }
@@ -2511,6 +2520,9 @@ export class ZyfaiSDK {
    *
    * Same-chain native ETH into WETH is rejected here. Use {@link ZyfaiSDK.sendDeposit}
    * with `spendToken: "ETH"`, which wraps in the wallet.
+   *
+   * Optional `slippageBps` defaults to 200 (max 500) and is fixed when this
+   * funding order is created. Sign-time refresh reuses the stored value.
    *
    * @group Deposits and withdrawals
    *
@@ -2533,6 +2545,9 @@ export class ZyfaiSDK {
         originAmount: params.originAmount,
         destinationAsset: params.destinationAsset.toUpperCase(),
         fundingWallet: params.userAddress,
+        ...(params.slippageBps != null
+          ? { slippageBps: resolveRelaySlippageBps(params.slippageBps) }
+          : {}),
       },
     );
     return {
@@ -2579,6 +2594,10 @@ export class ZyfaiSDK {
    *
    * Requires {@link ZyfaiSDK.connectAccount}. Origin chains other than
    * Ethereum, Base, and Arbitrum need an EIP-1193 wallet that can sign there.
+   *
+   * Optional `slippageBps` defaults to 200 (max 500) and is fixed when the
+   * funding order is created. A later call that passes `orderId` ignores
+   * `slippageBps` and signs the stored order.
    *
    * @group Deposits and withdrawals
    *
@@ -2753,6 +2772,7 @@ export class ZyfaiSDK {
         destinationChainId: params.chainId,
         destinationAsset: route.destinationAsset,
         strategy: params.strategy,
+        slippageBps: params.slippageBps,
       });
     } catch (error) {
       const message = thrownMessage(error);
@@ -2802,6 +2822,17 @@ export class ZyfaiSDK {
     }
     if (!params.originCurrency) throw new Error("Origin token is required");
     if (!params.destinationAsset) throw new Error("Destination asset is required");
+    if (params.slippageBps != null) {
+      if (
+        !Number.isInteger(params.slippageBps) ||
+        params.slippageBps < 1 ||
+        params.slippageBps > MAX_RELAY_SLIPPAGE_BPS
+      ) {
+        throw new Error(
+          `slippageBps must be an integer from 1 to ${MAX_RELAY_SLIPPAGE_BPS}. Received ${params.slippageBps}.`,
+        );
+      }
+    }
     if (
       params.destinationAsset.toUpperCase() === "WETH" &&
       params.originChainId === params.destinationChainId &&

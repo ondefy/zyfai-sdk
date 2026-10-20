@@ -815,6 +815,12 @@ export interface SwapDepositParams {
   /** Optional first-deposit {@link Strategy}. */
   strategy?: Strategy;
   /**
+   * Max slippage tolerance in basis points (default 200; max 500).
+   * Stored on the funding order at quote time. Ignored when `orderId` is set;
+   * the stored order's value is used on sign.
+   */
+  slippageBps?: number;
+  /**
    * Existing review quote to sign. Origin chain, origin token, destination
    * chain, and destination asset must match that order. Omit to create a new
    * funding order.
@@ -880,6 +886,12 @@ export interface SendDepositParams {
   spendToken?: string;
   /** Chain the spend token is on. Defaults to `chainId`. */
   spendChainId?: number;
+  /**
+   * Max slippage tolerance in basis points when this call swaps (default 200;
+   * max 500). Ignored for a direct transfer or a same-chain ETH wrap.
+   * Fixed when the funding order is created.
+   */
+  slippageBps?: number;
 }
 
 /**
