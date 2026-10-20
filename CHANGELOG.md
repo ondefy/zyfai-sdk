@@ -1,5 +1,13 @@
 # @zyfai/sdk
 
+## 0.11.2
+
+### Patch Changes
+
+- [#79](https://github.com/ondefy/zyfai-sdk/pull/79) [`9b5fb4d`](https://github.com/ondefy/zyfai-sdk/commit/9b5fb4d29d3a913444de64698869ac9d2fe30fae) Thanks [@joepegler](https://github.com/joepegler)! - Fix agent-channel `setStrategyWithProtocols` so strategy changes on assets that already include the target chain persist via `PATCH /users/me` instead of a silent `agent-deposit-setup` no-op. Treat `applied: false` from deposit-setup as an error.
+
+- [#79](https://github.com/ondefy/zyfai-sdk/pull/79) [`9b5fb4d`](https://github.com/ondefy/zyfai-sdk/commit/9b5fb4d29d3a913444de64698869ac9d2fe30fae) Thanks [@joepegler](https://github.com/joepegler)! - Run `ensureFirstDepositSetup` and `prepareDeposit` profile setup when an asset has chains configured but `protocols` is empty, so deposits can allocate instead of skipping setup.
+
 ## 0.11.1
 
 ### Patch Changes
