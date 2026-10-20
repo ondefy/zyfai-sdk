@@ -961,6 +961,25 @@ export interface WithdrawLifecycleResponse {
   estimatedClaimAt?: string | null;
 }
 
+/**
+ * Two-step rZFI claim state from {@link ZyfaiSDK.prepareRzfiClaim} and
+ * {@link ZyfaiSDK.submitRzfiClaim}.
+ */
+export interface RzfiClaimResponse {
+  success: boolean;
+  status: "pending" | "claimed";
+  /** Safe that receives the rZFI (Base). */
+  safeAddress: Address;
+  /** rZFI being claimed, in wei (18 decimals). */
+  claimableAmount: string;
+  /** Present when pending: sign with the owner EOA (personal_sign of the raw hash). */
+  userOpHashToSign?: Hex;
+  /** Present when pending: the userOperation behind the hash, for verification. */
+  userOperation?: Record<string, unknown>;
+  /** Present when claimed. */
+  txHash?: Hex;
+}
+
 export interface LogDepositResponse {
   success: boolean;
   message: string;

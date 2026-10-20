@@ -113,6 +113,7 @@ export const ENDPOINTS = {
 
   // Safe Deployment (single endpoint)
   SAFE_DEPLOY: "/users/safe-deploy",
+  RZFI_CLAIM: "/users/rzfi-claim",
 
   // Multichain deploy for predeployed (pool) wallets — deploys + rotates the
   // same address on the requested chains (sponsored, no user signature).

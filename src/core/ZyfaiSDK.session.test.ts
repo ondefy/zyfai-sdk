@@ -133,6 +133,45 @@ describe("ZyfaiSDK user session", () => {
     });
   });
 
+  describe("rZFI claim", () => {
+    const sessionSdk = () =>
+      ZyfaiSDK.forUser("test-api-key", {
+        accessToken: "jwt-abc",
+        eoa: SESSION_EOA,
+        userId: "user-1",
+      });
+
+    it("prepares without a signature, then submits the owner signature", async () => {
+      mockHttpClient.post
+        .mockResolvedValueOnce({ status: "pending", userOpHashToSign: "0xaa" })
+        .mockResolvedValueOnce({ status: "claimed", txHash: "0xbb" });
+      const sdk = sessionSdk();
+
+      const prepared = await sdk.prepareRzfiClaim(SESSION_EOA);
+      const claimed = await sdk.submitRzfiClaim(SESSION_EOA, "0xsig");
+
+      expect(prepared.userOpHashToSign).toBe("0xaa");
+      expect(claimed.txHash).toBe("0xbb");
+      expect(mockHttpClient.post).toHaveBeenNthCalledWith(
+        1,
+        ENDPOINTS.RZFI_CLAIM,
+        {},
+      );
+      expect(mockHttpClient.post).toHaveBeenNthCalledWith(
+        2,
+        ENDPOINTS.RZFI_CLAIM,
+        { userOpSignature: "0xsig" },
+      );
+    });
+
+    it("rejects a userAddress that does not match the session EOA", async () => {
+      await expect(sessionSdk().prepareRzfiClaim(OTHER_EOA)).rejects.toThrow(
+        /does not match/,
+      );
+      expect(mockHttpClient.post).not.toHaveBeenCalled();
+    });
+  });
+
   describe("prepareDeposit", () => {
     it("rejects a userAddress that does not match the session EOA", async () => {
       const sdk = ZyfaiSDK.forUser("test-api-key", {

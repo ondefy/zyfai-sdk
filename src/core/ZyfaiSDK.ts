@@ -54,6 +54,7 @@ import type {
   SessionKeyResponse,
   DepositResponse,
   LogDepositResponse,
+  RzfiClaimResponse,
   DepositLifecycleResponse,
   WaitForDepositCreditOptions,
   WaitForDepositPositionOptions,
@@ -3122,6 +3123,63 @@ export class ZyfaiSDK {
       }),
       value: "0",
     };
+  }
+
+  /**
+   * Prepare a gas-sponsored rZFI claim into the user's Safe on Base.
+   *
+   * @remarks
+   * The SDK never signs. Sign `userOpHashToSign` with the owner EOA as a
+   * personal_sign of the raw 32-byte hash (viem:
+   * `signMessage({ message: { raw: userOpHashToSign } })`), then pass the
+   * signature to {@link ZyfaiSDK.submitRzfiClaim} within 5 minutes.
+   * Requires an authenticated user session.
+   *
+   * @group Rewards
+   *
+   * @param userAddress - Owner EOA
+   * @returns `status: "pending"` with the hash to sign and the amount
+   *
+   * @throws If there is no rZFI to claim, or the reward tree is updating (retry later)
+   */
+  async prepareRzfiClaim(userAddress: string): Promise<RzfiClaimResponse> {
+    this.assertRzfiClaimUser(userAddress);
+    await this.authenticateUser();
+    return this.httpClient.post<RzfiClaimResponse>(ENDPOINTS.RZFI_CLAIM, {});
+  }
+
+  /**
+   * Submit the owner-signed rZFI claim prepared by {@link ZyfaiSDK.prepareRzfiClaim}.
+   *
+   * @group Rewards
+   *
+   * @param userAddress - Owner EOA
+   * @param userOpSignature - Owner EOA signature over `userOpHashToSign`
+   * @returns `status: "claimed"` with the on-chain `txHash`
+   *
+   * @throws If the signature is not the owner's, the claim expired, or it reverted
+   */
+  async submitRzfiClaim(
+    userAddress: string,
+    userOpSignature: Hex,
+  ): Promise<RzfiClaimResponse> {
+    this.assertRzfiClaimUser(userAddress);
+    if (!userOpSignature?.startsWith("0x")) {
+      throw new Error("A 0x-prefixed userOpSignature is required");
+    }
+    await this.authenticateUser();
+    return this.httpClient.post<RzfiClaimResponse>(ENDPOINTS.RZFI_CLAIM, {
+      userOpSignature,
+    });
+  }
+
+  private assertRzfiClaimUser(userAddress: string): void {
+    if (!userAddress) {
+      throw new Error("A user address is required");
+    }
+    if (this.sessionEoa && getAddress(userAddress) !== this.sessionEoa) {
+      throw new Error("userAddress does not match authenticated session EOA");
+    }
   }
 
   /** Apply the same per-asset minimum portfolio rule as sendDeposit. */

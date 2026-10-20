@@ -113,6 +113,7 @@ export type {
   SwapDepositQuote,
   SwapDepositOrder,
   LogDepositResponse,
+  RzfiClaimResponse,
   DepositLifecycleResponse,
   DepositLifecycleStatus,
   DepositPositionOutcome,
