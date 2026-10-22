@@ -1,5 +1,13 @@
 # @zyfai/sdk
 
+## 0.12.0
+
+### Minor Changes
+
+- [#83](https://github.com/ondefy/zyfai-sdk/pull/83) [`3d69227`](https://github.com/ondefy/zyfai-sdk/commit/3d6922735ed733fdf148a6fd6c6db33820ea3f47) Thanks [@ihebabidi24](https://github.com/ihebabidi24)! - Add `getBaseMerklCampaigns()`: current APR, TVL and dates for Zyfai's Merkl incentive campaigns on Base.
+
+- [#83](https://github.com/ondefy/zyfai-sdk/pull/83) [`3d69227`](https://github.com/ondefy/zyfai-sdk/commit/3d6922735ed733fdf148a6fd6c6db33820ea3f47) Thanks [@ihebabidi24](https://github.com/ihebabidi24)! - Add `prepareRzfiClaim` / `submitRzfiClaim`: a gas-sponsored rZFI claim where the integrator signs the userOp hash in its own pipeline (the SDK never signs).
+
 ## 0.11.2
 
 ### Patch Changes
