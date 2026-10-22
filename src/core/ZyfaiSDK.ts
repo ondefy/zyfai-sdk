@@ -24,7 +24,15 @@ import {
   IDENTITY_REGISTRY_ADDRESS,
   VAULT_ABI,
   VAULT_ADDRESS,
+  MERKL_DISTRIBUTOR_ABI,
+  MERKL_DISTRIBUTOR_ADDRESS,
+  RZFI_TOKEN_ADDRESS,
+  SAFE_ABI,
 } from "../config/abis";
+import {
+  encodeRzfiClaimExecTransaction,
+  fetchMerklRzfiReward,
+} from "../utils/rzfi-claim";
 import {
   MIN_PORTFOLIO_BALANCE,
   MIN_PORTFOLIO_USD,
@@ -55,6 +63,7 @@ import type {
   DepositResponse,
   LogDepositResponse,
   RzfiClaimResponse,
+  RzfiClaimTransaction,
   BaseMerklCampaignId,
   MerklCampaign,
   DepositLifecycleResponse,
@@ -3122,6 +3131,97 @@ export class ZyfaiSDK {
         abi: ERC20_ABI,
         functionName: "transfer",
         args: [safeAddress, amountBigInt],
+      }),
+      value: "0",
+    };
+  }
+
+  /**
+   * Build the rZFI claim as an unsigned transaction for your own signer.
+   *
+   * @remarks
+   * Same pattern as {@link ZyfaiSDK.buildDepositTransfer}: sign and send
+   * `{ to, data, value }` from `userAddress` on Base (chain 8453). It must be
+   * sent by `userAddress` itself; any other sender reverts. The sender pays the
+   * gas. Claims all unclaimed rZFI into the user's Safe.
+   *
+   * @group Rewards
+   *
+   * @param userAddress - Owner EOA, which must send the transaction
+   * @returns Safe address, claimable amount, and the transaction to send
+   *
+   * @throws If there is no rZFI to claim, the reward tree is updating (retry
+   * later), or `userAddress` cannot execute the Safe alone (not an owner, or threshold above 1)
+   */
+  async buildRzfiClaimTransaction(
+    userAddress: string,
+  ): Promise<RzfiClaimTransaction> {
+    if (!userAddress) {
+      throw new Error("A user address is required");
+    }
+    const owner = getAddress(userAddress);
+    const chainId = 8453 as SupportedChainId;
+    await this.hydrateSessionWallet();
+    const safe = await this.getSafeAddressFor(owner, chainId);
+    if (!safe) {
+      throw new Error("Smart wallet address is not available");
+    }
+    const { publicClient } = getChainConfig(chainId, this.rpcUrls);
+
+    const [owners, threshold] = await Promise.all([
+      publicClient.readContract({
+        address: safe,
+        abi: SAFE_ABI,
+        functionName: "getOwners",
+      }),
+      publicClient.readContract({
+        address: safe,
+        abi: SAFE_ABI,
+        functionName: "getThreshold",
+      }),
+    ]).catch(() => {
+      throw new Error(`Safe ${safe} is not deployed on Base`);
+    });
+    if (threshold !== 1n || !owners.some((o) => getAddress(o) === owner)) {
+      throw new Error(
+        `${owner} cannot execute Safe ${safe} alone (not an owner, or threshold above 1)`,
+      );
+    }
+
+    const [reward, [claimed], liveRoot] = await Promise.all([
+      fetchMerklRzfiReward(safe),
+      publicClient.readContract({
+        address: MERKL_DISTRIBUTOR_ADDRESS,
+        abi: MERKL_DISTRIBUTOR_ABI,
+        functionName: "claimed",
+        args: [safe, RZFI_TOKEN_ADDRESS],
+      }),
+      publicClient.readContract({
+        address: MERKL_DISTRIBUTOR_ADDRESS,
+        abi: MERKL_DISTRIBUTOR_ABI,
+        functionName: "getMerkleRoot",
+      }),
+    ]);
+    const claimable = reward ? reward.amount - claimed : 0n;
+    if (!reward || claimable <= 0n) {
+      throw new Error("No rZFI available to claim");
+    }
+    if (reward.root.toLowerCase() !== liveRoot.toLowerCase()) {
+      throw new Error(
+        "rZFI rewards are being updated on-chain. Retry in a few minutes.",
+      );
+    }
+
+    return {
+      safeAddress: safe,
+      chainId: 8453,
+      claimableAmount: claimable.toString(),
+      to: safe,
+      data: encodeRzfiClaimExecTransaction({
+        safe,
+        owner,
+        amount: reward.amount,
+        proofs: reward.proofs,
       }),
       value: "0",
     };

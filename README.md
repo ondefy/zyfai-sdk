@@ -656,28 +656,30 @@ const redeeming = (portfolio.pendingAsyncWithdrawals ?? []).some(
 
 ### Claim rZFI Rewards
 
-rZFI accrues to the user's Safe on Base and is claimed by the owner EOA. The
-claim is gas-sponsored and the SDK never signs: you sign one hash in your own
-pipeline.
+rZFI accrues to the user's Safe on Base. Build the claim as an unsigned
+transaction and sign and send it with your own signer, like
+`buildDepositTransfer`:
 
 ```typescript
-// 1. Prepare (throws if there is nothing to claim)
-const prepared = await sdk.prepareRzfiClaim(userAddress);
-// prepared.claimableAmount (wei), prepared.userOpHashToSign
+const tx = await sdk.buildRzfiClaimTransaction(userAddress);
+// tx.claimableAmount (wei), tx.to, tx.data, tx.value
 
-// 2. Sign the raw 32-byte hash with the owner EOA (personal_sign)
-const signature = await walletClient.signMessage({
+// Send from userAddress on Base (8453). Any other sender reverts.
+const hash = await walletClient.sendTransaction({
   account: userAddress,
-  message: { raw: prepared.userOpHashToSign! },
+  chain: base,
+  to: tx.to,
+  data: tx.data,
+  value: BigInt(tx.value),
 });
-
-// 3. Submit within 5 minutes
-const { txHash } = await sdk.submitRzfiClaim(userAddress, signature);
 ```
 
-`prepared.userOperation` is the full userOp behind the hash if you want to
-verify it before signing. A retryable error means the Merkl reward tree is
-being updated on-chain; call `prepareRzfiClaim` again in a few minutes.
+The sender pays the gas (about 250k on Base). It throws when there is nothing
+to claim, or asks you to retry while Merkl's reward tree is updating on-chain.
+
+For a gas-sponsored claim, use `prepareRzfiClaim(userAddress)`, sign the
+returned `userOpHashToSign` (personal_sign of the raw hash), then
+`submitRzfiClaim(userAddress, signature)`.
 
 ### 6. Get Available Protocols
 

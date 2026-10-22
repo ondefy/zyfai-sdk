@@ -238,3 +238,24 @@ export const VAULT_ABI = [
 ] as const;
 
 export const VAULT_ADDRESS = "0xD580071c47d4a667858B5FafAb85BC9C609beC5D" as const;
+
+/** Merkl Distributor (Base). Pays rZFI rewards to the user's Safe. */
+export const MERKL_DISTRIBUTOR_ADDRESS =
+  "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae" as const;
+
+/** rZFI reward token (Base). */
+export const RZFI_TOKEN_ADDRESS =
+  "0x1c08C7df416062b472F553DCC1ed3045489520C5" as const;
+
+export const MERKL_DISTRIBUTOR_ABI = parseAbi([
+  "function claim(address[] users, address[] tokens, uint256[] amounts, bytes32[][] proofs)",
+  "function claimed(address user, address token) view returns (uint208 amount, uint48 timestamp, bytes32 merkleRoot)",
+  "function getMerkleRoot() view returns (bytes32)",
+]);
+
+/** Safe core functions used to let the owner EOA send a Safe call directly. */
+export const SAFE_ABI = parseAbi([
+  "function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) payable returns (bool success)",
+  "function getOwners() view returns (address[])",
+  "function getThreshold() view returns (uint256)",
+]);
