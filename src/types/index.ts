@@ -981,6 +981,18 @@ export interface MerklCampaign {
   isActive: boolean;
 }
 
+/** Unsigned rZFI claim from {@link ZyfaiSDK.buildRzfiClaimTransaction}. */
+export interface RzfiClaimTransaction {
+  /** Safe that receives the rZFI. */
+  safeAddress: Address;
+  chainId: 8453;
+  /** rZFI being claimed, in wei (18 decimals). */
+  claimableAmount: string;
+  to: Address;
+  data: Hex;
+  value: "0";
+}
+
 /**
  * Two-step rZFI claim state from {@link ZyfaiSDK.prepareRzfiClaim} and
  * {@link ZyfaiSDK.submitRzfiClaim}.
