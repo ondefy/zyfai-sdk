@@ -3151,7 +3151,7 @@ export class ZyfaiSDK {
    * @returns Safe address, claimable amount, and the transaction to send
    *
    * @throws If there is no rZFI to claim, the reward tree is updating (retry
-   * later), or `userAddress` is not the Safe's only owner
+   * later), or `userAddress` cannot execute the Safe alone (not an owner, or threshold above 1)
    */
   async buildRzfiClaimTransaction(
     userAddress: string,
@@ -3183,7 +3183,9 @@ export class ZyfaiSDK {
       throw new Error(`Safe ${safe} is not deployed on Base`);
     });
     if (threshold !== 1n || !owners.some((o) => getAddress(o) === owner)) {
-      throw new Error(`${owner} is not the only owner of Safe ${safe}`);
+      throw new Error(
+        `${owner} cannot execute Safe ${safe} alone (not an owner, or threshold above 1)`,
+      );
     }
 
     const [reward, [claimed], liveRoot] = await Promise.all([

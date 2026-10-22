@@ -137,12 +137,12 @@ describe("buildRzfiClaimTransaction", () => {
     await expect(build()).rejects.toThrow(/Retry in a few minutes/);
   });
 
-  it("refuses when userAddress is not the Safe's only owner", async () => {
+  it("refuses when userAddress cannot execute the Safe alone", async () => {
     chain.owners = ["0x2222222222222222222222222222222222222222"];
-    await expect(build()).rejects.toThrow(/not the only owner/);
+    await expect(build()).rejects.toThrow(/cannot execute Safe/);
 
     chain.owners = [OWNER];
     chain.threshold = 2n;
-    await expect(build()).rejects.toThrow(/not the only owner/);
+    await expect(build()).rejects.toThrow(/cannot execute Safe/);
   });
 });
