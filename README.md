@@ -1202,6 +1202,29 @@ Use `setAssetStrategy` rather than `updateUserProfile` here: the latter stores
 a strategy but does not compute a protocol list, which would leave NVDAc with
 nothing to deploy into. See [Set an asset's strategy](#set-an-assets-strategy).
 
+### Manual allocation
+
+`setManualAllocation` turns opportunity rebalancing off for one asset and sets
+per-chain vault weights. Basis points on each chain sum to `10000`. The call
+covers that asset's whole balance: do not send an amount. A suspended vault
+stays idle until the next save. `resumeOpportunityRebalance` turns opportunity
+rebalancing back on. `getAssetTypeSettings` includes the flag, targets, and
+`unconfiguredChains`.
+
+```typescript
+await sdk.setManualAllocation({
+  assetType: "usdc",
+  targets: [
+    {
+      chainId: 8453,
+      protocolId: "protocol-uuid",
+      pool: "USDC Vault",
+      weightBps: 10000,
+    },
+  ],
+});
+```
+
 ### 11. APY Per Strategy
 
 #### Get APY Per Strategy
