@@ -1,5 +1,11 @@
 # @zyfai/sdk
 
+## 0.13.0
+
+### Minor Changes
+
+- [#84](https://github.com/ondefy/zyfai-sdk/pull/84) [`547e53a`](https://github.com/ondefy/zyfai-sdk/commit/547e53a144145bd8db0464e8a325a9d2dc515db7) Thanks [@ihebabidi24](https://github.com/ihebabidi24)! - Add `buildRzfiClaimTransaction`: the rZFI claim as unsigned `{ to, data, value }` for the owner EOA to sign and send.
+
 ## 0.12.0
 
 ### Minor Changes
