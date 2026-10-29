@@ -123,7 +123,7 @@ export const ASSET_CONFIGS: Readonly<Record<string, any>> = {
     enabled: true,
   },
   // Coinbase B20 tokenized NVIDIA equity. Base only, and only reachable through
-  // protocols with delayed withdrawals — see the `yieldmaxxing` strategy.
+  // protocols with delayed withdrawals — see the `grow` strategy.
   NVDAc: {
     symbol: 'NVDAc',
     assetType: 'nvdac',

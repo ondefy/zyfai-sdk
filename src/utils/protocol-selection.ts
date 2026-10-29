@@ -61,8 +61,8 @@ const ELIGIBLE_PROTOCOL_STRATEGIES: Record<InternalStrategy, string[]> = {
 /**
  * Filter protocols by chain + asset support + strategy.
  * - conservative (safe_strategy): keeps protocols that support safe_strategy
- * - aggressive (degen_strategy): keeps protocols that support degen OR safe
- * - yieldmaxxing (async_strategy): also keeps protocols with async withdrawals
+ * - balance (degen_strategy): keeps protocols that support degen OR safe
+ * - grow (async_strategy): also keeps protocols with async withdrawals
  */
 export const getMatchingProtocolIds = (
   protocols: ProtocolLike[],

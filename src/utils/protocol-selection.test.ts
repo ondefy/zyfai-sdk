@@ -31,13 +31,13 @@ describe("getMatchingProtocolIds", () => {
     ).toEqual(["safe-only"]);
   });
 
-  it("adds degen protocols for an aggressive user", () => {
+  it("adds degen protocols for a balance user", () => {
     expect(
       getMatchingProtocolIds(protocols, "degen_strategy", [BASE], "USDC")
     ).toEqual(["safe-only", "degen-only"]);
   });
 
-  it("adds async protocols for a yieldmaxxing user", () => {
+  it("adds async protocols for a grow user", () => {
     expect(
       getMatchingProtocolIds(protocols, "async_strategy", [BASE], "USDC")
     ).toEqual(["safe-only", "degen-only", "async-only"]);
@@ -66,13 +66,13 @@ describe("getMatchingProtocolIds — NVDAc", () => {
     },
   ];
 
-  it("selects the async protocol for a yieldmaxxing user", () => {
+  it("selects the async protocol for a grow user", () => {
     expect(
       getMatchingProtocolIds(protocols, "async_strategy", [8453], "NVDAc")
     ).toEqual(["superform"]);
   });
 
-  it("selects nothing for conservative or aggressive users", () => {
+  it("selects nothing for conservative or balance users", () => {
     expect(
       getMatchingProtocolIds(protocols, "safe_strategy", [8453], "NVDAc")
     ).toEqual([]);

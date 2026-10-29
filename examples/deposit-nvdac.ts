@@ -27,11 +27,11 @@ async function main() {
   const wallet = await sdk.getSmartWalletAddress(connected, chainId);
   console.log(`Safe address: ${wallet.address}`);
 
-  // NVDAc only lives in async protocols, so it needs "yieldmaxxing".
+  // NVDAc only lives in async protocols, so it needs "grow".
   // Chains default to Base, the only one it exists on.
   const profile = await sdk.setAssetStrategy({
     asset,
-    strategy: "yieldmaxxing",
+    strategy: "grow",
   });
   console.log(
     `NVDAc profile: strategy=${profile.strategy} protocols=${profile.protocols?.length}`

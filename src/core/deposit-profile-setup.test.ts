@@ -58,7 +58,7 @@ describe("deposit profile setup", () => {
       .mockResolvedValueOnce({
         chains: [8453],
         protocols: [],
-        strategy: "aggressive",
+        strategy: "balance",
       })
       .mockResolvedValueOnce({
         chains: [8453],

@@ -57,7 +57,7 @@ async function main() {
   //   console.log(`Safe Deployed: ${walletInfo.isDeployed} Owner: ${walletInfo.isOwner}\n`);
   // } else {
     console.log("Safe not deployed. Deploying now ...");
-    const deployment = await sdk.deploySafe(connectedAddress, chainId, "aggressive", true);
+    const deployment = await sdk.deploySafe(connectedAddress, chainId, "balance", true);
 
     if (deployment.success) {
       console.log("\n✅ Safe deployed successfully!");

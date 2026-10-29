@@ -3,7 +3,7 @@
  *
  * This example demonstrates how to configure your user profile with:
  * - Asset-based configuration (USDC, WETH, or EURC on Mainnet/Base)
- * - Strategy selection (conservative/aggressive)
+ * - Strategy selection (conservative/balance)
  * - Protocol selection and configuration
  * - Advanced features (splitting, cross-chain, etc.)
  * - Custom protocol/pool configuration (per asset type)
@@ -62,7 +62,7 @@ async function main() {
   // console.log("-".repeat(50));
 
   // const response = await sdk.updateUserProfile({
-  //   strategy: "yieldmaxxing",
+  //   strategy: "grow",
   //   asset: "USDC",
   // });
 
@@ -161,7 +161,7 @@ async function main() {
   // // Configure USDC
   // await sdk.updateUserProfile({
   //   asset: "USDC",
-  //   strategy: "aggressive",
+  //   strategy: "balance",
   //   protocols: allProtocolIds,
   //   autoSelectProtocols: true,
   //   splitting: true,
@@ -169,7 +169,7 @@ async function main() {
   //   crosschainStrategy: true,
   //   autocompounding: true,
   // });
-  // console.log("USDC profile configured (aggressive)");
+  // console.log("USDC profile configured (balance)");
 
   // // Configure ETH
   // await sdk.updateUserProfile({

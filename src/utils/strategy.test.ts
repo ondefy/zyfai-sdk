@@ -29,35 +29,42 @@ describe("convertAssetInternally", () => {
 describe("toInternalStrategy", () => {
   it("maps every public strategy to its backend value", () => {
     expect(toInternalStrategy("conservative")).toBe("safe_strategy");
-    expect(toInternalStrategy("aggressive")).toBe("degen_strategy");
-    expect(toInternalStrategy("yieldmaxxing")).toBe("async_strategy");
+    expect(toInternalStrategy("balance")).toBe("degen_strategy");
+    expect(toInternalStrategy("grow")).toBe("async_strategy");
+  });
+
+  it("rejects the previous public tokens", () => {
+    expect(() => toInternalStrategy("aggressive" as never)).toThrow(/grow/);
+    expect(() => toInternalStrategy("yieldmaxxing" as never)).toThrow(/grow/);
   });
 
   it("rejects an unknown strategy", () => {
-    expect(() => toInternalStrategy("degen" as never)).toThrow(/yieldmaxxing/);
+    expect(() => toInternalStrategy("degen" as never)).toThrow(/grow/);
   });
 });
 
 describe("toPublicStrategy", () => {
   it("maps backend values back to public names", () => {
     expect(toPublicStrategy("safe_strategy")).toBe("conservative");
-    expect(toPublicStrategy("degen_strategy")).toBe("aggressive");
-    expect(toPublicStrategy("async_strategy")).toBe("yieldmaxxing");
+    expect(toPublicStrategy("degen_strategy")).toBe("balance");
+    expect(toPublicStrategy("async_strategy")).toBe("grow");
   });
 
   // rebalance-info returns the short form, e.g. `strategy: "async"`.
   it("accepts the short forms", () => {
     expect(toPublicStrategy("safe")).toBe("conservative");
-    expect(toPublicStrategy("degen")).toBe("aggressive");
-    expect(toPublicStrategy("async")).toBe("yieldmaxxing");
+    expect(toPublicStrategy("degen")).toBe("balance");
+    expect(toPublicStrategy("async")).toBe("grow");
   });
 });
 
 describe("isValidPublicStrategy", () => {
   it("accepts the three public strategies and nothing else", () => {
     expect(isValidPublicStrategy("conservative")).toBe(true);
-    expect(isValidPublicStrategy("aggressive")).toBe(true);
-    expect(isValidPublicStrategy("yieldmaxxing")).toBe(true);
+    expect(isValidPublicStrategy("balance")).toBe(true);
+    expect(isValidPublicStrategy("grow")).toBe(true);
+    expect(isValidPublicStrategy("aggressive")).toBe(false);
+    expect(isValidPublicStrategy("yieldmaxxing")).toBe(false);
     expect(isValidPublicStrategy("async_strategy")).toBe(false);
   });
 });
@@ -65,7 +72,7 @@ describe("isValidPublicStrategy", () => {
 describe("convertStrategyToPublic", () => {
   it("converts an async strategy instead of leaking the backend value", () => {
     expect(convertStrategyToPublic({ strategy: "async" })).toEqual({
-      strategy: "yieldmaxxing",
+      strategy: "grow",
     });
   });
 
@@ -79,8 +86,8 @@ describe("convertStrategyToPublic", () => {
 describe("toPublicStrategyOrUndefined", () => {
   it("converts every backend strategy", () => {
     expect(toPublicStrategyOrUndefined("safe_strategy")).toBe("conservative");
-    expect(toPublicStrategyOrUndefined("degen_strategy")).toBe("aggressive");
-    expect(toPublicStrategyOrUndefined("async_strategy")).toBe("yieldmaxxing");
+    expect(toPublicStrategyOrUndefined("degen_strategy")).toBe("balance");
+    expect(toPublicStrategyOrUndefined("async_strategy")).toBe("grow");
   });
 
   it("returns undefined rather than leaking an unknown backend value", () => {

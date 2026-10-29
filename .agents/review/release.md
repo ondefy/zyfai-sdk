@@ -26,7 +26,7 @@ Everything in [functional.md](functional.md), plus when relevant:
 
 - Public API backwards compatibility (`@zyfai/sdk` consumers)
 - Execution vs data backend endpoint correctness (`src/config/endpoints.ts`)
-- Strategy name conversion at the SDK boundary (`conservative`/`aggressive` ↔ `safe`/`degen`)
+- Strategy name conversion at the SDK boundary (`conservative`/`balance`/`grow` ↔ `safe`/`degen`/`async`)
 - Amount units and type contracts documented in review-invariants
 - Meaningful missing coverage for changed public methods
 

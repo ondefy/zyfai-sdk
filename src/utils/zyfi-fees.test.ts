@@ -164,7 +164,7 @@ describe("enrichApyPosition / enrichRebalanceLog", () => {
       chainId: 8453,
       protocol: "Euler",
       pool: "Clearstar ETH Fusion",
-      strategy: "aggressive",
+      strategy: "balance",
     });
     expect(enriched.apy_withFee).toBe(3.8174328990443924 * 0.9);
   });

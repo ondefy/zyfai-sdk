@@ -79,7 +79,7 @@ describe("setStrategyWithProtocols", () => {
     });
 
     await sdk.setStrategyWithProtocols({
-      strategy: "aggressive",
+      strategy: "balance",
       asset: "USDC",
       chains: [8453, 42161],
     });
@@ -120,7 +120,7 @@ describe("setStrategyWithProtocols", () => {
     });
 
     await sdk.setStrategyWithProtocols({
-      strategy: "aggressive",
+      strategy: "balance",
       asset: "USDC",
       chains: [8453],
     });
@@ -131,7 +131,7 @@ describe("setStrategyWithProtocols", () => {
       expect.objectContaining({
         asset: "USDC",
         chainId: 8453,
-        strategy: "aggressive",
+        strategy: "balance",
       }),
     );
   });
@@ -159,7 +159,7 @@ describe("setStrategyWithProtocols", () => {
 
     await expect(
       sdk.setStrategyWithProtocols({
-        strategy: "aggressive",
+        strategy: "balance",
         asset: "USDC",
         chains: [8453],
       }),

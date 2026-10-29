@@ -1,13 +1,13 @@
 import { ASSET_CONFIGS } from "../config/chains";
 import { staleBalances, type SupportedAsset } from "../types";
 
-export type PublicStrategy = "conservative" | "aggressive" | "yieldmaxxing";
+export type PublicStrategy = "conservative" | "balance" | "grow";
 export type InternalStrategy =
   | "safe_strategy"
   | "degen_strategy"
   | "async_strategy";
 
-const PUBLIC_STRATEGIES = `"conservative", "aggressive" or "yieldmaxxing"`;
+const PUBLIC_STRATEGIES = `"conservative", "balance" or "grow"`;
 
 /** Shared in error messages so the supported list is stated in one place. */
 export const SUPPORTED_ASSETS = Object.entries(ASSET_CONFIGS)
@@ -21,9 +21,9 @@ export function toInternalStrategy(
   switch (publicStrategy) {
     case "conservative":
       return "safe_strategy";
-    case "aggressive":
+    case "balance":
       return "degen_strategy";
-    case "yieldmaxxing":
+    case "grow":
       return "async_strategy";
     default:
       throw new Error(
@@ -39,10 +39,10 @@ export function toPublicStrategy(
     return "conservative";
   }
   if (internalStrategy === "degen_strategy" || internalStrategy === "degen") {
-    return "aggressive";
+    return "balance";
   }
   if (internalStrategy === "async_strategy" || internalStrategy === "async") {
-    return "yieldmaxxing";
+    return "grow";
   }
   throw new Error(
     `Invalid internal strategy: ${internalStrategy}. Must be "safe_strategy", "degen_strategy" or "async_strategy".`
@@ -71,8 +71,8 @@ export function isValidPublicStrategy(
 ): strategy is PublicStrategy {
   return (
     strategy === "conservative" ||
-    strategy === "aggressive" ||
-    strategy === "yieldmaxxing"
+    strategy === "balance" ||
+    strategy === "grow"
   );
 }
 

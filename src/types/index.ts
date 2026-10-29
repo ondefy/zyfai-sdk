@@ -11,10 +11,10 @@ export type Hex = `0x${string}`;
 
 /**
  * Public strategy names.
- * `yieldmaxxing` unlocks protocols with asynchronous (delayed) withdrawals —
+ * `grow` unlocks protocols with asynchronous (delayed) withdrawals —
  * see `PortfolioDetailed.pendingAsyncWithdrawals`.
  */
-export type Strategy = "conservative" | "aggressive" | "yieldmaxxing";
+export type Strategy = "conservative" | "balance" | "grow";
 
 /** Public asset symbols supported by the SDK */
 export type SupportedAsset =

@@ -601,7 +601,7 @@ export class ZyfaiSDK {
       if (request.strategy) {
         if (!isValidPublicStrategy(request.strategy)) {
           throw new Error(
-            `Invalid strategy: ${request.strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+            `Invalid strategy: ${request.strategy}. Must be "conservative", "balance" or "grow".`,
           );
         }
         rebalanceStrategy = toInternalStrategy(request.strategy as Strategy);
@@ -1312,7 +1312,7 @@ export class ZyfaiSDK {
    *
    * @param userAddress - User's EOA address (the connected EOA, not the smart wallet address)
    * @param chainId - Target chain ID
-   * @param strategy - Optional strategy selection: "conservative" (default), "aggressive" or "yieldmaxxing"
+   * @param strategy - Optional strategy selection: "conservative" (default), "balance" or "grow"
    * @param createSessionKey - If true, automatically creates a session key after deployment (default: false)
    * @returns Deployment response with Safe address and transaction hash
    *
@@ -1923,11 +1923,11 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * // NVDAc only lives in async protocols, so it needs "yieldmaxxing".
+   * // NVDAc only lives in async protocols, so it needs "grow".
    * // Chains default to Base, the only chain it exists on.
    * const profile = await sdk.setAssetStrategy({
    *   asset: "NVDAc",
-   *   strategy: "yieldmaxxing",
+   *   strategy: "grow",
    * });
    * console.log(profile.protocols); // Ipor + Superform
    * ```
@@ -1941,7 +1941,7 @@ export class ZyfaiSDK {
     try {
       if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
         throw new Error(
-          `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+          `Invalid strategy: ${strategy}. Must be "conservative", "balance" or "grow".`,
         );
       }
 
@@ -1981,7 +1981,7 @@ export class ZyfaiSDK {
    * Apply a strategy and auto-select matching protocols for one or all managed
    * assets ({@link getManagedAssets}). Prefer this over
    * {@link updateUserProfile} when changing strategy so protocols stay aligned
-   * with the tier (including `yieldmaxxing` async venues).
+   * with the tier (including `grow` async venues).
    *
    * @group Portfolio and execution
    */
@@ -1994,7 +1994,7 @@ export class ZyfaiSDK {
 
     if (!isValidPublicStrategy(strategy)) {
       throw new Error(
-        `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+        `Invalid strategy: ${strategy}. Must be "conservative", "balance" or "grow".`,
       );
     }
 
@@ -2241,7 +2241,7 @@ export class ZyfaiSDK {
 
       if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
         throw new Error(
-          `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+          `Invalid strategy: ${strategy}. Must be "conservative", "balance" or "grow".`,
         );
       }
 
@@ -3208,7 +3208,7 @@ export class ZyfaiSDK {
   ): Promise<{ applied: boolean }> {
     if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
       throw new Error(
-        `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+        `Invalid strategy: ${strategy}. Must be "conservative", "balance" or "grow".`,
       );
     }
 
@@ -3249,7 +3249,7 @@ export class ZyfaiSDK {
     const { strategy, asset, chainId } = params;
     if (strategy !== undefined && !isValidPublicStrategy(strategy)) {
       throw new Error(
-        `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+        `Invalid strategy: ${strategy}. Must be "conservative", "balance" or "grow".`,
       );
     }
 
@@ -3744,7 +3744,7 @@ export class ZyfaiSDK {
    * Note: The withdrawal is processed asynchronously, so txHash may not be immediately available
    * Funds are always withdrawn to the Safe owner's address (userAddress)
    *
-   * **Delayed withdrawals.** Positions held under the `"yieldmaxxing"`
+   * **Delayed withdrawals.** Positions held under the `"grow"`
    * strategy sit in protocols that cannot be exited on demand. For those the
    * backend transfers the immediately available portion, then queues a
    * redemption for the rest and forwards the funds to the EOA once the
@@ -4063,7 +4063,7 @@ export class ZyfaiSDK {
    * a snapshot, so net values can differ slightly from a fully live calc.
    *
    * **Total balance.** `portfolioByAssetType` sums deployed positions and idle
-   * Safe balances, and nothing else. Under the `"yieldmaxxing"` strategy a
+   * Safe balances, and nothing else. Under the `"grow"` strategy a
    * redemption in flight has already left its position and has not landed in
    * the Safe yet, so its funds appear in no balance field at all. That makes
    * two distinct numbers:
@@ -4088,7 +4088,7 @@ export class ZyfaiSDK {
    * @group Portfolio and execution
    *
    * @remarks Data API portfolio endpoint. See {@link PortfolioDetailed.pendingAsyncWithdrawals}
-   * when using {@link Strategy | yieldmaxxing}.
+   * when using {@link Strategy | grow}.
    *
    * @param userAddress - User's EOA address
    * @returns Portfolio with optional fee-adjusted balance fields
@@ -4273,7 +4273,7 @@ export class ZyfaiSDK {
    *
    * @param crossChain - Whether to get cross-chain APY (true = omni account, false = simple account)
    * @param days - Time period: 7, 14, or 30
-   * @param strategy - Strategy type: "conservative" (default), "aggressive" or "yieldmaxxing"
+   * @param strategy - Strategy type: "conservative" (default), "balance" or "grow"
    * @param chainId - Optional chain ID filter
    * @param tokenSymbol - Optional token symbol filter (e.g. "USDC", "WETH", "WBTC")
    * @returns APY per strategy for a specific chain
@@ -4843,7 +4843,7 @@ export class ZyfaiSDK {
       return {
         success: true,
         chainId,
-        strategyType: "aggressive",
+        strategyType: "balance",
         data: Array.isArray(data)
           ? data.map((o: any) => ({
               id: o.id,
@@ -4855,7 +4855,7 @@ export class ZyfaiSDK {
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,
-              strategyType: "aggressive",
+              strategyType: "balance",
               status: o.status,
             }))
           : [],
@@ -4868,15 +4868,15 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get yieldmaxxing opportunities — pools reachable only with the
-   * `"yieldmaxxing"` strategy, including protocols whose withdrawals are
+   * Get grow opportunities — pools reachable only with the
+   * `"grow"` strategy, including protocols whose withdrawals are
    * asynchronous (Ipor, Superform). Exiting these pools takes about a day
    * on Ipor and three on Superform; track the redemption through
    * `getPortfolio().portfolio.pendingAsyncWithdrawals`.
    *
    * @param chainId - Optional chain ID filter
    * @param asset - Optional asset filter (e.g. "USDC", "WETH")
-   * @returns List of yieldmaxxing opportunities
+   * @returns List of grow opportunities
    *
    * @example
    * ```typescript
@@ -4899,7 +4899,7 @@ export class ZyfaiSDK {
       return {
         success: true,
         chainId,
-        strategyType: "yieldmaxxing",
+        strategyType: "grow",
         data: Array.isArray(data)
           ? data.map((o: any) => ({
               id: o.id,
@@ -4911,14 +4911,14 @@ export class ZyfaiSDK {
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,
-              strategyType: "yieldmaxxing",
+              strategyType: "grow",
               status: o.status,
             }))
           : [],
       };
     } catch (error) {
       throw new Error(
-        `Failed to get yieldmaxxing opportunities: ${(error as Error).message}`,
+        `Failed to get grow opportunities: ${(error as Error).message}`,
       );
     }
   }
@@ -5591,7 +5591,7 @@ export class ZyfaiSDK {
       if (strategy) {
         if (!isValidPublicStrategy(strategy)) {
           throw new Error(
-            `Invalid strategy: ${strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+            `Invalid strategy: ${strategy}. Must be "conservative", "balance" or "grow".`,
           );
         }
         internalStrategy = toInternalStrategy(strategy);
@@ -5647,7 +5647,7 @@ export class ZyfaiSDK {
     try {
       if (!isValidPublicStrategy(params.strategy)) {
         throw new Error(
-          `Invalid strategy: ${params.strategy}. Must be "conservative", "aggressive" or "yieldmaxxing".`,
+          `Invalid strategy: ${params.strategy}. Must be "conservative", "balance" or "grow".`,
         );
       }
       const internalStrategy = toInternalStrategy(params.strategy);

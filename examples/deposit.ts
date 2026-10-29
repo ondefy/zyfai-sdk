@@ -37,7 +37,7 @@ async function main() {
 
   console.log("Depositing funds...", amount, asset, chainId);
   // Deposit with specified asset (USDC by default, or WETH / EURC)
-  const response = await sdk.sendDeposit(connected, chainId, amount, asset, "yieldmaxxing");
+  const response = await sdk.sendDeposit(connected, chainId, amount, asset, "grow");
   const credited = await sdk.waitForDepositCredit(response.registration.id, chainId);
 
   console.log("Deposit credited:");

@@ -36,7 +36,7 @@ async function main() {
 
   // Use 1 period
     try {
-      const response = await sdk.getAPYPerStrategy(false, 7, "aggressive", chainId, "USDC");
+      const response = await sdk.getAPYPerStrategy(false, 7, "balance", chainId, "USDC");
 
       console.log(response);
     } catch (error) {
