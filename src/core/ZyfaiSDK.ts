@@ -24,7 +24,15 @@ import {
   IDENTITY_REGISTRY_ADDRESS,
   VAULT_ABI,
   VAULT_ADDRESS,
+  MERKL_DISTRIBUTOR_ABI,
+  MERKL_DISTRIBUTOR_ADDRESS,
+  RZFI_TOKEN_ADDRESS,
+  SAFE_ABI,
 } from "../config/abis";
+import {
+  encodeRzfiClaimExecTransaction,
+  fetchMerklRzfiReward,
+} from "../utils/rzfi-claim";
 import {
   MIN_PORTFOLIO_BALANCE,
   MIN_PORTFOLIO_USD,
@@ -54,6 +62,10 @@ import type {
   SessionKeyResponse,
   DepositResponse,
   LogDepositResponse,
+  RzfiClaimResponse,
+  RzfiClaimTransaction,
+  BaseMerklCampaignId,
+  MerklCampaign,
   DepositLifecycleResponse,
   WaitForDepositCreditOptions,
   WaitForDepositPositionOptions,
@@ -3124,6 +3136,154 @@ export class ZyfaiSDK {
     };
   }
 
+  /**
+   * Build the rZFI claim as an unsigned transaction for your own signer.
+   *
+   * @remarks
+   * Same pattern as {@link ZyfaiSDK.buildDepositTransfer}: sign and send
+   * `{ to, data, value }` from `userAddress` on Base (chain 8453). It must be
+   * sent by `userAddress` itself; any other sender reverts. The sender pays the
+   * gas. Claims all unclaimed rZFI into the user's Safe.
+   *
+   * @group Rewards
+   *
+   * @param userAddress - Owner EOA, which must send the transaction
+   * @returns Safe address, claimable amount, and the transaction to send
+   *
+   * @throws If there is no rZFI to claim, the reward tree is updating (retry
+   * later), or `userAddress` cannot execute the Safe alone (not an owner, or threshold above 1)
+   */
+  async buildRzfiClaimTransaction(
+    userAddress: string,
+  ): Promise<RzfiClaimTransaction> {
+    if (!userAddress) {
+      throw new Error("A user address is required");
+    }
+    const owner = getAddress(userAddress);
+    const chainId = 8453 as SupportedChainId;
+    await this.hydrateSessionWallet();
+    const safe = await this.getSafeAddressFor(owner, chainId);
+    if (!safe) {
+      throw new Error("Smart wallet address is not available");
+    }
+    const { publicClient } = getChainConfig(chainId, this.rpcUrls);
+
+    const [owners, threshold] = await Promise.all([
+      publicClient.readContract({
+        address: safe,
+        abi: SAFE_ABI,
+        functionName: "getOwners",
+      }),
+      publicClient.readContract({
+        address: safe,
+        abi: SAFE_ABI,
+        functionName: "getThreshold",
+      }),
+    ]).catch(() => {
+      throw new Error(`Safe ${safe} is not deployed on Base`);
+    });
+    if (threshold !== 1n || !owners.some((o) => getAddress(o) === owner)) {
+      throw new Error(
+        `${owner} cannot execute Safe ${safe} alone (not an owner, or threshold above 1)`,
+      );
+    }
+
+    const [reward, [claimed], liveRoot] = await Promise.all([
+      fetchMerklRzfiReward(safe),
+      publicClient.readContract({
+        address: MERKL_DISTRIBUTOR_ADDRESS,
+        abi: MERKL_DISTRIBUTOR_ABI,
+        functionName: "claimed",
+        args: [safe, RZFI_TOKEN_ADDRESS],
+      }),
+      publicClient.readContract({
+        address: MERKL_DISTRIBUTOR_ADDRESS,
+        abi: MERKL_DISTRIBUTOR_ABI,
+        functionName: "getMerkleRoot",
+      }),
+    ]);
+    const claimable = reward ? reward.amount - claimed : 0n;
+    if (!reward || claimable <= 0n) {
+      throw new Error("No rZFI available to claim");
+    }
+    if (reward.root.toLowerCase() !== liveRoot.toLowerCase()) {
+      throw new Error(
+        "rZFI rewards are being updated on-chain. Retry in a few minutes.",
+      );
+    }
+
+    return {
+      safeAddress: safe,
+      chainId: 8453,
+      claimableAmount: claimable.toString(),
+      to: safe,
+      data: encodeRzfiClaimExecTransaction({
+        safe,
+        owner,
+        amount: reward.amount,
+        proofs: reward.proofs,
+      }),
+      value: "0",
+    };
+  }
+
+  /**
+   * Prepare a gas-sponsored rZFI claim into the user's Safe on Base.
+   *
+   * @remarks
+   * The SDK never signs. Sign `userOpHashToSign` with the owner EOA as a
+   * personal_sign of the raw 32-byte hash (viem:
+   * `signMessage({ message: { raw: userOpHashToSign } })`), then pass the
+   * signature to {@link ZyfaiSDK.submitRzfiClaim} within 5 minutes.
+   * Requires an authenticated user session.
+   *
+   * @group Rewards
+   *
+   * @param userAddress - Owner EOA
+   * @returns `status: "pending"` with the hash to sign and the amount
+   *
+   * @throws If there is no rZFI to claim, or the reward tree is updating (retry later)
+   */
+  async prepareRzfiClaim(userAddress: string): Promise<RzfiClaimResponse> {
+    this.assertRzfiClaimUser(userAddress);
+    await this.authenticateUser();
+    return this.httpClient.post<RzfiClaimResponse>(ENDPOINTS.RZFI_CLAIM, {});
+  }
+
+  /**
+   * Submit the owner-signed rZFI claim prepared by {@link ZyfaiSDK.prepareRzfiClaim}.
+   *
+   * @group Rewards
+   *
+   * @param userAddress - Owner EOA
+   * @param userOpSignature - Owner EOA signature over `userOpHashToSign`
+   * @returns `status: "claimed"` with the on-chain `txHash`
+   *
+   * @throws If the signature is not the owner's, the claim expired, or it reverted
+   */
+  async submitRzfiClaim(
+    userAddress: string,
+    userOpSignature: Hex,
+  ): Promise<RzfiClaimResponse> {
+    this.assertRzfiClaimUser(userAddress);
+    if (!userOpSignature?.startsWith("0x")) {
+      throw new Error("A 0x-prefixed userOpSignature is required");
+    }
+    await this.authenticateUser();
+    return this.httpClient.post<RzfiClaimResponse>(ENDPOINTS.RZFI_CLAIM, {
+      userOpSignature,
+    });
+  }
+
+  private assertRzfiClaimUser(userAddress: string): void {
+    if (!userAddress) {
+      throw new Error("A user address is required");
+    }
+    if (this.sessionEoa && getAddress(userAddress) !== this.sessionEoa) {
+      throw new Error("userAddress does not match authenticated session EOA");
+    }
+  }
+
   /** Apply the same per-asset minimum portfolio rule as sendDeposit. */
   private async enforceMinimumPortfolioBalance(
     chainId: SupportedChainId,
@@ -4231,6 +4391,68 @@ export class ZyfaiSDK {
   // ============================================================================
   // TVL & Volume Methods
   // ============================================================================
+
+  /**
+   * Get Zyfai's Merkl incentive campaigns on Base with their current APR.
+   *
+   * @group Analytics and opportunities
+   *
+   * @remarks Data API. Partner API key only; SIWE not required.
+   *
+   * @returns One entry per campaign slot (rZFI, new TVL, season campaign)
+   *
+   * @example
+   * ```typescript
+   * const campaigns = await sdk.getBaseMerklCampaigns();
+   * for (const c of campaigns.filter((c) => c.isActive)) {
+   *   console.log(c.name, `${(c.apr * 100).toFixed(2)}%`);
+   * }
+   * ```
+   */
+  async getBaseMerklCampaigns(): Promise<MerklCampaign[]> {
+    const ids: BaseMerklCampaignId[] = ["base/rzfi", "base-new-tvl", "base"];
+    try {
+      const now = Date.now();
+      return await Promise.all(
+        ids.map(async (id) => {
+          const { campaign, currentStats } = await this.httpClient.dataGet<{
+            campaign: {
+              name: string;
+              startDate: string;
+              endDate: string;
+              totalRewards: number;
+              rewardToken: Address;
+              dailyRewardAmount: number;
+            };
+            currentStats: {
+              totalTVL: number;
+              currentAPR: string;
+              activeWallets: number;
+            };
+          }>(DATA_ENDPOINTS.MERKL_CAMPAIGN_INFO(id));
+          return {
+            id,
+            name: campaign.name,
+            apr: Number(currentStats.currentAPR),
+            tvlUsd: currentStats.totalTVL,
+            activeWallets: currentStats.activeWallets,
+            rewardToken: campaign.rewardToken,
+            totalRewards: campaign.totalRewards,
+            dailyRewardAmount: campaign.dailyRewardAmount,
+            startDate: campaign.startDate,
+            endDate: campaign.endDate,
+            isActive:
+              now >= Date.parse(campaign.startDate) &&
+              now < Date.parse(campaign.endDate),
+          };
+        }),
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to get Base Merkl campaigns: ${(error as Error).message}`,
+      );
+    }
+  }
 
   /**
    * Get total value locked (TVL) across all Zyfai accounts.
