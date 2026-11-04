@@ -1,7 +1,7 @@
 /**
  * Example: Get Yield Opportunities
  *
- * Demonstrates fetching conservative and aggressive yield opportunities
+ * Demonstrates fetching conservative and balance yield opportunities
  * Note: This uses the Data API which may require a separate API key
  */
 
@@ -80,7 +80,7 @@ async function main() {
     console.log(`  Count: ${aggressiveOpps.data.length}\n`);
 
     if (aggressiveOpps.data.length === 0) {
-      console.log("  No aggressive opportunities found.");
+      console.log("  No balance opportunities found.");
     } else {
       // Sort by APY descending
       const sorted = [...aggressiveOpps.data].sort((a, b) => b.apy - a.apy);
@@ -103,7 +103,7 @@ async function main() {
     }
   } catch (error) {
     console.log(
-      "Failed to fetch aggressive opportunities:",
+      "Failed to fetch balance opportunities:",
       (error as Error).message
     );
   }
