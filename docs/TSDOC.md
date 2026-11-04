@@ -27,7 +27,7 @@ Use **`@internal`** on integration-only config and private helpers (hidden by Ty
 - Pass the user's **EOA** as `userAddress`, never the Safe.
 - Deposit / withdraw amounts: **least units** (USDC/EURC 6 decimals, WETH 18).
 - Earnings and analytics fields: **decimal strings** where documented on the type.
-- Public strategies: `conservative` | `balance` | `grow` (converted to internal `safe` / `degen` / `async` before API calls).
+- Public strategies: `conservative` | `balanced` | `advanced` (converted to internal `safe` / `degen` / `async` before API calls).
 
 ## Optional tags
 

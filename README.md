@@ -164,7 +164,7 @@ console.log("Is Deployed:", walletInfo.isDeployed);
 const result = await sdk.deploySafe(userAddress, 8453);
 
 // Or deploy with balance strategy
-const balanceResult = await sdk.deploySafe(userAddress, 8453, "balance");
+const balanceResult = await sdk.deploySafe(userAddress, 8453, "balanced");
 
 if (result.success) {
   console.log("Safe Address:", result.safeAddress);
@@ -178,8 +178,8 @@ if (result.success) {
 **Strategy Options:**
 
 - `"conservative"` (default): Low-risk, stable yield strategy
-- `"balance"`: High-risk, high-reward strategy
-- `"grow"`: Balance plus protocols with delayed withdrawals — see [Strategies](#strategies)
+- `"balanced"`: High-risk, high-reward strategy
+- `"advanced"`: Balance plus protocols with delayed withdrawals — see [Strategies](#strategies)
 
 ### 2. Multi-Chain Support
 
@@ -335,8 +335,8 @@ Deploy a Safe smart wallet for a user. **Deployment is handled by the backend AP
 - `chainId`: Target chain ID
 - `strategy`: Optional strategy selection (default: `"conservative"`)
   - `"conservative"`: Low-risk, stable yield strategy (default)
-  - `"balance"`: High-risk, high-reward strategy
-  - `"grow"`: Balance plus protocols with delayed withdrawals — see [Strategies](#strategies)
+  - `"balanced"`: High-risk, high-reward strategy
+  - `"advanced"`: Balance plus protocols with delayed withdrawals — see [Strategies](#strategies)
 
 **Returns:**
 
@@ -453,7 +453,7 @@ const balanceSent = await sdk.sendDeposit(
   8453,
   "10000000",
   "USDC",
-  "balance",
+  "balanced",
 );
 await sdk.waitForDepositCredit(balanceSent.registration.id, 8453);
 
@@ -486,11 +486,11 @@ if (credited.status === "credited") {
 - `sendDeposit()` confirms the transfer (or the Relay fill) and registers its lifecycle, then returns its ID. Call `waitForDepositPosition()` when the UI should wait until allocation finishes. `waitForDepositCredit()` is the shorter wait for credited balance only.
 - `depositFunds()` remains a compatibility wrapper that calls both steps and waits through the normal completion window; it **rejects** if credit is not confirmed in that window (track in-flight deposits with `getDepositStatus()` or call `waitForDepositCredit()` with a longer `timeoutMs`).
 - If first-deposit protocol patching fails, the transfer still runs. `sendDeposit()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
-- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, USDT, PYUSD, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|usdt|pyusd|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"balance"` or `"grow"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
-- **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"grow"` to an account that has already deposited leaves it on its current strategy. To change an existing account, use `setStrategyWithProtocols` or `setAssetStrategy` (not `updateUserProfile` alone):
+- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, USDT, PYUSD, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|usdt|pyusd|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"balanced"` or `"advanced"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
+- **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"advanced"` to an account that has already deposited leaves it on its current strategy. To change an existing account, use `setStrategyWithProtocols` or `setAssetStrategy` (not `updateUserProfile` alone):
 
   ```typescript
-  await sdk.setStrategyWithProtocols({ strategy: "grow" });
+  await sdk.setStrategyWithProtocols({ strategy: "advanced" });
   ```
 
 #### Deposit With an External Wallet (Sponsored Transactions)
@@ -598,7 +598,7 @@ if (result.success) {
 - Check the `message` field for the withdrawal status
 - Use `getHistory()` to track the withdrawal transaction once it's processed
 
-**Delayed withdrawals (`grow` strategy)**
+**Delayed withdrawals (`advanced` strategy)**
 
 Positions held in protocols with asynchronous withdrawals (Ipor, Superform)
 cannot be exited on demand. For those the backend sends the immediately
@@ -752,7 +752,7 @@ it from exactly two sources: the underlying amount of every deployed position,
 and the idle balances sitting in the Safe. Anything that is in neither place is
 missing from it.
 
-That gap is real under the `grow` strategy. When the agent requests a
+That gap is real under the `advanced` strategy. When the agent requests a
 redemption from a delayed-withdrawal protocol, the position leaves the snapshot
 immediately while the funds stay in the vault for a day or three. During that
 window they are in no balance field — only in `pendingAsyncWithdrawals`.
@@ -839,7 +839,7 @@ const user = await sdk.getUserDetails();
 console.log("Smart Wallet:", user.user.smartWallet);
 console.log("Active Chains:", user.user.chains);
 console.log("Active Protocols:", user.user.protocols);
-console.log("Strategy:", user.user.strategy); // "conservative" | "balance" | "grow"
+console.log("Strategy:", user.user.strategy); // "conservative" | "balanced" | "advanced"
 console.log("Has Active Session:", user.user.hasActiveSessionKey);
 
 // Feature flags
@@ -1120,16 +1120,16 @@ asyncOpps.data.forEach((o) => {
 #### Strategies
 
 Every method that takes a `strategy` accepts one of three values. Each tier is a
-superset of the previous one: a balance user also gets conservative pools,
-and a grow user gets everything.
+superset of the previous one: a `balanced`-tier user also gets conservative pools,
+and an `advanced`-tier user gets everything.
 
 | Strategy | Backend value | Pools unlocked |
 | --- | --- | --- |
 | `conservative` (default) | `safe_strategy` | Low-risk pools only |
-| `balance` | `degen_strategy` | Conservative + higher-risk pools |
-| `grow` | `async_strategy` | Balance + pools with **delayed withdrawals** |
+| `balanced` | `degen_strategy` | Conservative + higher-risk pools |
+| `advanced` | `async_strategy` | Balance + pools with **delayed withdrawals** |
 
-`grow` is the only strategy that changes how withdrawals behave. It
+`advanced` is the only strategy that changes how withdrawals behave. It
 unlocks protocols (Ipor, Superform) that cannot be exited on demand: a
 redemption has to be requested, then claimed once the protocol releases the
 funds — roughly a day on Ipor, three on Superform. The agent handles both steps,
@@ -1146,12 +1146,12 @@ entry in `getManagedAssets()` when `asset` is omitted:
 
 ```typescript
 const profiles = await sdk.setStrategyWithProtocols({
-  strategy: "grow",
+  strategy: "advanced",
 });
 // Or a single asset:
 const profile = await sdk.setAssetStrategy({
   asset: "NVDAc",
-  strategy: "grow",
+  strategy: "advanced",
 });
 console.log(profile.protocols); // Ipor + Superform
 ```
@@ -1173,8 +1173,8 @@ resuming after `pauseAgent`.
 **8 decimals, Base only**. It behaves like any other asset — same `sendDeposit`,
 `withdrawFunds` and `getPortfolio` — with three differences worth planning for.
 
-**It only exists under `grow`.** The two protocols that hold it, Ipor
-and Superform, are both async-only, so a `conservative` or `balance` profile
+**It only exists under `advanced`.** The two protocols that hold it, Ipor
+and Superform, are both async-only, so a `conservative` or `balanced` profile
 resolves to zero protocols for NVDAc and the agent has nothing to deploy into.
 Every NVDAc withdrawal is therefore a delayed one — read
 [Total balance](#total-balance) before showing a balance.
@@ -1191,7 +1191,7 @@ unaffected. `getPortfolio` returns ready-to-display copy in
 ```typescript
 // Existing account: one call sets the strategy and selects the protocols.
 // Chains default to Base, the only one NVDAc exists on.
-await sdk.setAssetStrategy({ asset: "NVDAc", strategy: "grow" });
+await sdk.setAssetStrategy({ asset: "NVDAc", strategy: "advanced" });
 
 // 1 NVDAc = 100000000 (8 decimals). Must leave at least ~$10 in the Safe.
 const sentNvda = await sdk.sendDeposit(userAddress, 8453, "100000000", "NVDAc");
@@ -1337,7 +1337,7 @@ async function main() {
   const result = await sdk.deploySafe(userAddress, 8453);
 
   // Or deploy with balance strategy
-  // const result = await sdk.deploySafe(userAddress, 8453, "balance");
+  // const result = await sdk.deploySafe(userAddress, 8453, "balanced");
 
   if (result.success) {
     console.log("✅ Successfully deployed Safe");

@@ -11,7 +11,7 @@ Parent map: `../AGENTS.md`. Public docs: [docs.zyf.ai](https://docs.zyf.ai).
 | Data | `https://defiapi.zyf.ai/api/v2` | APY, opportunities, earnings, analytics |
 
 Endpoint map: `src/config/endpoints.ts`. Strategy conversion: `src/utils/strategy.ts`
-(`conservative`/`balance`/`grow` ↔ `safe`/`degen`/`async`).
+(`conservative`/`balanced`/`advanced` ↔ `safe`/`degen`/`async`).
 
 ## Commands
 

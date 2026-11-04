@@ -62,7 +62,7 @@ async function main() {
   // console.log("-".repeat(50));
 
   // const response = await sdk.updateUserProfile({
-  //   strategy: "grow",
+  //   strategy: "advanced",
   //   asset: "USDC",
   // });
 
@@ -161,7 +161,7 @@ async function main() {
   // // Configure USDC
   // await sdk.updateUserProfile({
   //   asset: "USDC",
-  //   strategy: "balance",
+  //   strategy: "balanced",
   //   protocols: allProtocolIds,
   //   autoSelectProtocols: true,
   //   splitting: true,

@@ -1,5 +1,11 @@
 # @zyfai/sdk
 
+## 1.0.0
+
+### Major Changes
+
+- [#85](https://github.com/ondefy/zyfai-sdk/pull/85) [`6cdf00a`](https://github.com/ondefy/zyfai-sdk/commit/6cdf00a3356638a0a6529110e1e63c1f5c414918) Thanks [@joepegler](https://github.com/joepegler)! - Public strategy tokens are `conservative`, `balance`, and `grow`. `aggressive` and `yieldmaxxing` are no longer accepted.
+
 ## 0.13.0
 
 ### Minor Changes
