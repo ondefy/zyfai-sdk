@@ -1091,7 +1091,7 @@ console.log("By chain (with rZFI):", apyHistory.weightedApyWithRzfiAfterFeeByCha
 #### Get Conservative Opportunities (Low Risk)
 
 ```typescript
-// Filter by chain and/or asset
+// Live pools. Pass "not_live" as the third argument for retired pools.
 const conservativeOpps = await sdk.getConservativeOpportunities(8453, "USDC");
 conservativeOpps.data.forEach((o) => {
   console.log(`${o.protocolName} - ${o.poolName}: ${o.apy}% APY`);
