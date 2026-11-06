@@ -4984,6 +4984,8 @@ export class ZyfaiSDK {
   /**
    * Get conservative (low-risk) yield opportunities.
    *
+   * Omitting `status` requests live pools only. Pass `"not_live"` for retired pools.
+   *
    * @group Analytics and opportunities
    *
    * @remarks Data API. Partner API key only.
@@ -5038,7 +5040,9 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get aggressive (high-risk, high-reward) yield opportunities
+   * Get aggressive (high-risk, high-reward) yield opportunities.
+   *
+   * Omitting `status` requests live pools only. Pass `"not_live"` for retired pools.
    *
    * @param chainId - Optional chain ID filter
    * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
@@ -5095,6 +5099,8 @@ export class ZyfaiSDK {
    * asynchronous (Ipor, Superform). Exiting these pools takes about a day
    * on Ipor and three on Superform; track the redemption through
    * `getPortfolio().portfolio.pendingAsyncWithdrawals`.
+   *
+   * Omitting `status` requests live pools only. Pass `"not_live"` for retired pools.
    *
    * @param chainId - Optional chain ID filter
    * @param asset - Optional asset filter (e.g. "USDC", "WETH")

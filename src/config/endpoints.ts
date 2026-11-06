@@ -225,33 +225,28 @@ export const DATA_ENDPOINTS = {
     return url;
   },
 
-  // Opportunities
+  // Opportunities. Omitted status means live pools. Pass not_live to
+  // read retired rows. The data API returns both when status is absent.
   OPPORTUNITIES_SAFE: (chainId?: number, asset?: string, status?: string) => {
     const params: string[] = [];
     if (chainId !== undefined) params.push(`chainId=${chainId}`);
     if (asset) params.push(`asset=${asset}`);
-    if (status) params.push(`status=${status}`);
-    return params.length > 0
-      ? `/opportunities/safe?${params.join("&")}`
-      : "/opportunities/safe";
+    params.push(`status=${status ?? "live"}`);
+    return `/opportunities/safe?${params.join("&")}`;
   },
   OPPORTUNITIES_DEGEN: (chainId?: number, asset?: string, status?: string) => {
     const params: string[] = [];
     if (chainId !== undefined) params.push(`chainId=${chainId}`);
     if (asset) params.push(`asset=${asset}`);
-    if (status) params.push(`status=${status}`);
-    return params.length > 0
-      ? `/opportunities/degen-strategies?${params.join("&")}`
-      : "/opportunities/degen-strategies";
+    params.push(`status=${status ?? "live"}`);
+    return `/opportunities/degen-strategies?${params.join("&")}`;
   },
   OPPORTUNITIES_ASYNC: (chainId?: number, asset?: string, status?: string) => {
     const params: string[] = [];
     if (chainId !== undefined) params.push(`chainId=${chainId}`);
     if (asset) params.push(`asset=${asset}`);
-    if (status) params.push(`status=${status}`);
-    return params.length > 0
-      ? `/opportunities/async?${params.join("&")}`
-      : "/opportunities/async";
+    params.push(`status=${status ?? "live"}`);
+    return `/opportunities/async?${params.join("&")}`;
   },
 
   // APY History
