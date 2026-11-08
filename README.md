@@ -134,15 +134,17 @@ This method:
 > - The address is always the backend-assigned one; it is **never** derived with
 >   `getDeterministicSafeAddress`.
 >
-> Net effect: onboarding a predeployed wallet takes a **single signature — the
-> USDC deposit** (no wallet-deploy or session-key signatures).
+> Onboarding a pool wallet takes a single funding signature. Eligible direct
+> first deposits use a sponsored ERC-2612 permit.
 >
-> **Registering the deposit (do not skip).** For pool wallets, an on-chain
+> **Registering a wallet transfer.** For pool wallets, an on-chain
 > ERC-20 transfer alone does **not** subscribe the user. The backend must also
 > receive `POST /users/log_deposit` with a **user JWT** (`Authorization: Bearer
 > …`) from SIWE — your SDK API key is not enough (that call returns **401**).
 > Without a successful `log_deposit`, ownership is not rotated, the session key
 > is not activated, and funds sit idle in the Safe.
+>
+> For sponsored permit deposits, the execution API registers the confirmed pull.
 >
 > The pool's ERC-7579 module addresses are exported as reference constants
 > (`POOL_MODULE_ADDRESSES`, `INTENT_SMART_SESSIONS`, `PROXY_EXECUTOR`, …) for
@@ -417,7 +419,7 @@ console.log("User ID:", result.userId);
 
 ### 4. Send a Deposit
 
-Transfer tokens to your Safe smart wallet. Token address is automatically selected based on chain and the requested asset (defaults to USDC):
+Fund your Safe smart wallet. The SDK selects the token address from the chain and asset.
 
 - **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC (default) or WETH
 - **Ethereum Mainnet (1), Base (8453)**: EURC (6 decimals; not available on Arbitrum)
@@ -434,6 +436,18 @@ Transfer tokens to your Safe smart wallet. Token address is automatically select
 Minimums for WETH and NVDAc are quoted in dollars and converted at deposit time from the live USD price (Data API `GET /api/v2/price?token=eth` and `?token=nvdac`, same API key as the SDK), so the on-chain threshold moves with the market.
 
 Top-ups smaller than the minimum are allowed if the Safe already holds enough of the asset to meet it after the deposit.
+
+For a direct first deposit into a reserved pool Safe, `sendDeposit()` and `sendDirectDeposit()` request a typed-data signature when the execution API enables the token on that chain. Zyfai sponsors the pull and returns the normal deposit registration. Other direct deposits use a wallet transfer.
+
+If the permit response is interrupted or times out, check its status before retrying:
+
+```typescript
+const intent = await sdk.getFirstPermitDepositStatus(userAddress);
+if (intent?.depositId) {
+  await sdk.waitForDepositCredit(intent.depositId, intent.chainId);
+}
+```
+
 
 ```typescript
 // Send 10 USDC (6 decimals) to Safe on Base.
@@ -468,8 +482,8 @@ if (credited.status === "credited") {
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
 - `asset` is required (`"USDC"`, `"WETH"`, `"EURC"`, `"USDT"`, `"PYUSD"`, or `"NVDAc"` — EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base); token address is selected from that for the chain. Depositing an asset on a chain where it does not exist throws before any transfer.
 - The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
-- Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `sendDeposit()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
-- `sendDeposit(userAddress, chainId, amount, asset)` still transfers that collateral when the wallet already holds it. Pass an object with `spendToken` when the wallet holds a different token or the same token on another chain: the execution API quotes Relay, the wallet signs, and the Safe receives `asset`. Same-chain ETH into WETH wraps in the wallet (`spendToken: "ETH"`). `sendDirectDeposit` and `sendSwapDeposit` are the two steps `sendDeposit` chooses between. Optional `slippageBps` on a swap defaults to 200 (max 500) and is fixed when the funding order is created. Omit it to use the server default. A later `sendSwapDeposit({ orderId })` ignores a new `slippageBps` and signs the stored order.
+- Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `sendDeposit()`. The SDK uses that session's JWT to submit a permit or register a wallet transfer.
+- `sendDeposit(userAddress, chainId, amount, asset)` funds the Safe directly when the wallet already holds the collateral. Pass an object with `spendToken` when the wallet holds a different token or the same token on another chain: the execution API quotes Relay, the wallet signs, and the Safe receives `asset`. Same-chain ETH into WETH wraps in the wallet (`spendToken: "ETH"`). `sendDirectDeposit` and `sendSwapDeposit` are the two steps `sendDeposit` chooses between. Optional `slippageBps` on a swap defaults to 200 (max 500) and is fixed when the funding order is created. Omit it to use the server default. A later `sendSwapDeposit({ orderId })` ignores a new `slippageBps` and signs the stored order.
 
   ```typescript
   const swapped = await sdk.sendDeposit({
@@ -485,7 +499,7 @@ if (credited.status === "credited") {
 
 - `sendDeposit()` confirms the transfer (or the Relay fill) and registers its lifecycle, then returns its ID. Call `waitForDepositPosition()` when the UI should wait until allocation finishes. `waitForDepositCredit()` is the shorter wait for credited balance only.
 - `depositFunds()` remains a compatibility wrapper that calls both steps and waits through the normal completion window; it **rejects** if credit is not confirmed in that window (track in-flight deposits with `getDepositStatus()` or call `waitForDepositCredit()` with a longer `timeoutMs`).
-- If first-deposit protocol patching fails, the transfer still runs. `sendDeposit()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
+- If first-deposit protocol patching fails, funding still proceeds. If registration fails after a wallet transfer, use the transfer hash to retry `logDeposit()` after `connectAccount()`.
 - **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, USDT, PYUSD, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|usdt|pyusd|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 - **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"yieldmaxxing"` to an account that has already deposited leaves it on its current strategy. To change an existing account, use `setStrategyWithProtocols` or `setAssetStrategy` (not `updateUserProfile` alone):
 

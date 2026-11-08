@@ -779,7 +779,7 @@ export interface DepositResponse {
   amount: string;
   /**
    * How the collateral reached the Safe.
-   * `direct` transfers the collateral itself. `swap` converts another token
+   * `direct` sends the collateral by permit or wallet transfer. `swap` converts another token
    * through Relay. `wrap` turns same-chain native ETH into WETH, then transfers it.
    */
   route?: "direct" | "swap" | "wrap";
@@ -790,6 +790,19 @@ export interface DepositResponse {
    * `handover_pending` until {@link ZyfaiSDK.waitForDepositCredit} completes.
    */
   registration: DepositLifecycleResponse;
+}
+
+/** Current sponsored first-deposit intent for the authenticated EOA. */
+export interface FirstPermitDepositStatus {
+  id: string;
+  status: "prepared" | "queued" | "submitted" | "registered" | "failed";
+  chainId: SupportedChainId;
+  token: Address;
+  /** Exact collateral amount in least units. */
+  amount: string;
+  /** Available after the backend registers the confirmed pull. */
+  depositId: string | null;
+  txHash: Hex | null;
 }
 
 /**
@@ -864,7 +877,7 @@ export interface SwapDepositOrder {
 }
 
 /**
- * `sendDeposit` input. Omit `spendToken` to transfer `asset` on `chainId`.
+ * `sendDeposit` input. Omit `spendToken` to deposit `asset` directly on `chainId`.
  * Set `spendToken` when the wallet holds a different token or chain.
  */
 export interface SendDepositParams {
