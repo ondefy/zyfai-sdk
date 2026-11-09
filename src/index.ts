@@ -100,6 +100,8 @@ export type {
   Hex,
   Strategy,
   SupportedAsset,
+  VolumeAssetType,
+  HistoryAssetType,
 
   // Core Response Types
   DeploySafeResponse,
