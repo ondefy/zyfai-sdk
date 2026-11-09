@@ -20,4 +20,10 @@ describe("minimum portfolio thresholds", () => {
     expect(MIN_PORTFOLIO_USD[8453]?.NVDAc).toBe(10n);
     expect(MIN_PORTFOLIO_USD[42161]?.WETH).toBe(10n);
   });
+
+  it("quotes WBTC in USD: $10,000 on Mainnet, $10 on Arbitrum", () => {
+    expect(MIN_PORTFOLIO_USD[1]?.WBTC).toBe(10000n);
+    expect(MIN_PORTFOLIO_USD[42161]?.WBTC).toBe(10n);
+    expect(MIN_PORTFOLIO_BALANCE[1]?.WBTC).toBeUndefined();
+  });
 });
