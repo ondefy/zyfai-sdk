@@ -1759,7 +1759,7 @@ export class ZyfaiSDK {
       for (const asset of getManagedAssets()) {
         try {
           // Each asset is only patched on the chains it actually exists on
-          // (EURC skips Arbitrum, NVDAc is Base-only).
+          // (EURC skips Arbitrum, NVDAc is Base-only, WBTC skips Base).
           await this.updateUserProtocolsForAsset(
             asset,
             getAssetChainIds(asset),
@@ -2210,7 +2210,7 @@ export class ZyfaiSDK {
    * @param userAddress - Owner EOA (not the Safe)
    * @param chainId - Chain for the transfer
    * @param amount - Amount in least units (string integer)
-   * @param asset - Collateral symbol (`USDC`, `WETH`, `EURC`, `NVDAc`)
+   * @param asset - Collateral symbol (`USDC`, `WETH`, `EURC`, `USDT`, `PYUSD`, `NVDAc`, `WBTC`)
    * @param strategy - Optional first-deposit {@link Strategy}
    * @returns Transfer receipt and deposit registration
    *
@@ -2247,7 +2247,7 @@ export class ZyfaiSDK {
 
       if (!asset) {
         throw new Error(
-          "Asset is required (USDC, WETH, EURC, USDT, PYUSD, or NVDAc)",
+          "Asset is required (USDC, WETH, EURC, USDT, PYUSD, NVDAc, or WBTC)",
         );
       }
 

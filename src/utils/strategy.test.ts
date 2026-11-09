@@ -17,6 +17,7 @@ describe("convertAssetInternally", () => {
     expect(convertAssetInternally("USDT")).toBe("usdt");
     expect(convertAssetInternally("PYUSD")).toBe("pyusd");
     expect(convertAssetInternally("NVDAc")).toBe("nvdac");
+    expect(convertAssetInternally("WBTC")).toBe("wbtc");
   });
 
   it("does not throw for any symbol returned by getManagedAssets", () => {

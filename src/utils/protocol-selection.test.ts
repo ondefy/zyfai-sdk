@@ -87,3 +87,36 @@ describe("getMatchingProtocolIds — NVDAc", () => {
     ).toEqual([]);
   });
 });
+
+describe("getMatchingProtocolIds — WBTC", () => {
+  const protocols = [
+    {
+      id: "aave",
+      chains: [1, 8453, 42161],
+      strategies: ["safe_strategy"],
+      assets: [
+        { chainId: 1, symbol: "WBTC" },
+        { chainId: 42161, symbol: "WBTC" },
+        { chainId: 8453, symbol: "cbBTC" },
+      ],
+    },
+    {
+      id: "cbbtc-only",
+      chains: [8453],
+      strategies: ["safe_strategy"],
+      assets: [{ chainId: 8453, symbol: "cbBTC" }],
+    },
+  ];
+
+  it("selects protocols holding WBTC on Mainnet", () => {
+    expect(
+      getMatchingProtocolIds(protocols, "safe_strategy", [1], "WBTC")
+    ).toEqual(["aave"]);
+  });
+
+  it("does not treat cbBTC as WBTC", () => {
+    expect(
+      getMatchingProtocolIds(protocols, "safe_strategy", [8453], "WBTC")
+    ).toEqual([]);
+  });
+});

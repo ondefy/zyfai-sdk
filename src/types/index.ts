@@ -23,7 +23,8 @@ export type SupportedAsset =
   | "EURC"
   | "USDT"
   | "PYUSD"
-  | "NVDAc";
+  | "NVDAc"
+  | "WBTC";
 
 /** Optional per-chain RPC URLs for on-chain reads and writes. */
 export interface RpcUrlsConfig {
