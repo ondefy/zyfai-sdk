@@ -132,6 +132,8 @@ import type {
   VaultSharesResponse,
   VaultAsset,
   SupportedAsset,
+  VolumeAssetType,
+  HistoryAssetType,
   SendDepositParams,
   SwapDepositParams,
   SwapDepositQuote,
@@ -4552,16 +4554,19 @@ export class ZyfaiSDK {
    *
    * @remarks Data API. Partner API key only.
    *
-   * @returns Total volume in USD
+   * @param assetType - `"usdc"` (default), `"eth"`, `"eurc"`, or `"usdt"`
+   * @returns Cumulative deposit volume, summed in the asset's own units
+   * (dollars for `usdc` and `usdt`)
    *
    * @example
    * ```typescript
    * const volume = await sdk.getVolume();
+   * const usdtVolume = await sdk.getVolume("usdt");
    * console.log("Total Volume:", volume.volumeInUSD);
    * ```
    */
   async getVolume(
-    assetType: "usdc" | "eth" | "eurc" = "usdc",
+    assetType: VolumeAssetType = "usdc",
   ): Promise<VolumeResponse> {
     try {
       const response = await this.httpClient.get<any>(
@@ -4752,7 +4757,7 @@ export class ZyfaiSDK {
       offset?: number;
       fromDate?: string;
       toDate?: string;
-      assetType?: "usdc" | "eth" | "eurc";
+      assetType?: HistoryAssetType;
     },
   ): Promise<HistoryResponse> {
     try {

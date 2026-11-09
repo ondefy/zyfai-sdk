@@ -7,6 +7,7 @@
  */
 
 import { SupportedChainId } from "../config/chains";
+import type { HistoryAssetType, VolumeAssetType } from "../types";
 
 /** Backend stack selector for URL helper functions. */
 export type BackendEnvironment = "production" | "staging" | "local";
@@ -135,13 +136,13 @@ export const ENDPOINTS = {
   DATA_HISTORY: (
     walletAddress: string,
     chainId: SupportedChainId,
-    assetType?: "usdc" | "eth" | "eurc",
+    assetType?: HistoryAssetType,
   ) =>
     `/data/history?walletAddress=${walletAddress}&chainId=${chainId}${
       assetType ? `&assetType=${assetType}` : ""
     }`,
   DATA_TVL: "/data/usd-tvl",
-  DATA_VOLUME: (assetType: "usdc" | "eth" | "eurc") =>
+  DATA_VOLUME: (assetType: VolumeAssetType) =>
     `/data/volume?assetType=${assetType}`,
   DATA_FIRST_TOPUP: (walletAddress: string, chainId: number) =>
     `/data/first-topup?walletAddress=${walletAddress}&chainId=${chainId}`,

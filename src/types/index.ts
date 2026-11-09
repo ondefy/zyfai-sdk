@@ -26,6 +26,25 @@ export type SupportedAsset =
   | "NVDAc"
   | "WBTC";
 
+/**
+ * Asset filter accepted by `getVolume`.
+ *
+ * The backend sums deposits in the asset's own units, so only the USD
+ * stablecoins (`usdc`, `usdt`) read 1:1 as dollars. Volatile assets are
+ * left out until the endpoint prices them.
+ */
+export type VolumeAssetType = "usdc" | "eth" | "eurc" | "usdt";
+
+/** Asset filter accepted by `getHistory` — one per {@link SupportedAsset}. */
+export type HistoryAssetType =
+  | "usdc"
+  | "eth"
+  | "eurc"
+  | "usdt"
+  | "pyusd"
+  | "nvdac"
+  | "wbtc";
+
 /** Optional per-chain RPC URLs for on-chain reads and writes. */
 export interface RpcUrlsConfig {
   /** Ethereum mainnet */
