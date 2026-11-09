@@ -422,6 +422,7 @@ Transfer tokens to your Safe smart wallet. Token address is automatically select
 - **Ethereum Mainnet (1), Base (8453), Arbitrum (42161)**: USDC (default) or WETH
 - **Ethereum Mainnet (1), Base (8453)**: EURC (6 decimals; not available on Arbitrum)
 - **Ethereum Mainnet (1) only**: USDT and PYUSD (6 decimals)
+- **Ethereum Mainnet (1), Arbitrum (42161)**: WBTC (8 decimals; not available on Base — cbBTC is a separate asset)
 - **Base (8453) only**: NVDAc (8 decimals) — tokenized NVIDIA equity, see [Tokenized equities](#tokenized-equities-nvdac)
 
 **Minimum portfolio balance (enforced on Safe balance + deposit amount):**
@@ -429,9 +430,10 @@ Transfer tokens to your Safe smart wallet. Token address is automatically select
 - Ethereum Mainnet (1) / USDC, EURC, USDT, or PYUSD: 10,000 units
 - Base (8453) and Arbitrum (42161) / USDC or EURC: 10 units (EURC is not on Arbitrum)
 - WETH: about **$10,000** of ETH on Ethereum Mainnet, **$10** on Base and Arbitrum
+- WBTC: about **$10,000** of BTC on Ethereum Mainnet, **$10** on Arbitrum
 - NVDAc: about **$10** on Base
 
-Minimums for WETH and NVDAc are quoted in dollars and converted at deposit time from the live USD price (Data API `GET /api/v2/price?token=eth` and `?token=nvdac`, same API key as the SDK), so the on-chain threshold moves with the market.
+Minimums for WETH, WBTC and NVDAc are quoted in dollars and converted at deposit time from the live USD price (Data API `GET /api/v2/price?token=eth`, `?token=wbtc` and `?token=nvdac`, same API key as the SDK), so the on-chain threshold moves with the market.
 
 Top-ups smaller than the minimum are allowed if the Safe already holds enough of the asset to meet it after the deposit.
 
@@ -466,8 +468,8 @@ if (credited.status === "credited") {
 **Note:**
 
 - Amount must be in least decimal units. For USDC (6 decimals): 1 USDC = 1000000
-- `asset` is required (`"USDC"`, `"WETH"`, `"EURC"`, `"USDT"`, `"PYUSD"`, or `"NVDAc"` — EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base); token address is selected from that for the chain. Depositing an asset on a chain where it does not exist throws before any transfer.
-- The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH uses a live ETH/USD price, so the wei threshold moves with the market.
+- `asset` is required (`"USDC"`, `"WETH"`, `"EURC"`, `"USDT"`, `"PYUSD"`, `"NVDAc"`, or `"WBTC"` — EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base, WBTC on Mainnet/Arbitrum); token address is selected from that for the chain. Depositing an asset on a chain where it does not exist throws before any transfer.
+- The total Safe balance must meet the per-asset minimum after the deposit (see above). WETH and WBTC use a live USD price, so the least-unit threshold moves with the market. WBTC has 8 decimals: 1 WBTC = 100000000.
 - Call `connectAccount()` on the **same** `ZyfaiSDK` instance before `sendDeposit()`. The method uses that session's JWT when it calls `log_deposit` after the transfer.
 - `sendDeposit(userAddress, chainId, amount, asset)` still transfers that collateral when the wallet already holds it. Pass an object with `spendToken` when the wallet holds a different token or the same token on another chain: the execution API quotes Relay, the wallet signs, and the Safe receives `asset`. Same-chain ETH into WETH wraps in the wallet (`spendToken: "ETH"`). `sendDirectDeposit` and `sendSwapDeposit` are the two steps `sendDeposit` chooses between. Optional `slippageBps` on a swap defaults to 200 (max 500) and is fixed when the funding order is created. Omit it to use the server default. A later `sendSwapDeposit({ orderId })` ignores a new `slippageBps` and signs the stored order.
 
@@ -486,7 +488,7 @@ if (credited.status === "credited") {
 - `sendDeposit()` confirms the transfer (or the Relay fill) and registers its lifecycle, then returns its ID. Call `waitForDepositPosition()` when the UI should wait until allocation finishes. `waitForDepositCredit()` is the shorter wait for credited balance only.
 - `depositFunds()` remains a compatibility wrapper that calls both steps and waits through the normal completion window; it **rejects** if credit is not confirmed in that window (track in-flight deposits with `getDepositStatus()` or call `waitForDepositCredit()` with a longer `timeoutMs`).
 - If first-deposit protocol patching fails, the transfer still runs. `sendDeposit()` throws if deposit registration is not accepted; retry `logDeposit()` after `connectAccount()`.
-- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, USDT, PYUSD, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|usdt|pyusd|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"balanced"` or `"advanced"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
+- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, USDT, PYUSD, NVDAc, and WBTC**, each across the chains it exists on (EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base, WBTC on Mainnet/Arbitrum → `assetTypeSettings.[usdc|eth|eurc|usdt|pyusd|nvdac|wbtc]`). Pass optional `strategy` (`"conservative"` default, `"balanced"` or `"advanced"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
 - **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"advanced"` to an account that has already deposited leaves it on its current strategy. To change an existing account, use `setStrategyWithProtocols` or `setAssetStrategy` (not `updateUserProfile` alone):
 
   ```typescript
@@ -885,7 +887,7 @@ console.log("Active protocols:", userDetails.user.protocols.length); // Should b
 
 **Note**:
 - User must be authenticated (automatically done via `connectAccount()`)
-- Clears protocols for USDC, WETH, EURC, USDT, PYUSD, and NVDAc
+- Clears protocols for USDC, WETH, EURC, USDT, PYUSD, NVDAc, and WBTC
 - To resume operations, call `resumeAgent()` or `updateUserProfile()` with the desired protocols
 
 #### Splitting Management
@@ -942,9 +944,13 @@ if (result.success) {
 const tvl = await sdk.getTVL();
 console.log("Total TVL:", tvl.totalTvl);
 
-const volume = await sdk.getVolume();
+const volume = await sdk.getVolume(); // "usdc" (default), "eth", "eurc", or "usdt"
 console.log("Total Volume:", volume.volumeInUSD);
+
+const usdtVolume = await sdk.getVolume("usdt");
 ```
+
+`volumeInUSD` is summed in the asset's own units: dollars for `usdc` and `usdt`, ETH for `eth`, EUR for `eurc`.
 
 #### Get Active Wallets
 
@@ -1006,7 +1012,7 @@ console.log("Chain ID:", firstTopup.chainId);
 const history = await sdk.getHistory(walletAddress, 8453, {
   limit: 50,
   fromDate: "2024-01-01",
-  assetType: "eth",
+  assetType: "eth", // usdc | eth | eurc | usdt | pyusd | nvdac | wbtc
 });
 history.data.forEach((tx) => {
   console.log(tx.action, tx.transactionHash);
