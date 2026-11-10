@@ -116,6 +116,20 @@ describe("SDK first permit deposit", () => {
     expect(writeContract).toHaveBeenCalledTimes(1);
   });
 
+  it("uses the transfer path when permit availability GET returns a normalized 404", async () => {
+    const defaultGet = get.getMockImplementation()!;
+    get.mockImplementation(async (path: string) => {
+      if (path === ENDPOINTS.FIRST_PERMIT_DEPOSIT) {
+        throw Object.assign(new Error("Not found: Resource not found"), { status: 404 });
+      }
+      return defaultGet(path);
+    });
+    await makeSdk().sendDeposit(owner, chainId, amount, "USDC");
+
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(writeContract).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the permit path after a wallet rejection", async () => {
     signTypedData.mockRejectedValueOnce(new Error("User rejected signature"));
     await expect(makeSdk().sendDirectDeposit(owner, chainId, amount, "USDC")).rejects.toThrow("User rejected signature");

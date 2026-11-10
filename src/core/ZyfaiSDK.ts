@@ -2469,10 +2469,9 @@ export class ZyfaiSDK {
         ENDPOINTS.FIRST_PERMIT_DEPOSIT,
       );
     } catch (error) {
-      // Older execution APIs do not have this route. A transient error or a
-      // missing user does not establish that permits are unavailable.
-      if (error instanceof Error && "status" in error && error.status === 404 &&
-          error.message.includes(`Cannot GET /api/v1${ENDPOINTS.FIRST_PERMIT_DEPOSIT}`)) {
+      // Older execution APIs respond with 404 when this route is absent. Treat
+      // any 404 as "permits unavailable" so sendDeposit falls back to transfer.
+      if (error instanceof Error && "status" in error && error.status === 404) {
         return { enabledTokens: [], intent: null };
       }
       throw error;
