@@ -5196,19 +5196,19 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get aggressive (high-risk, high-reward) yield opportunities
+   * Get balanced (high-risk, high-reward) yield opportunities.
    *
    * @param chainId - Optional chain ID filter
    * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
-   * @returns List of aggressive opportunities
+   * @returns List of balanced opportunities
    *
    * @example
    * ```typescript
-   * const opportunities = await sdk.getAggressiveOpportunities(8453, "WETH");
+   * const opportunities = await sdk.getBalancedOpportunities(8453, "WETH");
    * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
    * ```
    */
-  async getAggressiveOpportunities(
+  async getBalancedOpportunities(
     chainId?: number,
     asset?: string,
     status?: "live" | "not_live",
@@ -5223,7 +5223,7 @@ export class ZyfaiSDK {
       return {
         success: true,
         chainId,
-        strategyType: "aggressive",
+        strategyType: "balanced",
         data: Array.isArray(data)
           ? data.map((o: any) => ({
               id: o.id,
@@ -5235,36 +5235,54 @@ export class ZyfaiSDK {
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,
-              strategyType: "aggressive",
+              strategyType: "balanced",
               status: o.status,
             }))
           : [],
       };
     } catch (error) {
       throw new Error(
-        `Failed to get aggressive opportunities: ${(error as Error).message}`,
+        `Failed to get balanced opportunities: ${(error as Error).message}`,
       );
     }
   }
 
   /**
-   * Get yieldmaxxing opportunities — pools reachable only with the
-   * `"yieldmaxxing"` strategy, including protocols whose withdrawals are
+   * @deprecated Use {@link getBalancedOpportunities} instead. Retains the
+   *   pre-rename `getAggressiveOpportunities` entry point; same HTTP request as
+   *   balanced, with legacy `strategyType: "aggressive"` on the response and rows.
+   */
+  async getAggressiveOpportunities(
+    chainId?: number,
+    asset?: string,
+    status?: "live" | "not_live",
+  ): Promise<OpportunitiesResponse> {
+    const result = await this.getBalancedOpportunities(chainId, asset, status);
+    return {
+      ...result,
+      strategyType: "aggressive",
+      data: result.data.map((o) => ({ ...o, strategyType: "aggressive" })),
+    };
+  }
+
+  /**
+   * Get advanced yield opportunities — pools reachable only with the
+   * `"advanced"` strategy, including protocols whose withdrawals are
    * asynchronous (Ipor, Superform). Exiting these pools takes about a day
    * on Ipor and three on Superform; track the redemption through
    * `getPortfolio().portfolio.pendingAsyncWithdrawals`.
    *
    * @param chainId - Optional chain ID filter
    * @param asset - Optional asset filter (e.g. "USDC", "WETH")
-   * @returns List of yieldmaxxing opportunities
+   * @returns List of advanced opportunities
    *
    * @example
    * ```typescript
-   * const opportunities = await sdk.getAsyncOpportunities(8453);
+   * const opportunities = await sdk.getAdvancedOpportunities(8453);
    * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
    * ```
    */
-  async getAsyncOpportunities(
+  async getAdvancedOpportunities(
     chainId?: number,
     asset?: string,
     status?: "live" | "not_live",
@@ -5279,7 +5297,7 @@ export class ZyfaiSDK {
       return {
         success: true,
         chainId,
-        strategyType: "yieldmaxxing",
+        strategyType: "advanced",
         data: Array.isArray(data)
           ? data.map((o: any) => ({
               id: o.id,
@@ -5291,16 +5309,34 @@ export class ZyfaiSDK {
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,
-              strategyType: "yieldmaxxing",
+              strategyType: "advanced",
               status: o.status,
             }))
           : [],
       };
     } catch (error) {
       throw new Error(
-        `Failed to get yieldmaxxing opportunities: ${(error as Error).message}`,
+        `Failed to get advanced opportunities: ${(error as Error).message}`,
       );
     }
+  }
+
+  /**
+   * @deprecated Use {@link getAdvancedOpportunities} instead. Retains the
+   *   pre-rename `getAsyncOpportunities` entry point; same HTTP request as
+   *   advanced, with legacy `strategyType: "yieldmaxxing"` on the response and rows.
+   */
+  async getAsyncOpportunities(
+    chainId?: number,
+    asset?: string,
+    status?: "live" | "not_live",
+  ): Promise<OpportunitiesResponse> {
+    const result = await this.getAdvancedOpportunities(chainId, asset, status);
+    return {
+      ...result,
+      strategyType: "yieldmaxxing",
+      data: result.data.map((o) => ({ ...o, strategyType: "yieldmaxxing" })),
+    };
   }
 
   /**

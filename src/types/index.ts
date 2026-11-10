@@ -16,6 +16,13 @@ export type Hex = `0x${string}`;
  */
 export type Strategy = "conservative" | "aggressive" | "yieldmaxxing";
 
+/** Strategy labels returned on opportunity rows (includes renamed public tiers). */
+export type OpportunityStrategyType =
+  | "conservative"
+  | "balanced"
+  | "advanced"
+  | Strategy;
+
 /** Public asset symbols supported by the SDK */
 export type SupportedAsset =
   | "USDC"
@@ -700,15 +707,15 @@ export interface Opportunity {
   tvl?: number;
   asset?: string;
   risk?: string;
-  /** Public {@link Strategy} bucket for this pool. */
-  strategyType: Strategy;
+  /** Strategy tier for this pool (see {@link OpportunityStrategyType}). */
+  strategyType: OpportunityStrategyType;
   status?: string;
 }
 
 export interface OpportunitiesResponse {
   success: boolean;
   chainId?: number;
-  strategyType: Strategy;
+  strategyType: OpportunityStrategyType;
   data: Opportunity[];
 }
 
