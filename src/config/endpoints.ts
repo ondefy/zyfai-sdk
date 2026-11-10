@@ -88,6 +88,8 @@ export const ENDPOINTS = {
   // User
   USER_ME: "/users/me",
   USER_ASSET_TYPE_SETTINGS: "/users/asset-type-settings",
+  USER_MANUAL_ALLOCATION: "/users/me/manual-allocation",
+  USER_MANUAL_ALLOCATION_RESUME: "/users/me/manual-allocation/resume",
   AGENT_DEPOSIT_SETUP: "/users/me/agent-deposit-setup",
   USER_AGENT_DEPOSIT_INTENTS: "/users/me/agent-deposit-intents",
   USER_AGENT_DEPOSIT_INTENT: (actionId: string) =>
