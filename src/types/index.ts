@@ -16,6 +16,13 @@ export type Hex = `0x${string}`;
  */
 export type Strategy = "conservative" | "aggressive" | "yieldmaxxing";
 
+/** Strategy labels returned on opportunity rows (includes renamed public tiers). */
+export type OpportunityStrategyType =
+  | "conservative"
+  | "balanced"
+  | "advanced"
+  | Strategy;
+
 /** Public asset symbols supported by the SDK */
 export type SupportedAsset =
   | "USDC"
@@ -700,15 +707,15 @@ export interface Opportunity {
   tvl?: number;
   asset?: string;
   risk?: string;
-  /** Public {@link Strategy} bucket for this pool. */
-  strategyType: Strategy;
+  /** Strategy tier for this pool (see {@link OpportunityStrategyType}). */
+  strategyType: OpportunityStrategyType;
   status?: string;
 }
 
 export interface OpportunitiesResponse {
   success: boolean;
   chainId?: number;
-  strategyType: Strategy;
+  strategyType: OpportunityStrategyType;
   data: Opportunity[];
 }
 
@@ -779,7 +786,7 @@ export interface DepositResponse {
   amount: string;
   /**
    * How the collateral reached the Safe.
-   * `direct` transfers the collateral itself. `swap` converts another token
+   * `direct` sends the collateral by permit or wallet transfer. `swap` converts another token
    * through Relay. `wrap` turns same-chain native ETH into WETH, then transfers it.
    */
   route?: "direct" | "swap" | "wrap";
@@ -790,6 +797,19 @@ export interface DepositResponse {
    * `handover_pending` until {@link ZyfaiSDK.waitForDepositCredit} completes.
    */
   registration: DepositLifecycleResponse;
+}
+
+/** Current sponsored first-deposit intent for the authenticated EOA. */
+export interface FirstPermitDepositStatus {
+  id: string;
+  status: "prepared" | "queued" | "submitted" | "registered" | "failed";
+  chainId: SupportedChainId;
+  token: Address;
+  /** Exact collateral amount in least units. */
+  amount: string;
+  /** Available after the backend registers the confirmed pull. */
+  depositId: string | null;
+  txHash: Hex | null;
 }
 
 /**
@@ -864,7 +884,7 @@ export interface SwapDepositOrder {
 }
 
 /**
- * `sendDeposit` input. Omit `spendToken` to transfer `asset` on `chainId`.
+ * `sendDeposit` input. Omit `spendToken` to deposit `asset` directly on `chainId`.
  * Set `spendToken` when the wallet holds a different token or chain.
  */
 export interface SendDepositParams {
@@ -959,6 +979,57 @@ export interface WithdrawLifecycleResponse {
   lastError?: string | null;
   statusUrl: string;
   estimatedClaimAt?: string | null;
+}
+
+/** Base Merkl campaign slots served by the data API. */
+export type BaseMerklCampaignId = "base" | "base-new-tvl" | "base/rzfi";
+
+/** A Zyfai Merkl incentive campaign on Base, from {@link ZyfaiSDK.getBaseMerklCampaigns}. */
+export interface MerklCampaign {
+  id: BaseMerklCampaignId;
+  name: string;
+  /** Current campaign APR as a decimal (0.011 = 1.1%), on top of strategy yield. */
+  apr: number;
+  tvlUsd: number;
+  activeWallets: number;
+  rewardToken: Address;
+  totalRewards: number;
+  dailyRewardAmount: number;
+  startDate: string;
+  endDate: string;
+  /** True while now is between startDate and endDate. */
+  isActive: boolean;
+}
+
+/** Unsigned rZFI claim from {@link ZyfaiSDK.buildRzfiClaimTransaction}. */
+export interface RzfiClaimTransaction {
+  /** Safe that receives the rZFI. */
+  safeAddress: Address;
+  chainId: 8453;
+  /** rZFI being claimed, in wei (18 decimals). */
+  claimableAmount: string;
+  to: Address;
+  data: Hex;
+  value: "0";
+}
+
+/**
+ * Two-step rZFI claim state from {@link ZyfaiSDK.prepareRzfiClaim} and
+ * {@link ZyfaiSDK.submitRzfiClaim}.
+ */
+export interface RzfiClaimResponse {
+  success: boolean;
+  status: "pending" | "claimed";
+  /** Safe that receives the rZFI (Base). */
+  safeAddress: Address;
+  /** rZFI being claimed, in wei (18 decimals). */
+  claimableAmount: string;
+  /** Present when pending: sign with the owner EOA (personal_sign of the raw hash). */
+  userOpHashToSign?: Hex;
+  /** Present when pending: the userOperation behind the hash, for verification. */
+  userOperation?: Record<string, unknown>;
+  /** Present when claimed. */
+  txHash?: Hex;
 }
 
 export interface LogDepositResponse {

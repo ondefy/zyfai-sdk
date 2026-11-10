@@ -100,6 +100,10 @@ export const ENDPOINTS = {
   USER_WITHDRAW: "/users/withdraw/v2",
   PARTIAL_WITHDRAW: "/users/partial-withdraw/v2",
   LOG_DEPOSIT: "/users/log_deposit/v2",
+  FIRST_PERMIT_DEPOSIT: "/users/me/permit-deposit",
+  FIRST_PERMIT_DEPOSIT_PREPARE: "/users/me/permit-deposit/prepare",
+  FIRST_PERMIT_DEPOSIT_SUBMIT: (id: string) =>
+    `/users/me/permit-deposit/${encodeURIComponent(id)}/submit`,
   FUNDING_ORDERS: "/users/me/funding-orders",
   FUNDING_ORDER: (orderId: string) =>
     `/users/me/funding-orders/${encodeURIComponent(orderId)}`,
@@ -113,6 +117,7 @@ export const ENDPOINTS = {
 
   // Safe Deployment (single endpoint)
   SAFE_DEPLOY: "/users/safe-deploy",
+  RZFI_CLAIM: "/users/rzfi-claim",
 
   // Multichain deploy for predeployed (pool) wallets — deploys + rotates the
   // same address on the requested chains (sponsored, no user signature).
@@ -202,6 +207,9 @@ export const ENDPOINTS = {
 
 // Data API Endpoints (v2)
 export const DATA_ENDPOINTS = {
+  // Merkl incentive campaigns
+  MERKL_CAMPAIGN_INFO: (campaign: string) => `/merkl/${campaign}/campaign-info`,
+
   // User Initialization
   USER_INITIALIZE: "/api/earnings/initialize",
 
