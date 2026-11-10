@@ -1,5 +1,11 @@
 # @zyfai/sdk
 
+## 0.14.0
+
+### Minor Changes
+
+- [#87](https://github.com/ondefy/zyfai-sdk/pull/87) [`8c5f7d7`](https://github.com/ondefy/zyfai-sdk/commit/8c5f7d793f148eb6e5edfbadbdf15bde6e5e6dc5) Thanks [@joepegler](https://github.com/joepegler)! - Add `getBalancedOpportunities` and `getAdvancedOpportunities` as the preferred opportunity readers for the balanced and advanced strategy tiers (`conservative` | `balanced` | `advanced`). `getAggressiveOpportunities` and `getAsyncOpportunities` remain as deprecated aliases with identical HTTP behaviour and legacy `strategyType` labels (`aggressive`, `yieldmaxxing`).
+
 ## 0.13.0
 
 ### Minor Changes
