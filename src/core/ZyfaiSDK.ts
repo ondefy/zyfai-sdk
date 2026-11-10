@@ -5090,8 +5090,8 @@ export class ZyfaiSDK {
   }
 
   /**
-   * @deprecated Use {@link getBalancedOpportunities} instead. Name aligned with
-   *   the `"balanced"` strategy; behaviour is unchanged.
+   * @deprecated Use {@link getBalancedOpportunities} instead. Retains the
+   *   pre-rename `getAggressiveOpportunities` entry point; behaviour is unchanged.
    */
   async getAggressiveOpportunities(
     chainId?: number,
@@ -5102,7 +5102,7 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get advanced (grow) opportunities — pools reachable only with the
+   * Get advanced yield opportunities — pools reachable only with the
    * `"advanced"` strategy, including protocols whose withdrawals are
    * asynchronous (Ipor, Superform). Exiting these pools takes about a day
    * on Ipor and three on Superform; track the redemption through
@@ -5114,11 +5114,11 @@ export class ZyfaiSDK {
    *
    * @example
    * ```typescript
-   * const opportunities = await sdk.getGrowOpportunities(8453);
+   * const opportunities = await sdk.getAdvancedOpportunities(8453);
    * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
    * ```
    */
-  async getGrowOpportunities(
+  async getAdvancedOpportunities(
     chainId?: number,
     asset?: string,
     status?: "live" | "not_live",
@@ -5158,15 +5158,15 @@ export class ZyfaiSDK {
   }
 
   /**
-   * @deprecated Use {@link getGrowOpportunities} instead. Name aligned with
-   *   the `"advanced"` / grow strategy; behaviour is unchanged.
+   * @deprecated Use {@link getAdvancedOpportunities} instead. Retains the
+   *   pre-rename `getAsyncOpportunities` entry point; behaviour is unchanged.
    */
   async getAsyncOpportunities(
     chainId?: number,
     asset?: string,
     status?: "live" | "not_live",
   ): Promise<OpportunitiesResponse> {
-    return this.getGrowOpportunities(chainId, asset, status);
+    return this.getAdvancedOpportunities(chainId, asset, status);
   }
 
   /**
