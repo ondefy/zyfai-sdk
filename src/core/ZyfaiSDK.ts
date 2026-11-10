@@ -2463,10 +2463,11 @@ export class ZyfaiSDK {
     return (await this.getFirstPermitDepositAvailability()).intent;
   }
 
-  private async getFirstPermitDepositAvailability(): Promise<FirstPermitDepositAvailability> {
+  private async getFirstPermitDepositAvailability(chainId?: number): Promise<FirstPermitDepositAvailability> {
     try {
       return await this.httpClient.get<FirstPermitDepositAvailability>(
         ENDPOINTS.FIRST_PERMIT_DEPOSIT,
+        chainId != null ? { params: { chainId } } : undefined,
       );
     } catch (error) {
       // Older execution APIs respond with 404 when this route is absent. Treat
@@ -2481,7 +2482,7 @@ export class ZyfaiSDK {
   private async sendFirstPermitDeposit(
     request: FirstPermitDepositRequest,
   ): Promise<DepositResponse | null> {
-    const { enabledTokens, intent } = await this.getFirstPermitDepositAvailability();
+    const { enabledTokens, intent, permitPreferred } = await this.getFirstPermitDepositAvailability(request.chainId);
     let id: string;
     let accepted: FirstPermitDepositStatus | null;
     if (intent?.status === "queued" || intent?.status === "submitted") {
@@ -2492,12 +2493,14 @@ export class ZyfaiSDK {
       accepted = intent;
     } else {
       const { owner, chainId, token, amount } = request;
+      // A spendable native balance makes the API refuse the permit. Pay gas with a transfer.
+      if (permitPreferred === false) return null;
       if (!enabledTokens.includes(`${chainId}:${token.toLowerCase()}`)) return null;
       const prepared = await this.httpClient.post<PreparedFirstPermitDeposit | null>(
         ENDPOINTS.FIRST_PERMIT_DEPOSIT_PREPARE,
         { owner, chainId, token, amount: amount.toString() },
       );
-      if (!prepared) throw new Error("Sponsored first deposit is unavailable for this wallet or amount");
+      if (!prepared) return null;
 
       const message = validateFirstPermit(prepared, request);
       const currentWallet = this.getWalletClient();

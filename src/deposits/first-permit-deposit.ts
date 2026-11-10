@@ -23,6 +23,8 @@ export interface FirstPermitDepositRequest {
 export interface FirstPermitDepositAvailability {
   enabledTokens: string[];
   intent: FirstPermitDepositStatus | null;
+  /** False when the owner can pay for a normal transfer on the requested chain. */
+  permitPreferred?: boolean;
 }
 
 export interface PreparedFirstPermitDeposit {

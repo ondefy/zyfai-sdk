@@ -90,6 +90,29 @@ describe("SDK first permit deposit", () => {
     expect(result).toMatchObject({ txHash, smartWallet: safe, amount, route: "direct", registration: deposit });
   });
 
+  it("uses the transfer path when the owner can pay gas", async () => {
+    const defaultGet = get.getMockImplementation()!;
+    get.mockImplementation(async (path: string) => path === ENDPOINTS.FIRST_PERMIT_DEPOSIT
+      ? { enabledTokens: [`${chainId}:${token.toLowerCase()}`], intent: null, permitPreferred: false }
+      : defaultGet(path));
+    await makeSdk().sendDeposit(owner, chainId, amount, "USDC");
+
+    expect(post).not.toHaveBeenCalledWith(ENDPOINTS.FIRST_PERMIT_DEPOSIT_PREPARE, expect.anything());
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(writeContract).toHaveBeenCalledWith(expect.objectContaining({ functionName: "transfer" }));
+  });
+
+  it("uses the transfer path when permit preparation is refused", async () => {
+    const defaultPost = post.getMockImplementation()!;
+    post.mockImplementation(async (path: string) => path === ENDPOINTS.FIRST_PERMIT_DEPOSIT_PREPARE
+      ? null
+      : defaultPost(path));
+    await makeSdk().sendDeposit(owner, chainId, amount, "USDC");
+
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(writeContract).toHaveBeenCalledWith(expect.objectContaining({ functionName: "transfer" }));
+  });
+
   it("uses the transfer path when the chain and token are outside the allowlist", async () => {
     const defaultGet = get.getMockImplementation()!;
     get.mockImplementation(async (path: string) => path === ENDPOINTS.FIRST_PERMIT_DEPOSIT

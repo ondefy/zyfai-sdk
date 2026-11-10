@@ -1,5 +1,15 @@
 # @zyfai/sdk
 
+## 0.15.0
+
+### Minor Changes
+
+- [#88](https://github.com/ondefy/zyfai-sdk/pull/88) [`c700e5a`](https://github.com/ondefy/zyfai-sdk/commit/c700e5a1a8b48a0db5d735c39938785274b9ae97) Thanks [@joepegler](https://github.com/joepegler)! - Use a sponsored ERC-2612 permit for eligible direct first deposits. Add a status method to recover a first-deposit intent after an interrupted submission.
+
+### Patch Changes
+
+- [#88](https://github.com/ondefy/zyfai-sdk/pull/88) [`c700e5a`](https://github.com/ondefy/zyfai-sdk/commit/c700e5a1a8b48a0db5d735c39938785274b9ae97) Thanks [@joepegler](https://github.com/joepegler)! - Fall back to ERC-20 transfer on any 404 from the first-permit-deposit availability endpoint, not only when the error message matches a legacy Express shape.
+
 ## 0.14.0
 
 ### Minor Changes
