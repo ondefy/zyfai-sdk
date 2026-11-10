@@ -5091,14 +5091,20 @@ export class ZyfaiSDK {
 
   /**
    * @deprecated Use {@link getBalancedOpportunities} instead. Retains the
-   *   pre-rename `getAggressiveOpportunities` entry point; behaviour is unchanged.
+   *   pre-rename `getAggressiveOpportunities` entry point; same HTTP request as
+   *   balanced, with legacy `strategyType: "aggressive"` on the response and rows.
    */
   async getAggressiveOpportunities(
     chainId?: number,
     asset?: string,
     status?: "live" | "not_live",
   ): Promise<OpportunitiesResponse> {
-    return this.getBalancedOpportunities(chainId, asset, status);
+    const result = await this.getBalancedOpportunities(chainId, asset, status);
+    return {
+      ...result,
+      strategyType: "aggressive",
+      data: result.data.map((o) => ({ ...o, strategyType: "aggressive" })),
+    };
   }
 
   /**
@@ -5159,14 +5165,20 @@ export class ZyfaiSDK {
 
   /**
    * @deprecated Use {@link getAdvancedOpportunities} instead. Retains the
-   *   pre-rename `getAsyncOpportunities` entry point; behaviour is unchanged.
+   *   pre-rename `getAsyncOpportunities` entry point; same HTTP request as
+   *   advanced, with legacy `strategyType: "yieldmaxxing"` on the response and rows.
    */
   async getAsyncOpportunities(
     chainId?: number,
     asset?: string,
     status?: "live" | "not_live",
   ): Promise<OpportunitiesResponse> {
-    return this.getAdvancedOpportunities(chainId, asset, status);
+    const result = await this.getAdvancedOpportunities(chainId, asset, status);
+    return {
+      ...result,
+      strategyType: "yieldmaxxing",
+      data: result.data.map((o) => ({ ...o, strategyType: "yieldmaxxing" })),
+    };
   }
 
   /**
