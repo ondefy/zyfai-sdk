@@ -76,6 +76,22 @@ export function isValidPublicStrategy(
   );
 }
 
+/**
+ * Conservative, aggressive, and yieldmaxxing include vaults added after the
+ * selection. An explicit strategy always opts in. A first profile with no
+ * chains and no protocols uses the conservative default and opts in too.
+ * Recomputing or resuming an account that already has a profile leaves the
+ * stored flag alone.
+ */
+export function shouldDefaultAutoSelectNewVaults(input: {
+  requestedStrategy: PublicStrategy | undefined;
+  hasChains: boolean;
+  hasProtocols: boolean;
+}): boolean {
+  if (input.requestedStrategy !== undefined) return true;
+  return !input.hasChains && !input.hasProtocols;
+}
+
 export function convertStrategyToPublic<T extends { strategy?: string }>(
   obj: T
 ): T {

@@ -201,6 +201,7 @@ import {
   convertStrategyToPublic,
   convertStrategiesToPublic,
   isValidPublicStrategy,
+  shouldDefaultAutoSelectNewVaults,
   toPublicStrategyOrUndefined,
   convertStrategiesToPublicAndNaming,
   convertAssetInternally,
@@ -1847,6 +1848,12 @@ export class ZyfaiSDK {
     const mandateChainId =
       chains.find((c) => !existingChains.includes(c)) ?? chains[0];
 
+    const autoSelectNewVaults = shouldDefaultAutoSelectNewVaults({
+      requestedStrategy: strategy,
+      hasChains: existingChains.length > 0,
+      hasProtocols: (userDetails.protocols?.length ?? 0) > 0,
+    });
+
     return await this.persistDiscoveredAssetProfile(
       asset,
       effectiveChains as SupportedChainId[],
@@ -1854,6 +1861,7 @@ export class ZyfaiSDK {
       strategy,
       mandateChainId,
       existingChains,
+      autoSelectNewVaults,
     );
   }
 
@@ -1868,6 +1876,7 @@ export class ZyfaiSDK {
     strategy?: Strategy,
     agentDepositChainId?: SupportedChainId,
     existingChains: number[] = [],
+    autoSelectNewVaults = false,
   ): Promise<UpdateUserProfileResponse> {
     const internalAsset = convertAssetInternally(asset);
     const assetSettings: Record<string, unknown> = {
@@ -1877,6 +1886,9 @@ export class ZyfaiSDK {
     if (strategy !== undefined) {
       assetSettings.rebalanceStrategy = toInternalStrategy(strategy);
     }
+    if (autoSelectNewVaults) {
+      assetSettings.autoSelectProtocols = true;
+    }
 
     const configureProfile = () =>
       this.updateUserProfile({
@@ -1884,6 +1896,7 @@ export class ZyfaiSDK {
         protocols: withPools,
         chains: effectiveChains,
         ...(strategy !== undefined && { strategy }),
+        ...(autoSelectNewVaults && { autoSelectProtocols: true }),
       });
 
     if (this.sessionChannel === "agent") {
@@ -1935,7 +1948,9 @@ export class ZyfaiSDK {
    * @param params.asset - Asset to configure
    * @param params.strategy - Strategy to apply; defaults to the one already
    *   stored for this asset (`"conservative"` on a fresh account), which lets
-   *   you recompute a protocol list without changing the strategy
+   *   you recompute a protocol list without changing the strategy. Passing a
+   *   strategy also opts the asset into vaults added later. Omitting it does
+   *   not change that opt-in.
    * @param params.chains - Chains to enable. Defaults to every chain the asset
    *   exists on. **Additive**: chains already enabled are kept, so this cannot
    *   be used to disable one.
@@ -2003,7 +2018,8 @@ export class ZyfaiSDK {
    * Apply a strategy and auto-select matching protocols for one or all managed
    * assets ({@link getManagedAssets}). Prefer this over
    * {@link updateUserProfile} when changing strategy so protocols stay aligned
-   * with the tier (including `yieldmaxxing` async venues).
+   * with the tier (including `yieldmaxxing` async venues). The chosen strategy
+   * also opts those assets into vaults added later.
    *
    * @group Portfolio and execution
    */
