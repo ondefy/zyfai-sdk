@@ -500,7 +500,7 @@ if (credited.status === "credited") {
 - `sendDeposit()` confirms the transfer (or the Relay fill) and registers its lifecycle, then returns its ID. Call `waitForDepositPosition()` when the UI should wait until allocation finishes. `waitForDepositCredit()` is the shorter wait for credited balance only.
 - `depositFunds()` remains a compatibility wrapper that calls both steps and waits through the normal completion window; it **rejects** if credit is not confirmed in that window (track in-flight deposits with `getDepositStatus()` or call `waitForDepositCredit()` with a longer `timeoutMs`).
 - If first-deposit protocol patching fails, funding still proceeds. If registration fails after a wallet transfer, use the transfer hash to retry `logDeposit()` after `connectAccount()`.
-- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, USDT, PYUSD, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|usdt|pyusd|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. Later deposits skip this.
+- **First deposit only** (before transfer + `log_deposit`): if the USDC profile has no `chains` yet, the SDK patches protocols for **USDC, WETH, EURC, USDT, PYUSD, and NVDAc**, each across the chains it exists on (EURC on Mainnet/Base, USDT and PYUSD on Mainnet, NVDAc on Base → `assetTypeSettings.[usdc|eth|eurc|usdt|pyusd|nvdac]`). Pass optional `strategy` (`"conservative"` default, `"aggressive"` or `"yieldmaxxing"`) — same role as the former `deploySafe` strategy argument. That first write also opts each configured asset into vaults added later (`autoSelectProtocols`). Later deposits skip this.
 - **`strategy` is ignored on later deposits, and no error is raised.** Re-running the patch would overwrite a protocol selection the user may have customised, so passing `"yieldmaxxing"` to an account that has already deposited leaves it on its current strategy. To change an existing account, use `setStrategyWithProtocols` or `setAssetStrategy` (not `updateUserProfile` alone):
 
   ```typescript
@@ -1173,7 +1173,7 @@ console.log(profile.protocols); // Ipor + Superform
 | Parameter | Default | Notes |
 | --- | --- | --- |
 | `asset` | — | Required |
-| `strategy` | the asset's current one | Omit it to recompute the protocol list without changing strategy |
+| `strategy` | the asset's current one | Omit it to recompute the protocol list without changing strategy. Passing one opts the asset into vaults added later |
 | `chains` | every chain the asset exists on | **Additive** — chains already enabled are kept, so this cannot disable one |
 
 This is the method to reach for when changing an existing account's strategy,
