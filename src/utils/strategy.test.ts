@@ -4,6 +4,7 @@ import {
   convertAssetInternally,
   convertStrategyToPublic,
   isValidPublicStrategy,
+  shouldDefaultAutoSelectNewVaults,
   toInternalStrategy,
   toPublicStrategy,
   toPublicStrategyOrUndefined,
@@ -93,5 +94,58 @@ describe("toPublicStrategyOrUndefined", () => {
     const publicStrategy = toPublicStrategyOrUndefined("async_strategy");
     expect(isValidPublicStrategy(publicStrategy ?? "")).toBe(true);
     expect(toInternalStrategy(publicStrategy!)).toBe("async_strategy");
+  });
+});
+
+describe("shouldDefaultAutoSelectNewVaults", () => {
+  it("opts in when a strategy is chosen, including conservative", () => {
+    expect(
+      shouldDefaultAutoSelectNewVaults({
+        requestedStrategy: "conservative",
+        hasChains: true,
+        hasProtocols: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldDefaultAutoSelectNewVaults({
+        requestedStrategy: "aggressive",
+        hasChains: false,
+        hasProtocols: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldDefaultAutoSelectNewVaults({
+        requestedStrategy: "yieldmaxxing",
+        hasChains: true,
+        hasProtocols: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("opts in on a first profile that has not chosen a strategy yet", () => {
+    expect(
+      shouldDefaultAutoSelectNewVaults({
+        requestedStrategy: undefined,
+        hasChains: false,
+        hasProtocols: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("leaves an existing profile alone when no strategy is requested", () => {
+    expect(
+      shouldDefaultAutoSelectNewVaults({
+        requestedStrategy: undefined,
+        hasChains: true,
+        hasProtocols: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldDefaultAutoSelectNewVaults({
+        requestedStrategy: undefined,
+        hasChains: true,
+        hasProtocols: true,
+      }),
+    ).toBe(false);
   });
 });
