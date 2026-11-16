@@ -3,7 +3,7 @@
  */
 
 import { HttpClient } from "../utils/http-client";
-import { sleep } from "../utils/poll";
+import { pollUntil, sleep } from "../utils/poll";
 import { isWithdrawSettlementTerminal } from "../utils/withdraw-lifecycle-polling";
 import {
   parseTokenUsdPrice,
@@ -61,6 +61,7 @@ import type {
   Session,
   SessionKeyResponse,
   DepositResponse,
+  FirstPermitDepositStatus,
   LogDepositResponse,
   RzfiClaimResponse,
   RzfiClaimTransaction,
@@ -143,6 +144,7 @@ import {
   custom,
   http,
   getAddress,
+  isAddressEqual,
   encodeFunctionData,
   defineChain,
   type WalletClient,
@@ -155,6 +157,14 @@ import {
 } from "../deposits/deposit-route";
 import { assertStoredFundingOrderRoute } from "../deposits/funding-order-route";
 import { resolveCollateralMinimum } from "../deposits/collateral-minimum";
+import {
+  firstPermitTypes,
+  matchesFirstPermitDeposit,
+  validateFirstPermit,
+  type FirstPermitDepositRequest,
+  type FirstPermitDepositAvailability,
+  type PreparedFirstPermitDeposit,
+} from "../deposits/first-permit-deposit";
 import {
   MAX_RELAY_SLIPPAGE_BPS,
   resolveRelaySlippageBps,
@@ -2195,14 +2205,16 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Transfer a collateral token the wallet already holds into the Safe.
+   * Deposit a collateral token the wallet already holds into the Safe.
    *
    * @remarks
    * Use this when the connected wallet holds the strategy collateral on the
    * deposit chain. {@link ZyfaiSDK.sendDeposit} calls this automatically in
    * that case. A different token uses {@link ZyfaiSDK.sendSwapDeposit}.
    *
-   * Confirms the ERC-20 `transfer`, then calls {@link ZyfaiSDK.logDeposit}.
+   * Eligible first deposits sign an ERC-2612 permit and the backend sponsors and
+   * registers the pull. Other direct deposits confirm an ERC-20 transfer and
+   * call {@link ZyfaiSDK.logDeposit}.
    * Requires {@link ZyfaiSDK.connectAccount}. Pass the **EOA** as `userAddress`.
    *
    * @group Deposits and withdrawals
@@ -2231,6 +2243,17 @@ export class ZyfaiSDK {
     amount: string,
     asset: string,
     strategy?: Strategy,
+  ): Promise<DepositResponse> {
+    return this.sendCollateralDeposit(userAddress, chainId, amount, asset, strategy, true);
+  }
+
+  private async sendCollateralDeposit(
+    userAddress: string,
+    chainId: SupportedChainId,
+    amount: string,
+    asset: string,
+    strategy: Strategy | undefined,
+    allowPermit: boolean,
   ): Promise<DepositResponse> {
     try {
       if (!userAddress) {
@@ -2363,6 +2386,17 @@ export class ZyfaiSDK {
         }
       }
 
+      if (allowPermit && this.isPredeployed && this.isConnectedUser(userAddress)) {
+        const sponsored = await this.sendFirstPermitDeposit({
+          owner: getAddress(userAddress),
+          safe: safeAddress,
+          chainId,
+          token: getAddress(token),
+          amount: amountBigInt,
+        });
+        if (sponsored) return sponsored;
+      }
+
       const txHash = await walletClient.writeContract({
         address: token as Address,
         abi: erc20TransferWriteAbi(assetSymbol),
@@ -2402,11 +2436,137 @@ export class ZyfaiSDK {
   }
 
   /**
+   * Read the current first-deposit permit intent after a pending or interrupted deposit.
+   *
+   * @remarks
+   * Uses the execution API and the SIWE session from {@link ZyfaiSDK.connectAccount}.
+   * A registered intent provides the deposit id for {@link ZyfaiSDK.getDepositStatus}.
+   *
+   * @group Deposits and withdrawals
+   *
+   * @param userAddress - Authenticated EOA
+   * @returns The latest permit intent, or null when no intent exists
+   * @throws If the address differs from the authenticated EOA or the request fails
+   *
+   * @example
+   * ```typescript
+   * const intent = await sdk.getFirstPermitDepositStatus(eoa);
+   * if (intent?.depositId) await sdk.waitForDepositCredit(intent.depositId, intent.chainId);
+   * ```
+   */
+  async getFirstPermitDepositStatus(
+    userAddress: string,
+  ): Promise<FirstPermitDepositStatus | null> {
+    if (!this.sessionEoa || !isAddressEqual(getAddress(userAddress), this.sessionEoa)) {
+      throw new Error("userAddress does not match authenticated session EOA");
+    }
+    return (await this.getFirstPermitDepositAvailability()).intent;
+  }
+
+  private async getFirstPermitDepositAvailability(chainId?: number): Promise<FirstPermitDepositAvailability> {
+    try {
+      return await this.httpClient.get<FirstPermitDepositAvailability>(
+        ENDPOINTS.FIRST_PERMIT_DEPOSIT,
+        chainId != null ? { params: { chainId } } : undefined,
+      );
+    } catch (error) {
+      // Older execution APIs respond with 404 when this route is absent. Treat
+      // any 404 as "permits unavailable" so sendDeposit falls back to transfer.
+      if (error instanceof Error && "status" in error && error.status === 404) {
+        return { enabledTokens: [], intent: null };
+      }
+      throw error;
+    }
+  }
+
+  private async sendFirstPermitDeposit(
+    request: FirstPermitDepositRequest,
+  ): Promise<DepositResponse | null> {
+    const { enabledTokens, intent, permitPreferred } = await this.getFirstPermitDepositAvailability(request.chainId);
+    let id: string;
+    let accepted: FirstPermitDepositStatus | null;
+    if (intent?.status === "queued" || intent?.status === "submitted") {
+      if (!matchesFirstPermitDeposit(intent, request)) {
+        throw new Error(`First permit deposit ${intent.id} is already pending for a different deposit`);
+      }
+      id = intent.id;
+      accepted = intent;
+    } else {
+      const { owner, chainId, token, amount } = request;
+      // A spendable native balance makes the API refuse the permit. Pay gas with a transfer.
+      if (permitPreferred === false) return null;
+      if (!enabledTokens.includes(`${chainId}:${token.toLowerCase()}`)) return null;
+      const prepared = await this.httpClient.post<PreparedFirstPermitDeposit | null>(
+        ENDPOINTS.FIRST_PERMIT_DEPOSIT_PREPARE,
+        { owner, chainId, token, amount: amount.toString() },
+      );
+      if (!prepared) return null;
+
+      const message = validateFirstPermit(prepared, request);
+      const currentWallet = this.getWalletClient();
+      const wallet = currentWallet.chain?.id === chainId
+        ? currentWallet
+        : await this.walletClientForOrigin(chainId);
+      const signature = await wallet.signTypedData({
+        account: wallet.account!,
+        domain: prepared.domain,
+        types: firstPermitTypes,
+        primaryType: "Permit",
+        message,
+      });
+      id = prepared.id;
+      try {
+        accepted = await this.httpClient.post<FirstPermitDepositStatus>(
+          ENDPOINTS.FIRST_PERMIT_DEPOSIT_SUBMIT(id),
+          { signature },
+        );
+      } catch (error) {
+        // A lost response may still mean the backend accepted the signature.
+        accepted = await this.getFirstPermitDepositStatus(owner).catch(() => null);
+        if (accepted?.id !== id || accepted.status === "prepared") {
+          throw new Error(
+            `Could not confirm first permit deposit ${id}. Check getFirstPermitDepositStatus before retrying: ${thrownMessage(error)}`,
+          );
+        }
+      }
+    }
+
+    let status: FirstPermitDepositStatus | null = accepted;
+    const { value: registered } = await pollUntil(async () => {
+      const current = status ?? await this.getFirstPermitDepositStatus(request.owner);
+      status = null;
+      if (current?.id !== id || !matchesFirstPermitDeposit(current, request)) {
+        throw new Error(`Unable to resolve first permit deposit ${id}. Check getFirstPermitDepositStatus before retrying.`);
+      }
+      if (current.status === "failed") {
+        throw new Error(`First permit deposit ${id} failed`);
+      }
+      return current;
+    }, (current) => current.status === "registered", {
+      intervalMs: 3_000,
+      label: `first permit deposit ${id} registration. Check getFirstPermitDepositStatus before retrying`,
+    });
+    if (!registered.txHash || !registered.depositId) {
+      throw new Error(`First permit deposit ${id} is missing its registration. Check getFirstPermitDepositStatus before retrying.`);
+    }
+    return {
+      success: true,
+      txHash: registered.txHash,
+      smartWallet: request.safe,
+      amount: registered.amount,
+      route: "direct",
+      registration: await this.getDepositStatus(registered.depositId),
+    };
+  }
+
+  /**
    * Fund the Safe with a collateral the wallet already holds, or swap another token into it.
    *
    * @remarks
-   * The positional call is unchanged: `asset` must be a collateral symbol, and
-   * the wallet transfers that token on `chainId`.
+   * The positional call deposits the collateral on `chainId`. Eligible first
+   * deposits use a sponsored ERC-2612 permit. Other direct deposits use a wallet
+   * transfer. If a permit submission is interrupted, check
+   * {@link ZyfaiSDK.getFirstPermitDepositStatus} before starting another deposit.
    *
    * The object form spends `spendToken`. When that token is the destination
    * collateral on `chainId`, this is a direct deposit. Any other token is
@@ -2780,12 +2940,13 @@ export class ZyfaiSDK {
           BigInt(params.amount),
         );
         await this.wrapNativeEth(params.chainId, params.amount);
-        const sent = await this.sendDirectDeposit(
+        const sent = await this.sendCollateralDeposit(
           params.userAddress,
           params.chainId,
           params.amount,
           "WETH",
           params.strategy,
+          false,
         );
         return { ...sent, route: "wrap" };
       }
@@ -5040,21 +5201,21 @@ export class ZyfaiSDK {
   }
 
   /**
-   * Get aggressive (high-risk, high-reward) yield opportunities.
+   * Get balanced (high-risk, high-reward) yield opportunities.
    *
    * Omitting `status` requests live pools only. Pass `"not_live"` for retired pools.
    *
    * @param chainId - Optional chain ID filter
    * @param asset - Optional asset filter (e.g. "USDC", "WETH", "WBTC")
-   * @returns List of aggressive opportunities
+   * @returns List of balanced opportunities
    *
    * @example
    * ```typescript
-   * const opportunities = await sdk.getAggressiveOpportunities(8453, "WETH");
+   * const opportunities = await sdk.getBalancedOpportunities(8453, "WETH");
    * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
    * ```
    */
-  async getAggressiveOpportunities(
+  async getBalancedOpportunities(
     chainId?: number,
     asset?: string,
     status?: "live" | "not_live",
@@ -5069,7 +5230,7 @@ export class ZyfaiSDK {
       return {
         success: true,
         chainId,
-        strategyType: "aggressive",
+        strategyType: "balanced",
         data: Array.isArray(data)
           ? data.map((o: any) => ({
               id: o.id,
@@ -5081,21 +5242,39 @@ export class ZyfaiSDK {
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,
-              strategyType: "aggressive",
+              strategyType: "balanced",
               status: o.status,
             }))
           : [],
       };
     } catch (error) {
       throw new Error(
-        `Failed to get aggressive opportunities: ${(error as Error).message}`,
+        `Failed to get balanced opportunities: ${(error as Error).message}`,
       );
     }
   }
 
   /**
-   * Get yieldmaxxing opportunities — pools reachable only with the
-   * `"yieldmaxxing"` strategy, including protocols whose withdrawals are
+   * @deprecated Use {@link getBalancedOpportunities} instead. Retains the
+   *   pre-rename `getAggressiveOpportunities` entry point; same HTTP request as
+   *   balanced, with legacy `strategyType: "aggressive"` on the response and rows.
+   */
+  async getAggressiveOpportunities(
+    chainId?: number,
+    asset?: string,
+    status?: "live" | "not_live",
+  ): Promise<OpportunitiesResponse> {
+    const result = await this.getBalancedOpportunities(chainId, asset, status);
+    return {
+      ...result,
+      strategyType: "aggressive",
+      data: result.data.map((o) => ({ ...o, strategyType: "aggressive" })),
+    };
+  }
+
+  /**
+   * Get advanced yield opportunities — pools reachable only with the
+   * `"advanced"` strategy, including protocols whose withdrawals are
    * asynchronous (Ipor, Superform). Exiting these pools takes about a day
    * on Ipor and three on Superform; track the redemption through
    * `getPortfolio().portfolio.pendingAsyncWithdrawals`.
@@ -5104,15 +5283,15 @@ export class ZyfaiSDK {
    *
    * @param chainId - Optional chain ID filter
    * @param asset - Optional asset filter (e.g. "USDC", "WETH")
-   * @returns List of yieldmaxxing opportunities
+   * @returns List of advanced opportunities
    *
    * @example
    * ```typescript
-   * const opportunities = await sdk.getAsyncOpportunities(8453);
+   * const opportunities = await sdk.getAdvancedOpportunities(8453);
    * opportunities.data.forEach(o => console.log(o.protocolName, o.apy));
    * ```
    */
-  async getAsyncOpportunities(
+  async getAdvancedOpportunities(
     chainId?: number,
     asset?: string,
     status?: "live" | "not_live",
@@ -5127,7 +5306,7 @@ export class ZyfaiSDK {
       return {
         success: true,
         chainId,
-        strategyType: "yieldmaxxing",
+        strategyType: "advanced",
         data: Array.isArray(data)
           ? data.map((o: any) => ({
               id: o.id,
@@ -5139,16 +5318,34 @@ export class ZyfaiSDK {
               tvl: o.tvl || o.zyfiTvl,
               asset: o.asset || o.underlying_token,
               risk: o.risk,
-              strategyType: "yieldmaxxing",
+              strategyType: "advanced",
               status: o.status,
             }))
           : [],
       };
     } catch (error) {
       throw new Error(
-        `Failed to get yieldmaxxing opportunities: ${(error as Error).message}`,
+        `Failed to get advanced opportunities: ${(error as Error).message}`,
       );
     }
+  }
+
+  /**
+   * @deprecated Use {@link getAdvancedOpportunities} instead. Retains the
+   *   pre-rename `getAsyncOpportunities` entry point; same HTTP request as
+   *   advanced, with legacy `strategyType: "yieldmaxxing"` on the response and rows.
+   */
+  async getAsyncOpportunities(
+    chainId?: number,
+    asset?: string,
+    status?: "live" | "not_live",
+  ): Promise<OpportunitiesResponse> {
+    const result = await this.getAdvancedOpportunities(chainId, asset, status);
+    return {
+      ...result,
+      strategyType: "yieldmaxxing",
+      data: result.data.map((o) => ({ ...o, strategyType: "yieldmaxxing" })),
+    };
   }
 
   /**

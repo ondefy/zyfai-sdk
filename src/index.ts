@@ -108,6 +108,7 @@ export type {
   ProtocolsResponse,
   PortfolioResponse,
   DepositResponse,
+  FirstPermitDepositStatus,
   SendDepositParams,
   SwapDepositParams,
   SwapDepositQuote,

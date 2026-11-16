@@ -100,6 +100,10 @@ export const ENDPOINTS = {
   USER_WITHDRAW: "/users/withdraw/v2",
   PARTIAL_WITHDRAW: "/users/partial-withdraw/v2",
   LOG_DEPOSIT: "/users/log_deposit/v2",
+  FIRST_PERMIT_DEPOSIT: "/users/me/permit-deposit",
+  FIRST_PERMIT_DEPOSIT_PREPARE: "/users/me/permit-deposit/prepare",
+  FIRST_PERMIT_DEPOSIT_SUBMIT: (id: string) =>
+    `/users/me/permit-deposit/${encodeURIComponent(id)}/submit`,
   FUNDING_ORDERS: "/users/me/funding-orders",
   FUNDING_ORDER: (orderId: string) =>
     `/users/me/funding-orders/${encodeURIComponent(orderId)}`,

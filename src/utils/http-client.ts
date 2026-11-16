@@ -139,8 +139,9 @@ export class HttpClient {
             case 403:
               throw new Error("Forbidden: Access denied");
             case 404:
-              throw new Error(
-                `Not found: ${data.message || "Resource not found"}`,
+              throw Object.assign(
+                new Error(`Not found: ${data.message || "Resource not found"}`),
+                { status },
               );
             case 429:
               throw new Error("Rate limit exceeded. Please try again later.");
