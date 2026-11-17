@@ -1,5 +1,13 @@
 # @zyfai/sdk
 
+## 0.15.1
+
+### Patch Changes
+
+- [#91](https://github.com/ondefy/zyfai-sdk/pull/91) [`a7dadb3`](https://github.com/ondefy/zyfai-sdk/commit/a7dadb3c49ca7ddd1a74d3968f71075884eed656) Thanks [@joepegler](https://github.com/joepegler)! - Turn on auto-selection of later vaults when a strategy is chosen, including conservative, and on a first deposit that has no profile yet.
+
+- [#86](https://github.com/ondefy/zyfai-sdk/pull/86) [`262732b`](https://github.com/ondefy/zyfai-sdk/commit/262732bfb348bd9001c7525232430cb8dcdfbbba) Thanks [@joepegler](https://github.com/joepegler)! - Opportunity reads request live pools unless the caller passes `not_live`.
+
 ## 0.15.0
 
 ### Minor Changes
