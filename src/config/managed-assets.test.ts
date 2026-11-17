@@ -10,6 +10,7 @@ describe("getManagedAssets", () => {
       "USDT",
       "PYUSD",
       "NVDAc",
+      "WBTC",
     ]);
   });
 });

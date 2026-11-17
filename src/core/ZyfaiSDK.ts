@@ -133,6 +133,8 @@ import type {
   VaultSharesResponse,
   VaultAsset,
   SupportedAsset,
+  VolumeAssetType,
+  HistoryAssetType,
   SendDepositParams,
   SwapDepositParams,
   SwapDepositQuote,
@@ -1770,7 +1772,7 @@ export class ZyfaiSDK {
       for (const asset of getManagedAssets()) {
         try {
           // Each asset is only patched on the chains it actually exists on
-          // (EURC skips Arbitrum, NVDAc is Base-only).
+          // (EURC skips Arbitrum, NVDAc is Base-only, WBTC skips Base).
           await this.updateUserProtocolsForAsset(
             asset,
             getAssetChainIds(asset),
@@ -2238,7 +2240,7 @@ export class ZyfaiSDK {
    * @param userAddress - Owner EOA (not the Safe)
    * @param chainId - Chain for the transfer
    * @param amount - Amount in least units (string integer)
-   * @param asset - Collateral symbol (`USDC`, `WETH`, `EURC`, `NVDAc`)
+   * @param asset - Collateral symbol (`USDC`, `WETH`, `EURC`, `USDT`, `PYUSD`, `NVDAc`, `WBTC`)
    * @param strategy - Optional first-deposit {@link Strategy}
    * @returns Transfer receipt and deposit registration
    *
@@ -2286,7 +2288,7 @@ export class ZyfaiSDK {
 
       if (!asset) {
         throw new Error(
-          "Asset is required (USDC, WETH, EURC, USDT, PYUSD, or NVDAc)",
+          "Asset is required (USDC, WETH, EURC, USDT, PYUSD, NVDAc, or WBTC)",
         );
       }
 
@@ -4729,16 +4731,19 @@ export class ZyfaiSDK {
    *
    * @remarks Data API. Partner API key only.
    *
-   * @returns Total volume in USD
+   * @param assetType - `"usdc"` (default), `"eth"`, `"eurc"`, or `"usdt"`
+   * @returns Cumulative deposit volume, summed in the asset's own units
+   * (dollars for `usdc` and `usdt`)
    *
    * @example
    * ```typescript
    * const volume = await sdk.getVolume();
+   * const usdtVolume = await sdk.getVolume("usdt");
    * console.log("Total Volume:", volume.volumeInUSD);
    * ```
    */
   async getVolume(
-    assetType: "usdc" | "eth" | "eurc" = "usdc",
+    assetType: VolumeAssetType = "usdc",
   ): Promise<VolumeResponse> {
     try {
       const response = await this.httpClient.get<any>(
@@ -4929,7 +4934,7 @@ export class ZyfaiSDK {
       offset?: number;
       fromDate?: string;
       toDate?: string;
-      assetType?: "usdc" | "eth" | "eurc";
+      assetType?: HistoryAssetType;
     },
   ): Promise<HistoryResponse> {
     try {

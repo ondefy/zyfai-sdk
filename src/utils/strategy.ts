@@ -147,7 +147,8 @@ export type InternalAssetType =
   | "eurc"
   | "usdt"
   | "pyusd"
-  | "nvdac";
+  | "nvdac"
+  | "wbtc";
 
 export function convertAssetInternally(
   asset: SupportedAsset,
@@ -159,7 +160,8 @@ export function convertAssetInternally(
     assetType === "eurc" ||
     assetType === "usdt" ||
     assetType === "pyusd" ||
-    assetType === "nvdac"
+    assetType === "nvdac" ||
+    assetType === "wbtc"
   ) {
     return assetType;
   }
