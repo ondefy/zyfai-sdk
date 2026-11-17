@@ -1,20 +1,30 @@
 # @zyfai/sdk
 
-## 0.15.0
+## 1.2.0
+
+### Patch Changes
+
+- [#91](https://github.com/ondefy/zyfai-sdk/pull/91) [`a7dadb3`](https://github.com/ondefy/zyfai-sdk/commit/a7dadb3c49ca7ddd1a74d3968f71075884eed656) Thanks [@joepegler](https://github.com/joepegler)! - Turn on auto-selection of later vaults when a strategy is chosen, including conservative, and on a first deposit that has no profile yet.
+
+- [#86](https://github.com/ondefy/zyfai-sdk/pull/86) [`262732b`](https://github.com/ondefy/zyfai-sdk/commit/262732bfb348bd9001c7525232430cb8dcdfbbba) Thanks [@joepegler](https://github.com/joepegler)! - Opportunity reads request live pools unless the caller passes `not_live`.
+
+## 1.1.0
 
 ### Minor Changes
 
 - [#88](https://github.com/ondefy/zyfai-sdk/pull/88) [`c700e5a`](https://github.com/ondefy/zyfai-sdk/commit/c700e5a1a8b48a0db5d735c39938785274b9ae97) Thanks [@joepegler](https://github.com/joepegler)! - Use a sponsored ERC-2612 permit for eligible direct first deposits. Add a status method to recover a first-deposit intent after an interrupted submission.
 
+- [#87](https://github.com/ondefy/zyfai-sdk/pull/87) [`8c5f7d7`](https://github.com/ondefy/zyfai-sdk/commit/8c5f7d793f148eb6e5edfbadbdf15bde6e5e6dc5) Thanks [@joepegler](https://github.com/joepegler)! - Add `getBalancedOpportunities` and `getAdvancedOpportunities` as the preferred opportunity readers for the balanced and advanced strategy tiers (`conservative` | `balanced` | `advanced`). `getAggressiveOpportunities` and `getAsyncOpportunities` remain as deprecated aliases with identical HTTP behaviour and legacy `strategyType` labels (`aggressive`, `yieldmaxxing`).
+
 ### Patch Changes
 
 - [#88](https://github.com/ondefy/zyfai-sdk/pull/88) [`c700e5a`](https://github.com/ondefy/zyfai-sdk/commit/c700e5a1a8b48a0db5d735c39938785274b9ae97) Thanks [@joepegler](https://github.com/joepegler)! - Fall back to ERC-20 transfer on any 404 from the first-permit-deposit availability endpoint, not only when the error message matches a legacy Express shape.
 
-## 0.14.0
+## 1.0.0
 
-### Minor Changes
+### Major Changes
 
-- [#87](https://github.com/ondefy/zyfai-sdk/pull/87) [`8c5f7d7`](https://github.com/ondefy/zyfai-sdk/commit/8c5f7d793f148eb6e5edfbadbdf15bde6e5e6dc5) Thanks [@joepegler](https://github.com/joepegler)! - Add `getBalancedOpportunities` and `getAdvancedOpportunities` as the preferred opportunity readers for the balanced and advanced strategy tiers (`conservative` | `balanced` | `advanced`). `getAggressiveOpportunities` and `getAsyncOpportunities` remain as deprecated aliases with identical HTTP behaviour and legacy `strategyType` labels (`aggressive`, `yieldmaxxing`).
+- [`a3a65e5`](https://github.com/ondefy/zyfai-sdk/commit/a3a65e5be26ee50cc5de6061c9182a84f8c65538) Thanks [@joepegler](https://github.com/joepegler)! - Public strategy tokens are `conservative`, `balanced`, and `advanced`. `aggressive` and `yieldmaxxing` are no longer accepted.
 
 ## 0.13.0
 
