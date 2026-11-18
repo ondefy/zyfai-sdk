@@ -5,6 +5,12 @@ let executionRequestOnFulfilled:
   | ((config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig)
   | undefined;
 
+let dataRequestOnFulfilled:
+  | ((config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig)
+  | undefined;
+
+const axiosCreateConfigs: Array<{ headers?: Record<string, string> }> = [];
+
 let axiosCreateCallCount = 0;
 
 const mockExecutionClient = {
@@ -31,7 +37,17 @@ const mockExecutionClient = {
 
 const mockDataClient = {
   interceptors: {
-    request: { use: vi.fn() },
+    request: {
+      use: vi.fn(
+        (
+          onFulfilled: (
+            config: InternalAxiosRequestConfig,
+          ) => InternalAxiosRequestConfig,
+        ) => {
+          dataRequestOnFulfilled = onFulfilled;
+        },
+      ),
+    },
     response: { use: vi.fn() },
   },
   get: vi.fn(),
@@ -40,7 +56,8 @@ const mockDataClient = {
 
 vi.mock("axios", () => ({
   default: {
-    create: vi.fn(() => {
+    create: vi.fn((config?: { headers?: Record<string, string> }) => {
+      axiosCreateConfigs.push(config ?? {});
       axiosCreateCallCount += 1;
       return axiosCreateCallCount % 2 === 1
         ? mockExecutionClient
@@ -50,6 +67,8 @@ vi.mock("axios", () => ({
   },
 }));
 
+import axios from "axios";
+import { SDK_VERSION } from "../version";
 import { HttpClient } from "./http-client";
 
 function runExecutionRequestInterceptor(
@@ -61,10 +80,65 @@ function runExecutionRequestInterceptor(
   return executionRequestOnFulfilled(config);
 }
 
+function runDataRequestInterceptor(
+  config: InternalAxiosRequestConfig,
+): InternalAxiosRequestConfig {
+  if (!dataRequestOnFulfilled) {
+    throw new Error("data request interceptor not registered");
+  }
+  return dataRequestOnFulfilled(config);
+}
+
 describe("HttpClient execution request headers", () => {
   beforeEach(() => {
     executionRequestOnFulfilled = undefined;
+    dataRequestOnFulfilled = undefined;
     axiosCreateCallCount = 0;
+    axiosCreateConfigs.length = 0;
+  });
+
+  it("sends the package version on execution and data clients", () => {
+    new HttpClient("partner-key", {
+      executionApiUrl: "http://localhost:3000",
+      dataApiUrl: "http://localhost:3001",
+    });
+
+    expect(axiosCreateConfigs).toHaveLength(2);
+    for (const config of axiosCreateConfigs) {
+      expect(config.headers?.["X-Zyfai-Sdk-Version"]).toBe(SDK_VERSION);
+    }
+
+    const execution = runExecutionRequestInterceptor({
+      headers: {} as InternalAxiosRequestConfig["headers"],
+    });
+    const data = runDataRequestInterceptor({
+      headers: {} as InternalAxiosRequestConfig["headers"],
+    });
+
+    expect(execution.headers?.["X-Zyfai-Sdk-Version"]).toBe(SDK_VERSION);
+    expect(data.headers?.["X-Zyfai-Sdk-Version"]).toBe(SDK_VERSION);
+  });
+
+  it("sends the package version on dataPostCustom", async () => {
+    const client = new HttpClient("partner-key", {
+      executionApiUrl: "http://localhost:3000",
+      dataApiUrl: "http://localhost:3001",
+    });
+
+    vi.mocked(axios.post).mockResolvedValue({ data: { ok: true } });
+
+    await client.dataPostCustom("/api/earnings/initialize", { ok: true });
+
+    expect(axios.post).toHaveBeenCalledWith(
+      "http://localhost:3001/api/earnings/initialize",
+      { ok: true },
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "X-Zyfai-Sdk-Version": SDK_VERSION,
+          "X-API-Key": "partner-key",
+        }),
+      }),
+    );
   });
 
   it("does not set Authorization when no auth token is configured", () => {

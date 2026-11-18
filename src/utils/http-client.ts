@@ -13,6 +13,7 @@ import {
   DATA_API_ENDPOINT,
   DATA_API_VERSION,
 } from "../config/endpoints";
+import { SDK_VERSION, SDK_VERSION_HEADER } from "../version";
 
 export interface HttpClientConfig {
   /** @internal */
@@ -53,6 +54,7 @@ export class HttpClient {
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": this.apiKey,
+        [SDK_VERSION_HEADER]: SDK_VERSION,
       },
       timeout: 30000,
     });
@@ -63,6 +65,7 @@ export class HttpClient {
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": this.apiKey,
+        [SDK_VERSION_HEADER]: SDK_VERSION,
       },
       timeout: 30000,
     });
@@ -103,6 +106,7 @@ export class HttpClient {
       (config) => {
         // Ensure API key is always present
         config.headers["X-API-Key"] = this.apiKey;
+        config.headers[SDK_VERSION_HEADER] = SDK_VERSION;
         // Note: Do NOT set Origin header - browsers set it automatically and block manually setting
 
         // Add auth token if available
@@ -234,6 +238,7 @@ export class HttpClient {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-API-Key": this.apiKey,
+      [SDK_VERSION_HEADER]: SDK_VERSION,
       ...(config?.headers as Record<string, string>),
     };
 
@@ -255,6 +260,7 @@ export class HttpClient {
     this.dataClient.interceptors.request.use(
       (config) => {
         config.headers["X-API-Key"] = this.apiKey;
+        config.headers[SDK_VERSION_HEADER] = SDK_VERSION;
 
         // Forward JWT token if available (required for protected data API endpoints)
         if (this.authToken) {

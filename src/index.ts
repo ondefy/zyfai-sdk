@@ -27,6 +27,9 @@
 /** Main SDK class — execution and analytics methods. */
 export { ZyfaiSDK } from "./core/ZyfaiSDK";
 
+/** Installed package version. Also sent as `X-Zyfai-Sdk-Version`. */
+export { SDK_VERSION } from "./version";
+
 /** EIP-1193 provider adapter for Bankr Agent API signing. */
 export {
   createBankrProvider,

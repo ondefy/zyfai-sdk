@@ -525,6 +525,8 @@ ownership rotation), and yield/agent tracking does not start.
 | `X-API-Key` | Identifies your SDK integration (set when constructing `ZyfaiSDK`) |
 | `Authorization: Bearer <jwt>` | Proves which user deposited (from `connectAccount()` → SIWE) |
 
+Every SDK request also sends `X-Zyfai-Sdk-Version` with the installed package version (`SDK_VERSION`).
+
 Calling `logDeposit()` **without** `connectAccount()` on the **same** SDK instance sends only the API key → **401 Unauthorized**. A common mistake is SIWE in the browser and `logDeposit()` on a **new** server-side `ZyfaiSDK` with no JWT.
 
 ```typescript
