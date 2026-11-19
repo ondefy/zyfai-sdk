@@ -101,9 +101,11 @@ export const ASSET_CONFIGS: Readonly<Record<string, any>> = {
     tokenSymbols: ['USDT'],
     tokenSymbolsByChainId: {
       1: 'USDT',
+      42161: 'USDT',
     },
     addresses: {
       1: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+      42161: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
     },
     enabled: true,
   },
