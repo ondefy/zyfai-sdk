@@ -1,5 +1,11 @@
 # @zyfai/sdk
 
+## 1.3.1
+
+### Patch Changes
+
+- [#97](https://github.com/ondefy/zyfai-sdk/pull/97) [`da9ddd8`](https://github.com/ondefy/zyfai-sdk/commit/da9ddd8d1982b37646945ba6062190953a48b42d) Thanks [@joepegler](https://github.com/joepegler)! - getAPYPerStrategy sends yieldmaxxing to the data API as async
+
 ## 1.3.0
 
 ### Minor Changes
