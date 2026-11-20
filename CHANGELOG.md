@@ -1,5 +1,11 @@
 # @zyfai/sdk
 
+## 1.3.2
+
+### Patch Changes
+
+- [#96](https://github.com/ondefy/zyfai-sdk/pull/96) [`079d400`](https://github.com/ondefy/zyfai-sdk/commit/079d400854a202ed421eecc49158f746d7cdbb8c) Thanks [@joepegler](https://github.com/joepegler)! - Allow USDT deposits on Arbitrum. The token address is the Arbitrum USDT contract used by the live Aave V3 reserve.
+
 ## 1.3.1
 
 ### Patch Changes
