@@ -200,6 +200,7 @@ import {
 } from "../utils/safe-account";
 import {
   toInternalStrategy,
+  toDataStrategy,
   convertStrategyToPublic,
   convertStrategiesToPublic,
   isValidPublicStrategy,
@@ -4693,15 +4694,11 @@ export class ZyfaiSDK {
     tokenSymbol?: string,
   ): Promise<APYPerStrategyResponse> {
     try {
-      const internalStrategy = toInternalStrategy(strategy);
-      const internalStrategyShort =
-        internalStrategy === "safe_strategy" ? "safe" : "degen";
-
       const response = await this.httpClient.dataGet<any>(
         DATA_ENDPOINTS.APY_PER_STRATEGY({
           isCrossChain: crossChain,
           days,
-          strategy: internalStrategyShort,
+          strategy: toDataStrategy(strategy),
           chainId,
           tokenSymbol,
         }),
