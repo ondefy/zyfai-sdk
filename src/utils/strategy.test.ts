@@ -5,6 +5,7 @@ import {
   convertStrategyToPublic,
   isValidPublicStrategy,
   shouldDefaultAutoSelectNewVaults,
+  toDataStrategy,
   toInternalStrategy,
   toPublicStrategy,
   toPublicStrategyOrUndefined,
@@ -37,6 +38,14 @@ describe("toInternalStrategy", () => {
 
   it("rejects an unknown strategy", () => {
     expect(() => toInternalStrategy("degen" as never)).toThrow(/yieldmaxxing/);
+  });
+});
+
+describe("toDataStrategy", () => {
+  it("maps yieldmaxxing to async, not degen", () => {
+    expect(toDataStrategy("conservative")).toBe("safe");
+    expect(toDataStrategy("aggressive")).toBe("degen");
+    expect(toDataStrategy("yieldmaxxing")).toBe("async");
   });
 });
 
