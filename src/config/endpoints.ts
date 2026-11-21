@@ -200,8 +200,17 @@ export const ENDPOINTS = {
 
   // Customization
   CUSTOMIZE_BATCH: "/customization/customize-batch",
-  CUSTOMIZATION_POOLS: (protocolId: string, strategy?: string) =>
-    `/customization/pools?protocolId=${protocolId}${strategy ? `&strategy=${strategy}` : ""}`,
+  CUSTOMIZATION_POOLS: (
+    protocolId: string,
+    strategy?: string,
+    options?: { liveOnly?: boolean; includeStatus?: boolean },
+  ) => {
+    const query = [`protocolId=${protocolId}`];
+    if (strategy) query.push(`strategy=${strategy}`);
+    if (options?.liveOnly) query.push("liveOnly=true");
+    if (options?.includeStatus) query.push("includeStatus=true");
+    return `/customization/pools?${query.join("&")}`;
+  },
   CUSTOMIZATION_SELECTED_POOLS: (protocolId: string, chainId: number) =>
     `/customization/selected-pools?protocolId=${protocolId}&chainId=${chainId}`,
 } as const;

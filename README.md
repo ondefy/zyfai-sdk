@@ -1027,6 +1027,7 @@ const history = await sdk.getHistory(walletAddress, 8453, {
   limit: 50,
   fromDate: "2024-01-01",
   assetType: "eth", // usdc | eth | eurc | usdt | pyusd | nvdac | wbtc
+  // rebalanceLegs: true marks async rebalance request, claim, and redeploy rows
 });
 history.data.forEach((tx) => {
   console.log(tx.action, tx.transactionHash);

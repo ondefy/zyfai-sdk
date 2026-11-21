@@ -1304,6 +1304,13 @@ export interface CustomizeBatchResponse {
   success: boolean;
 }
 
+export interface GetAvailablePoolsOptions {
+  /** Omit pools whose status is not live. Default false. */
+  liveOnly?: boolean;
+  /** Include each pool's status. Default false. */
+  includeStatus?: boolean;
+}
+
 export interface GetPoolsResponse {
   success: boolean;
   pools: string[];

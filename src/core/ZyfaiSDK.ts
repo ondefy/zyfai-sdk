@@ -117,6 +117,7 @@ import type {
   RegisterAgentResponse,
   CustomizationConfig,
   CustomizeBatchResponse,
+  GetAvailablePoolsOptions,
   GetPoolsResponse,
   GetSelectedPoolsResponse,
   SimulateBestPositionsParams,
@@ -4932,6 +4933,8 @@ export class ZyfaiSDK {
       fromDate?: string;
       toDate?: string;
       assetType?: HistoryAssetType;
+      /** Mark async rebalance request, claim, and redeploy rows as rebalance. */
+      rebalanceLegs?: boolean;
     },
   ): Promise<HistoryResponse> {
     try {
@@ -4951,6 +4954,7 @@ export class ZyfaiSDK {
       if (options?.offset) endpoint += `&offset=${options.offset}`;
       if (options?.fromDate) endpoint += `&fromDate=${options.fromDate}`;
       if (options?.toDate) endpoint += `&toDate=${options.toDate}`;
+      if (options?.rebalanceLegs) endpoint += `&rebalanceLegs=true`;
 
       const response = await this.httpClient.get<any>(endpoint);
 
@@ -6009,6 +6013,7 @@ export class ZyfaiSDK {
    *
    * @param protocolId - The protocol UUID
    * @param strategy - Optional {@link Strategy} filter
+   * @param options - `liveOnly` omits not-live pools. `includeStatus` adds each pool's status. Both default off.
    * @returns List of available pool names
    *
    * @example
@@ -6027,6 +6032,7 @@ export class ZyfaiSDK {
   async getAvailablePools(
     protocolId: string,
     strategy?: Strategy,
+    options?: GetAvailablePoolsOptions,
   ): Promise<GetPoolsResponse> {
     try {
       // Map public strategy to internal if provided
@@ -6041,7 +6047,11 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.get<GetPoolsResponse>(
-        ENDPOINTS.CUSTOMIZATION_POOLS(protocolId, internalStrategy),
+        ENDPOINTS.CUSTOMIZATION_POOLS(
+          protocolId,
+          internalStrategy,
+          options,
+        ),
       );
 
       return response;
