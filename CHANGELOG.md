@@ -1,5 +1,11 @@
 # @zyfai/sdk
 
+## 1.4.0
+
+### Minor Changes
+
+- [#98](https://github.com/ondefy/zyfai-sdk/pull/98) [`40b9b74`](https://github.com/ondefy/zyfai-sdk/commit/40b9b74605896e95a4ad5534abd0e99ebc9f21b8) Thanks [@joepegler](https://github.com/joepegler)! - Add optional getAvailablePools liveOnly and includeStatus flags, and getHistory rebalanceLegs. Defaults are unchanged.
+
 ## 1.3.2
 
 ### Patch Changes
