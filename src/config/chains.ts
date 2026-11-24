@@ -101,9 +101,11 @@ export const ASSET_CONFIGS: Readonly<Record<string, any>> = {
     tokenSymbols: ['USDT'],
     tokenSymbolsByChainId: {
       1: 'USDT',
+      42161: 'USDT',
     },
     addresses: {
       1: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+      42161: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
     },
     enabled: true,
   },
@@ -137,6 +139,26 @@ export const ASSET_CONFIGS: Readonly<Record<string, any>> = {
     },
     addresses: {
       8453: '0xb20000000000000000000078ee7ce2fE4908108C', // Base
+    },
+    enabled: true,
+  },
+  // Wrapped Bitcoin. 8 decimals; volatile, so its minimum is quoted in USD.
+  // cbBTC on Base is a separate asset and is not aliased here.
+  WBTC: {
+    symbol: 'WBTC',
+    assetType: 'wbtc',
+    displayName: 'WBTC',
+    icon: 'https://etherscan.io/token/images/wbtc_28.png',
+    decimals: 8,
+    priceTokenSymbol: 'wbtc',
+    tokenSymbols: ['WBTC'],
+    tokenSymbolsByChainId: {
+      1: 'WBTC',
+      42161: 'WBTC',
+    },
+    addresses: {
+      1: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', // Ethereum
+      42161: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f', // Arbitrum
     },
     enabled: true,
   },

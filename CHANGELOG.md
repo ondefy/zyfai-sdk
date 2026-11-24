@@ -1,5 +1,31 @@
 # @zyfai/sdk
 
+## 1.4.0
+
+### Minor Changes
+
+- [#98](https://github.com/ondefy/zyfai-sdk/pull/98) [`40b9b74`](https://github.com/ondefy/zyfai-sdk/commit/40b9b74605896e95a4ad5534abd0e99ebc9f21b8) Thanks [@joepegler](https://github.com/joepegler)! - Add optional getAvailablePools liveOnly and includeStatus flags, and getHistory rebalanceLegs. Defaults are unchanged.
+
+## 1.3.2
+
+### Patch Changes
+
+- [#96](https://github.com/ondefy/zyfai-sdk/pull/96) [`079d400`](https://github.com/ondefy/zyfai-sdk/commit/079d400854a202ed421eecc49158f746d7cdbb8c) Thanks [@joepegler](https://github.com/joepegler)! - Allow USDT deposits on Arbitrum. The token address is the Arbitrum USDT contract used by the live Aave V3 reserve.
+
+## 1.3.1
+
+### Patch Changes
+
+- [#97](https://github.com/ondefy/zyfai-sdk/pull/97) [`da9ddd8`](https://github.com/ondefy/zyfai-sdk/commit/da9ddd8d1982b37646945ba6062190953a48b42d) Thanks [@joepegler](https://github.com/joepegler)! - getAPYPerStrategy sends yieldmaxxing to the data API as async
+
+## 1.3.0
+
+### Minor Changes
+
+- [#95](https://github.com/ondefy/zyfai-sdk/pull/95) [`cea2970`](https://github.com/ondefy/zyfai-sdk/commit/cea297098e7f50559d04a0fb08d4c7d958077ba4) Thanks [@ihebabidi24](https://github.com/ihebabidi24)! - Add WBTC as a managed deposit asset on Ethereum Mainnet and Arbitrum (8 decimals). Like WETH, its minimum portfolio balance is quoted in USD ($10,000 on Mainnet, $10 on Arbitrum) and converted from the live Data API `wbtc` price at deposit time. WBTC joins the first-deposit protocol setup, `pauseAgent`/`resumeAgent`, and `setStrategyWithProtocols` through `getManagedAssets()`. cbBTC on Base is a separate asset and is not aliased to WBTC.
+
+  `getVolume` now accepts `"usdt"`, and `getHistory`'s `assetType` filter accepts every supported asset (`usdt`, `pyusd`, `nvdac`, `wbtc` in addition to `usdc`, `eth`, `eurc`). New exported types: `VolumeAssetType`, `HistoryAssetType`.
+
 ## 1.2.0
 
 ### Patch Changes

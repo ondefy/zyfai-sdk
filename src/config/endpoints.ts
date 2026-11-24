@@ -7,6 +7,7 @@
  */
 
 import { SupportedChainId } from "../config/chains";
+import type { HistoryAssetType, VolumeAssetType } from "../types";
 
 /** Backend stack selector for URL helper functions. */
 export type BackendEnvironment = "production" | "staging" | "local";
@@ -139,13 +140,13 @@ export const ENDPOINTS = {
   DATA_HISTORY: (
     walletAddress: string,
     chainId: SupportedChainId,
-    assetType?: "usdc" | "eth" | "eurc",
+    assetType?: HistoryAssetType,
   ) =>
     `/data/history?walletAddress=${walletAddress}&chainId=${chainId}${
       assetType ? `&assetType=${assetType}` : ""
     }`,
   DATA_TVL: "/data/usd-tvl",
-  DATA_VOLUME: (assetType: "usdc" | "eth" | "eurc") =>
+  DATA_VOLUME: (assetType: VolumeAssetType) =>
     `/data/volume?assetType=${assetType}`,
   DATA_FIRST_TOPUP: (walletAddress: string, chainId: number) =>
     `/data/first-topup?walletAddress=${walletAddress}&chainId=${chainId}`,
@@ -199,8 +200,17 @@ export const ENDPOINTS = {
 
   // Customization
   CUSTOMIZE_BATCH: "/customization/customize-batch",
-  CUSTOMIZATION_POOLS: (protocolId: string, strategy?: string) =>
-    `/customization/pools?protocolId=${protocolId}${strategy ? `&strategy=${strategy}` : ""}`,
+  CUSTOMIZATION_POOLS: (
+    protocolId: string,
+    strategy?: string,
+    options?: { liveOnly?: boolean; includeStatus?: boolean },
+  ) => {
+    const query = [`protocolId=${protocolId}`];
+    if (strategy) query.push(`strategy=${strategy}`);
+    if (options?.liveOnly) query.push("liveOnly=true");
+    if (options?.includeStatus) query.push("includeStatus=true");
+    return `/customization/pools?${query.join("&")}`;
+  },
   CUSTOMIZATION_SELECTED_POOLS: (protocolId: string, chainId: number) =>
     `/customization/selected-pools?protocolId=${protocolId}&chainId=${chainId}`,
 } as const;

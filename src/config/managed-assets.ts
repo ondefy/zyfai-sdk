@@ -8,6 +8,7 @@ const MANAGED_ASSET_ORDER: SupportedAsset[] = [
   "USDT",
   "PYUSD",
   "NVDAc",
+  "WBTC",
 ];
 
 /**

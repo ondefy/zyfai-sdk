@@ -32,6 +32,24 @@ export function toInternalStrategy(
   }
 }
 
+/** Short form the data API expects on rebalance-info (`safe`, `degen`, `async`). */
+export function toDataStrategy(
+  publicStrategy: PublicStrategy
+): "safe" | "degen" | "async" {
+  switch (publicStrategy) {
+    case "conservative":
+      return "safe";
+    case "aggressive":
+      return "degen";
+    case "yieldmaxxing":
+      return "async";
+    default:
+      throw new Error(
+        `Invalid public strategy: ${publicStrategy}. Must be ${PUBLIC_STRATEGIES}.`
+      );
+  }
+}
+
 export function toPublicStrategy(
   internalStrategy: InternalStrategy | "safe" | "degen" | "async"
 ): PublicStrategy {
@@ -147,7 +165,8 @@ export type InternalAssetType =
   | "eurc"
   | "usdt"
   | "pyusd"
-  | "nvdac";
+  | "nvdac"
+  | "wbtc";
 
 export function convertAssetInternally(
   asset: SupportedAsset,
@@ -159,7 +178,8 @@ export function convertAssetInternally(
     assetType === "eurc" ||
     assetType === "usdt" ||
     assetType === "pyusd" ||
-    assetType === "nvdac"
+    assetType === "nvdac" ||
+    assetType === "wbtc"
   ) {
     return assetType;
   }

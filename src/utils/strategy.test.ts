@@ -5,6 +5,7 @@ import {
   convertStrategyToPublic,
   isValidPublicStrategy,
   shouldDefaultAutoSelectNewVaults,
+  toDataStrategy,
   toInternalStrategy,
   toPublicStrategy,
   toPublicStrategyOrUndefined,
@@ -18,6 +19,7 @@ describe("convertAssetInternally", () => {
     expect(convertAssetInternally("USDT")).toBe("usdt");
     expect(convertAssetInternally("PYUSD")).toBe("pyusd");
     expect(convertAssetInternally("NVDAc")).toBe("nvdac");
+    expect(convertAssetInternally("WBTC")).toBe("wbtc");
   });
 
   it("does not throw for any symbol returned by getManagedAssets", () => {
@@ -36,6 +38,14 @@ describe("toInternalStrategy", () => {
 
   it("rejects an unknown strategy", () => {
     expect(() => toInternalStrategy("degen" as never)).toThrow(/yieldmaxxing/);
+  });
+});
+
+describe("toDataStrategy", () => {
+  it("maps yieldmaxxing to async, not degen", () => {
+    expect(toDataStrategy("conservative")).toBe("safe");
+    expect(toDataStrategy("aggressive")).toBe("degen");
+    expect(toDataStrategy("yieldmaxxing")).toBe("async");
   });
 });
 

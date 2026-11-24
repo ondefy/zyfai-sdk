@@ -100,6 +100,8 @@ export type {
   Hex,
   Strategy,
   SupportedAsset,
+  VolumeAssetType,
+  HistoryAssetType,
 
   // Core Response Types
   DeploySafeResponse,
@@ -208,6 +210,7 @@ export type {
   CustomizationConfig,
   CustomizeBatchRequest,
   CustomizeBatchResponse,
+  GetAvailablePoolsOptions,
   GetPoolsResponse,
   GetSelectedPoolsResponse,
 

@@ -117,6 +117,7 @@ import type {
   RegisterAgentResponse,
   CustomizationConfig,
   CustomizeBatchResponse,
+  GetAvailablePoolsOptions,
   GetPoolsResponse,
   GetSelectedPoolsResponse,
   SimulateBestPositionsParams,
@@ -133,6 +134,8 @@ import type {
   VaultSharesResponse,
   VaultAsset,
   SupportedAsset,
+  VolumeAssetType,
+  HistoryAssetType,
   SendDepositParams,
   SwapDepositParams,
   SwapDepositQuote,
@@ -198,6 +201,7 @@ import {
 } from "../utils/safe-account";
 import {
   toInternalStrategy,
+  toDataStrategy,
   convertStrategyToPublic,
   convertStrategiesToPublic,
   isValidPublicStrategy,
@@ -1770,7 +1774,7 @@ export class ZyfaiSDK {
       for (const asset of getManagedAssets()) {
         try {
           // Each asset is only patched on the chains it actually exists on
-          // (EURC skips Arbitrum, NVDAc is Base-only).
+          // (EURC skips Arbitrum, NVDAc is Base-only, WBTC skips Base).
           await this.updateUserProtocolsForAsset(
             asset,
             getAssetChainIds(asset),
@@ -2238,7 +2242,7 @@ export class ZyfaiSDK {
    * @param userAddress - Owner EOA (not the Safe)
    * @param chainId - Chain for the transfer
    * @param amount - Amount in least units (string integer)
-   * @param asset - Collateral symbol (`USDC`, `WETH`, `EURC`, `NVDAc`)
+   * @param asset - Collateral symbol (`USDC`, `WETH`, `EURC`, `USDT`, `PYUSD`, `NVDAc`, `WBTC`)
    * @param strategy - Optional first-deposit {@link Strategy}
    * @returns Transfer receipt and deposit registration
    *
@@ -2286,7 +2290,7 @@ export class ZyfaiSDK {
 
       if (!asset) {
         throw new Error(
-          "Asset is required (USDC, WETH, EURC, USDT, PYUSD, or NVDAc)",
+          "Asset is required (USDC, WETH, EURC, USDT, PYUSD, NVDAc, or WBTC)",
         );
       }
 
@@ -4691,15 +4695,11 @@ export class ZyfaiSDK {
     tokenSymbol?: string,
   ): Promise<APYPerStrategyResponse> {
     try {
-      const internalStrategy = toInternalStrategy(strategy);
-      const internalStrategyShort =
-        internalStrategy === "safe_strategy" ? "safe" : "degen";
-
       const response = await this.httpClient.dataGet<any>(
         DATA_ENDPOINTS.APY_PER_STRATEGY({
           isCrossChain: crossChain,
           days,
-          strategy: internalStrategyShort,
+          strategy: toDataStrategy(strategy),
           chainId,
           tokenSymbol,
         }),
@@ -4729,16 +4729,19 @@ export class ZyfaiSDK {
    *
    * @remarks Data API. Partner API key only.
    *
-   * @returns Total volume in USD
+   * @param assetType - `"usdc"` (default), `"eth"`, `"eurc"`, or `"usdt"`
+   * @returns Cumulative deposit volume, summed in the asset's own units
+   * (dollars for `usdc` and `usdt`)
    *
    * @example
    * ```typescript
    * const volume = await sdk.getVolume();
+   * const usdtVolume = await sdk.getVolume("usdt");
    * console.log("Total Volume:", volume.volumeInUSD);
    * ```
    */
   async getVolume(
-    assetType: "usdc" | "eth" | "eurc" = "usdc",
+    assetType: VolumeAssetType = "usdc",
   ): Promise<VolumeResponse> {
     try {
       const response = await this.httpClient.get<any>(
@@ -4929,7 +4932,9 @@ export class ZyfaiSDK {
       offset?: number;
       fromDate?: string;
       toDate?: string;
-      assetType?: "usdc" | "eth" | "eurc";
+      assetType?: HistoryAssetType;
+      /** Mark async rebalance request, claim, and redeploy rows as rebalance. */
+      rebalanceLegs?: boolean;
     },
   ): Promise<HistoryResponse> {
     try {
@@ -4949,6 +4954,7 @@ export class ZyfaiSDK {
       if (options?.offset) endpoint += `&offset=${options.offset}`;
       if (options?.fromDate) endpoint += `&fromDate=${options.fromDate}`;
       if (options?.toDate) endpoint += `&toDate=${options.toDate}`;
+      if (options?.rebalanceLegs) endpoint += `&rebalanceLegs=true`;
 
       const response = await this.httpClient.get<any>(endpoint);
 
@@ -6007,6 +6013,7 @@ export class ZyfaiSDK {
    *
    * @param protocolId - The protocol UUID
    * @param strategy - Optional {@link Strategy} filter
+   * @param options - `liveOnly` omits not-live pools. `includeStatus` adds each pool's status. Both default off.
    * @returns List of available pool names
    *
    * @example
@@ -6025,6 +6032,7 @@ export class ZyfaiSDK {
   async getAvailablePools(
     protocolId: string,
     strategy?: Strategy,
+    options?: GetAvailablePoolsOptions,
   ): Promise<GetPoolsResponse> {
     try {
       // Map public strategy to internal if provided
@@ -6039,7 +6047,11 @@ export class ZyfaiSDK {
       }
 
       const response = await this.httpClient.get<GetPoolsResponse>(
-        ENDPOINTS.CUSTOMIZATION_POOLS(protocolId, internalStrategy),
+        ENDPOINTS.CUSTOMIZATION_POOLS(
+          protocolId,
+          internalStrategy,
+          options,
+        ),
       );
 
       return response;
