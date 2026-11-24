@@ -9,7 +9,7 @@ import {
   getExecutionApiBaseUrl,
 } from "../config/endpoints";
 import type { SupportedChainId } from "../config/chains";
-import type { SDKConfig } from "../types";
+import type { HistoryEntry, SDKConfig } from "../types";
 
 const PRIVATE_KEY_RE = /^0x[a-fA-F0-9]{64}$/;
 
@@ -605,6 +605,73 @@ export function selectRelayQuoteSpend(
     }
   }
   return null;
+}
+
+export type CustomizationCatalogPool = {
+  chainId: string;
+  token: string;
+  name: string;
+  status?: string;
+};
+
+/**
+ * Flattens `GET /customization/pools` (chain, then token, then pool rows).
+ * A missing `status` means the response omitted it.
+ */
+export function flattenCustomizationCatalog(
+  catalog: unknown,
+): CustomizationCatalogPool[] {
+  if (!catalog || typeof catalog !== "object" || Array.isArray(catalog)) {
+    return [];
+  }
+  const pools: CustomizationCatalogPool[] = [];
+  for (const [chainId, tokens] of Object.entries(
+    catalog as Record<string, unknown>,
+  )) {
+    if (!tokens || typeof tokens !== "object" || Array.isArray(tokens)) {
+      continue;
+    }
+    for (const [token, entry] of Object.entries(
+      tokens as Record<string, unknown>,
+    )) {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        continue;
+      }
+      const rows = (entry as { pools?: unknown }).pools;
+      if (!Array.isArray(rows)) continue;
+      for (const row of rows) {
+        if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+        const name = (row as { name?: unknown }).name;
+        if (typeof name !== "string" || name.length === 0) continue;
+        const status = (row as { info?: { status?: unknown } }).info?.status;
+        pools.push({
+          chainId,
+          token,
+          name,
+          ...(typeof status === "string" ? { status } : {}),
+        });
+      }
+    }
+  }
+  return pools;
+}
+
+export function customizationCatalogPoolKey(
+  pool: CustomizationCatalogPool,
+): string {
+  return `${pool.chainId}:${pool.token}:${pool.name}`;
+}
+
+export function isAsyncWithdrawalHistory(row: HistoryEntry): boolean {
+  return (
+    row.action === "Request async withdrawal" ||
+    row.action === "Claim async withdrawal"
+  );
+}
+
+/** Rows `rebalanceLegs` is allowed to flip from false to true. */
+export function canOptInHistoryRebalance(row: HistoryEntry): boolean {
+  return isAsyncWithdrawalHistory(row) || row.action === "Deposit to protocol";
 }
 
 export { pollUntil } from "../utils/poll";
