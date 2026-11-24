@@ -210,6 +210,7 @@ export type {
   CustomizationConfig,
   CustomizeBatchRequest,
   CustomizeBatchResponse,
+  GetAvailablePoolsOptions,
   GetPoolsResponse,
   GetSelectedPoolsResponse,
 
