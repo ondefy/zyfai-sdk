@@ -27,7 +27,7 @@
 /** Main SDK class — execution and analytics methods. */
 export { ZyfaiSDK } from "./core/ZyfaiSDK";
 
-export { hashV1SessionEnable, type V1ChainSessions } from "./utils/session-verification";
+export { buildV1ChainSessions, serializeV1ChainSessions, parseV1ChainSessions, hashV1SessionEnable, type V1ChainSessions, type V1SessionEnableInput } from "./utils/session-verification";
 
 /** EIP-1193 provider adapter for Bankr Agent API signing. */
 export {
