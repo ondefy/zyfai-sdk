@@ -378,6 +378,30 @@ Add a wallet address to the SDK API key's allowedWallets list. This endpoint req
 
 ### 3. Session Keys
 
+#### Verify a Smart Sessions v1 enable message
+
+For the legacy EOA-owner personal-sign flow, `hashV1SessionEnable` recomputes
+the message displayed by the wallet and its EIP-191 signing digest offline.
+Obtain the complete, ordered chain-session payload from the application creating
+the signature request, including all permission flags, policy bytes, contract
+addresses, session validator, salt and per-chain nonce. For JSON, encode
+`chainId` and `session.nonce` as decimal strings and convert them to `bigint`.
+
+```ts
+import { hashV1SessionEnable, type V1ChainSessions } from "@zyfai/sdk";
+
+// Parse a trusted payload and convert its integer strings to bigint first.
+declare const chainSessions: V1ChainSessions;
+const { permissionEnableHash, personalSignDigest } = hashV1SessionEnable(chainSessions);
+console.log({ permissionEnableHash, personalSignDigest });
+```
+
+Compare `permissionEnableHash` with the wallet's displayed message before
+signing. Review and decode every policy independently: a matching hash does not
+mean the permissions are safe. The EIP-191 digest is different from the message
+displayed by the wallet. The application must supply the payload; this helper
+cannot recover it from a hash or verify the current on-chain state.
+
 Session keys enable delegated transaction execution without exposing the main private key.
 
 #### Simple Usage (Legacy — deprecated)
