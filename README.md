@@ -378,6 +378,50 @@ Add a wallet address to the SDK API key's allowedWallets list. This endpoint req
 
 ### 3. Session Keys
 
+#### Verify a Smart Sessions v1 enable message
+
+For the legacy EOA-owner personal-sign flow, construct an exact, ordered payload
+from the same inputs used by the signer. All flags are explicit: do not guess
+or substitute defaults. For the frontend flow, the Smart Sessions address must
+match the address used by its installed Rhinestone module SDK, which may differ
+from another validator installed on the account.
+
+```ts
+import {
+  buildV1ChainSessions, serializeV1ChainSessions, parseV1ChainSessions,
+  hashV1SessionEnable, type V1SessionEnableInput,
+} from "@zyfai/sdk";
+
+// These values must come from the actual pending signature request.
+// Repeat the entry for every chain, in exactly the signer's order.
+declare const actualInput: V1SessionEnableInput;
+const payload = buildV1ChainSessions([actualInput]);
+const jsonForReviewer = serializeV1ChainSessions(payload);
+
+// The reviewer receives the full JSON and recomputes locally.
+const reviewedPayload = parseV1ChainSessions(jsonForReviewer);
+const { permissionEnableHash, personalSignDigest } = hashV1SessionEnable(reviewedPayload);
+console.log({ permissionEnableHash, personalSignDigest });
+```
+
+Each `V1SessionEnableInput` requires the smart-account address, Smart Sessions
+contract address, nonce, three permission flags, and a session containing chain
+ID, session validator and initialisation bytes, salt, paymaster flag, user-op
+policies, ERC-7739 policies and permitted actions. Each action includes its
+contract address, four-byte selector and policy addresses and initialisation
+bytes. The JSON format represents chain IDs and nonces as decimal strings.
+Keep array order and all bytes unchanged. The helper rejects missing fields,
+invalid addresses, malformed bytes, invalid integer ranges and numeric JSON
+chain IDs or nonces.
+
+Compare `permissionEnableHash` byte-for-byte with the wallet's displayed
+message. The EIP-191 digest is different from that displayed message. Review
+and decode every policy independently against the actual contracts and ABIs: a
+matching hash does not establish what policy bytes mean or that permissions are
+safe. The application must supply the exact payload; the helper cannot recover
+it from a hash, verify on-chain state, or verify that the export is the one
+passed to the wallet. Regenerate the package whenever inputs or nonces change.
+
 Session keys enable delegated transaction execution without exposing the main private key.
 
 #### Simple Usage (Legacy — deprecated)
